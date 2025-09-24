@@ -13,10 +13,10 @@ app.use(bodyParser.json({ limit: "5mb" })); // para imagenes en base64
 
 // Configuración PostgreSQL
 const pool = new Pool({
-  user: "postgres",
-  host: "localhost",
+  user: "fernando",
+  host: "postgresql://fernando:zPxkQxOVRTeEr0AOQ4PQBXsAO0tJbPdp@dpg-d39tdemmcj7s739kp1tg-a/skybase",
   database: "skybase",
-  password: "repliKat",
+  password: "zPxkQxOVRTeEr0AOQ4PQBXsAO0tJbPdp",
   port: 5432,
 });
 
@@ -69,3 +69,4 @@ app.put("/tareas/:id", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
