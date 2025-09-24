@@ -5,19 +5,19 @@ const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 
 const app = express();
-const PORT = 4000;
+const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" })); // para imagenes en base64
 
-// Configuración PostgreSQL
+// Configuración PostgreSQL usando variables de entorno de Render
 const pool = new Pool({
-  user: "fernando",
-  host: "postgresql://fernando:zPxkQxOVRTeEr0AOQ4PQBXsAO0tJbPdp@dpg-d39tdemmcj7s739kp1tg-a/skybase",
-  database: "skybase",
-  password: "zPxkQxOVRTeEr0AOQ4PQBXsAO0tJbPdp",
-  port: 5432,
+  user: process.env.PGUSER,
+  host: process.env.PGHOST,
+  database: process.env.PGDATABASE,
+  password: process.env.PGPASSWORD,
+  port: process.env.PGPORT,
 });
 
 // ----------------- RUTAS -----------------
@@ -38,7 +38,7 @@ app.post("/tareas", async (req, res) => {
   const { usuario, tarea, fin, imagen } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO ric01 (usuario, tarea, fin, imagen) VALUES ($1, $2, $3, $4) RETURNING *",
+      "INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha) VALUES ($1, $2, $3, $4, NOW()) RETURNING *",
       [usuario, tarea, fin || false, imagen || null]
     );
     res.json(result.rows[0]);
@@ -52,7 +52,6 @@ app.post("/tareas", async (req, res) => {
 app.put("/tareas/:id", async (req, res) => {
   const { id } = req.params;
   const { tarea, fin, imagen } = req.body;
-
   try {
     const result = await pool.query(
       "UPDATE ric01 SET tarea=$1, fin=$2, imagen=$3 WHERE id=$4 RETURNING *",
@@ -69,4 +68,3 @@ app.put("/tareas/:id", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
-
