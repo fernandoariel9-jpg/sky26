@@ -67,7 +67,7 @@ app.put("/tareas/:id", async (req, res) => {
   }
 });
 
-// Crear usuario nuevo
+// Registro de usuario
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, movil, mail } = req.body;
   try {
@@ -75,7 +75,7 @@ app.post("/usuarios", async (req, res) => {
       "INSERT INTO usuarios (nombre, servicio, movil, mail) VALUES ($1, $2, $3, $4) RETURNING *",
       [nombre, servicio, movil, mail]
     );
-    res.json(result.rows[0]);
+    res.json({ success: true, usuario: result.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al registrar usuario" });
@@ -83,9 +83,11 @@ app.post("/usuarios", async (req, res) => {
 });
 
 
+
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
