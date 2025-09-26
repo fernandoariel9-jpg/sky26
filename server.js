@@ -82,8 +82,30 @@ app.post("/usuarios", async (req, res) => {
   }
 });
 
+// Login de usuario (validación contra la tabla)
+app.post("/login", async (req, res) => {
+  const { nombre } = req.body;
+  try {
+    const result = await pool.query(
+      "SELECT * FROM usuarios WHERE nombre = $1",
+      [nombre]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "Usuario no registrado" });
+    }
+
+    res.json({ success: true, usuario: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error en el login" });
+  }
+});
+
+
 
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
