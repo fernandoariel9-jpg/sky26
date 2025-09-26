@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -7,25 +6,24 @@ const { Pool } = require("pg");
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Middleware
 app.use(cors());
-app.use(bodyParser.json({ limit: "5mb" })); // para imagenes en base64
+app.use(bodyParser.json({ limit: "5mb" }));
 
-// Configuración PostgreSQL usando variables de entorno de Render
+// Configuración PostgreSQL con Render
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
-  ssl: {
-    rejectUnauthorized: false, // Render requiere SSL pero sin verificar certificado
-  },
+  ssl: { rejectUnauthorized: false },
 });
 
-// ----------------- RUTAS -----------------
+// ---------------- TABLAS ----------------
+// Tareas: ric01
+// Usuarios: usuarios
 
-// Obtener todas las tareas
+// ---------- Rutas de Tareas ----------
 app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
@@ -36,12 +34,11 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
-// Crear nueva tarea
 app.post("/tareas", async (req, res) => {
   const { usuario, tarea, fin, imagen } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha) VALUES ($1, $2, $3, $4, NOW()) RETURNING *",
+      "INSERT INTO ric01 (usuario, tarea, fin, imagen) VALUES ($1,$2,$3,$4) RETURNING *",
       [usuario, tarea, fin || false, imagen || null]
     );
     res.json(result.rows[0]);
@@ -51,7 +48,6 @@ app.post("/tareas", async (req, res) => {
   }
 });
 
-// Actualizar tarea
 app.put("/tareas/:id", async (req, res) => {
   const { id } = req.params;
   const { tarea, fin, imagen } = req.body;
@@ -67,28 +63,35 @@ app.put("/tareas/:id", async (req, res) => {
   }
 });
 
-// Registro de usuario
+// ---------- Rutas de Usuarios ----------
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, movil, mail } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO usuarios (nombre, servicio, movil, mail) VALUES ($1, $2, $3, $4) RETURNING *",
+      "INSERT INTO usuarios (nombre, servicio, movil, mail) VALUES ($1,$2,$3,$4) RETURNING *",
       [nombre, servicio, movil, mail]
     );
-    res.json({ success: true, usuario: result.rows[0] });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
 
+app.get("/usuarios/:nombre", async (req, res) => {
+  const { nombre } = req.params;
+  try {
+    const result = await pool.query("SELECT * FROM usuarios WHERE nombre=$1", [
+      nombre,
+    ]);
+    if (result.rows.length > 0) res.json(result.rows[0]);
+    else res.status(404).json({ error: "Usuario no encontrado" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al buscar usuario" });
+  }
+});
 
-// ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
-
-
-
-
-
