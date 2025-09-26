@@ -67,7 +67,7 @@ app.put("/tareas/:id", async (req, res) => {
   }
 });
 
-// Registro de usuario
+// Registrar usuario
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, movil, mail } = req.body;
   try {
@@ -75,32 +75,29 @@ app.post("/usuarios", async (req, res) => {
       "INSERT INTO usuarios (nombre, servicio, movil, mail) VALUES ($1, $2, $3, $4) RETURNING *",
       [nombre, servicio, movil, mail]
     );
-    res.json({ success: true, usuario: result.rows[0] });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
 
-// Login de usuario (validación contra la tabla)
+// Login usuario
 app.post("/login", async (req, res) => {
   const { nombre } = req.body;
   try {
     const result = await pool.query(
-      "SELECT * FROM usuarios WHERE nombre = $1",
+      "SELECT * FROM usuarios WHERE nombre=$1",
       [nombre]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(401).json({ error: "Usuario no registrado" });
-    }
-
-    res.json({ success: true, usuario: result.rows[0] });
+    if (result.rows.length === 0) return res.status(401).json({ error: "Usuario no registrado" });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error en el login" });
+    res.status(500).json({ error: "Error al loguear usuario" });
   }
 });
+
 
 
 
@@ -108,4 +105,5 @@ app.post("/login", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
