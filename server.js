@@ -56,7 +56,7 @@ app.put("/tareas/:id", async (req, res) => {
   try {
     const result = await pool.query(
       "UPDATE ric01 SET tarea=$1, fin=$2, imagen=$3, solucion=$4 WHERE id=$5 RETURNING *",
-      [tarea, fin, imagen, solucion || null, id]
+      [tarea, fin, imagen, solucion, id]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -146,3 +146,4 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
