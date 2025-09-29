@@ -103,29 +103,34 @@ app.post("/login", async (req, res) => {
 // TABLA PERSONAL
 // ========================
 
-// Registro de personal
+// Registrar personal validando el área
 app.post("/personal", async (req, res) => {
+  const { nombre, movil, mail, area, password } = req.body;
   try {
-    const { nombre, movil, mail, area, password } = req.body;
+    // Validar que el área exista
+    const areaCheck = await pool.query("SELECT * FROM areas WHERE nombre=$1", [area]);
+    if (areaCheck.rows.length === 0) return res.status(400).json({ error: "Área inválida" });
+
     const result = await pool.query(
-      "INSERT INTO personal (nombre, movil, mail, area, password) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      "INSERT INTO personal(nombre,movil,mail,area,password) VALUES($1,$2,$3,$4,$5) RETURNING *",
       [nombre, movil, mail, area, password]
     );
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error registrando personal" });
+    res.status(500).json({ error: "Error al registrar personal" });
   }
 });
 
 // Obtener todas las áreas
 app.get("/areas", async (req, res) => {
   try {
-    const result = await pool.query("SELECT nombre FROM areas ORDER BY nombre ASC");
-    res.json(result.rows); // devuelve [{nombre: "AREA 1"}, {nombre: "AREA 2"}, ...]
+    const result = await pool.query("SELECT * FROM areas ORDER BY id");
+    res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error al obtener las áreas" });
+    res.status(500).json({ error: "Error al obtener áreas" });
   }
 });
 
@@ -154,5 +159,6 @@ app.post("/personal/login", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
