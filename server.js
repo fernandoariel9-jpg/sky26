@@ -65,6 +65,30 @@ app.put("/tareas/:id", async (req, res) => {
   }
 });
 
+app.put("/tareas/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { solucion } = req.body;
+
+    const result = await pool.query(
+      `UPDATE ric01
+       SET solucion = $1
+       WHERE id = $2
+       RETURNING *`,
+      [solucion, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Tarea no encontrada" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("❌ Error al actualizar solución:", err);
+    res.status(500).json({ error: "Error al actualizar solución" });
+  }
+});
+
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, movil, mail, password } = req.body;
@@ -146,4 +170,5 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
