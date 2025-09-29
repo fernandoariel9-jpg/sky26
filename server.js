@@ -146,3 +146,4 @@ app.post("/personal/login", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
+
