@@ -118,6 +118,17 @@ app.post("/personal", async (req, res) => {
   }
 });
 
+// Obtener todas las áreas
+app.get("/areas", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT nombre FROM areas ORDER BY nombre ASC");
+    res.json(result.rows); // devuelve [{nombre: "AREA 1"}, {nombre: "AREA 2"}, ...]
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener las áreas" });
+  }
+});
+
 // Login de personal
 app.post("/personal/login", async (req, res) => {
   try {
@@ -143,4 +154,5 @@ app.post("/personal/login", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
