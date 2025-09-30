@@ -50,22 +50,18 @@ app.post("/tareas", async (req, res) => {
   }
 });
 
-// Actualizar tarea con solución incluida
-app.put("/tareas/:id", async (req, res) => {
+// Actualizar solo la solución (personal)
+app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
-  const { tarea, fin, imagen, solucion } = req.body;
+  const { solucion } = req.body;
 
   try {
     const result = await pool.query(
       `UPDATE ric01
-       SET 
-         tarea = COALESCE($1, tarea),
-         fin = COALESCE($2, fin),
-         imagen = COALESCE($3, imagen),
-         solucion = COALESCE($4, solucion)
-       WHERE id = $5
+       SET solucion = $1
+       WHERE id = $2
        RETURNING *`,
-      [tarea, fin, imagen, solucion, id]
+      [solucion, id]
     );
 
     if (result.rows.length === 0) {
@@ -74,10 +70,36 @@ app.put("/tareas/:id", async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error al actualizar tarea:", err);
-    res.status(500).json({ error: "Error al actualizar tarea" });
+    console.error("❌ Error al actualizar solución:", err);
+    res.status(500).json({ error: "Error al actualizar solución" });
   }
 });
+
+// Finalizar tarea (usuario)
+app.put("/tareas/:id", async (req, res) => {
+  const { id } = req.params;
+  const { fin } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE ric01
+       SET fin = $1
+       WHERE id = $2
+       RETURNING *`,
+      [fin, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Tarea no encontrada" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("❌ Error al finalizar tarea:", err);
+    res.status(500).json({ error: "Error al finalizar tarea" });
+  }
+});
+
 
 
 // ---------- USUARIOS ----------
@@ -161,6 +183,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
