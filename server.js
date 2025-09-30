@@ -105,11 +105,11 @@ app.post("/usuarios", async (req, res) => {
 });
 
 app.post("/usuarios/login", async (req, res) => {
-  const { nombre, password } = req.body;
+  const { mail, password } = req.body;
   try {
     const result = await pool.query(
-      "SELECT * FROM usuarios WHERE nombre=$1 AND password=$2",
-      [nombre, password]
+      "SELECT * FROM usuarios WHERE mail=$1 AND password=$2",
+      [mail, password]
     );
     if (result.rows.length === 0)
       return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
@@ -170,5 +170,6 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
