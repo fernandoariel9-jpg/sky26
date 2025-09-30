@@ -169,16 +169,16 @@ app.post("/personal/login", async (req, res) => {
 });
 
 // ---------- SERVICIOS ----------
-app.get("/Servicios", async (req, res) => {
+app.get("/servicios", async (req, res) => {
   try {
-    // Suponiendo que la tabla se llama "Servicios" y la columna "servicio"
-    const result = await pool.query("SELECT DISTINCT Servicio FROM Servicios ORDER BY Servicio");
-    res.json(result.rows); // devuelve [{servicio: "Ingeniería Clínica"}, ...]
+    const result = await pool.query("SELECT DISTINCT servicio FROM servicios ORDER BY servicio");
+    res.json(result.rows);
   } catch (err) {
-    console.error("Error al obtener servicios", err);
+    console.error("Error al obtener servicios", err.message); // log más claro
     res.status(500).json({ error: "Error al obtener servicios" });
   }
 });
+
 
 // ---------- AREAS ----------
 app.get("/areas", async (req, res) => {
@@ -195,6 +195,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
