@@ -171,7 +171,7 @@ app.post("/personal/login", async (req, res) => {
 // ---------- SERVICIOS ----------
 app.get("/servicios", async (req, res) => {
   try {
-    const result = await pool.query("SELECT DISTINCT Servicio FROM public.Servicios ORDER BY Servicio");
+    const result = await pool.query("SELECT DISTINCT Servicio FROM Servicios ORDER BY Servicio");
     res.json(result.rows);
   } catch (err) {
     console.error("Error al obtener servicios", err.message); // log más claro
@@ -195,6 +195,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
