@@ -50,32 +50,22 @@ app.post("/tareas", async (req, res) => {
   }
 });
 
+// Actualizar tarea con solución incluida
 app.put("/tareas/:id", async (req, res) => {
   const { id } = req.params;
   const { tarea, fin, imagen, solucion } = req.body;
-  try {
-    const result = await pool.query(
-      "UPDATE ric01 SET tarea=$1, fin=$2, imagen=$3, solucion=$4 WHERE id=$5 RETURNING *",
-      [tarea, fin, imagen, solucion, id]
-    );
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al actualizar tarea" });
-  }
-});
 
-app.put("/tareas/:id", async (req, res) => {
   try {
-    const { id } = req.params;
-    const { solucion } = req.body;
-
     const result = await pool.query(
       `UPDATE ric01
-       SET solucion = $1
-       WHERE id = $2
+       SET 
+         tarea = COALESCE($1, tarea),
+         fin = COALESCE($2, fin),
+         imagen = COALESCE($3, imagen),
+         solucion = COALESCE($4, solucion)
+       WHERE id = $5
        RETURNING *`,
-      [solucion, id]
+      [tarea, fin, imagen, solucion, id]
     );
 
     if (result.rows.length === 0) {
@@ -84,10 +74,11 @@ app.put("/tareas/:id", async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error al actualizar solución:", err);
-    res.status(500).json({ error: "Error al actualizar solución" });
+    console.error("❌ Error al actualizar tarea:", err);
+    res.status(500).json({ error: "Error al actualizar tarea" });
   }
 });
+
 
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
@@ -170,6 +161,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
