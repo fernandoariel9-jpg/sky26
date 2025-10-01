@@ -45,8 +45,8 @@ app.post("/tareas", async (req, res) => {
   const { usuario, tarea, fin, imagen } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha) VALUES ($1, $2, $3, $4, NOW()) RETURNING *",
-      [usuario, tarea, fin || false, imagen || null]
+      "INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, area) VALUES ($1, $2, $3, $4, NOW(), $5) RETURNING *",
+      [usuario, tarea, fin || false, imagen || null, area]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -199,6 +199,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
