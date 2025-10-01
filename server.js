@@ -77,6 +77,17 @@ app.get("/servicios", async (req, res) => {
   }
 });
 
+// ---------- AREAS ----------
+app.get("/areas", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM areas ORDER BY id");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener áreas" });
+  }
+});
+
 // ---------------- Tareas ----------------
 // Crear tarea → asigna área automáticamente según el usuario
 app.post("/tareas", async (req, res) => {
@@ -147,6 +158,7 @@ app.put("/tareas/:id", async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+
 
 
 
