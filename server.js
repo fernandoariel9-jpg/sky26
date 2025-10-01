@@ -42,7 +42,7 @@ app.get("/tareas", async (req, res) => {
 });
 
 app.post("/tareas", async (req, res) => {
-  const { usuario, tarea, fin, imagen } = req.body;
+  const { usuario, tarea, fin, imagen, area} = req.body;
   try {
     const result = await pool.query(
       "INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, area) VALUES ($1, $2, $3, $4, NOW(), $5) RETURNING *",
