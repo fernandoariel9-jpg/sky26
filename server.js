@@ -158,7 +158,3 @@ app.put("/tareas/:id", async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
-
-
-
-
