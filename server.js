@@ -142,7 +142,7 @@ app.post("/usuarios/login", async (req, res) => {
 app.post("/personal", async (req, res) => {
   const { nombre, movil, mail, area, password } = req.body;
   try {
-    const areaCheck = await pool.query("SELECT * FROM areas WHERE nombre=$1", [area]);
+    const areaCheck = await pool.query("SELECT * FROM areas WHERE area=$1", [area]);
     if (areaCheck.rows.length === 0)
       return res.status(400).json({ error: "Área inválida" });
 
