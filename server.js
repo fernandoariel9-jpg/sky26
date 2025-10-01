@@ -26,14 +26,14 @@ const pool = new Pool({
 // ----------------- RUTAS -----------------
 
 // ---------- TAREAS ----------
-app.get("/tareas", async (req, res) => {
-  const { area } = req.query; // ej: /tareas?area=Soporte
+// Endpoint GET de tareas filtradas por área
+app.get("/tareas/:area", async (req, res) => {
+  const { area } = req.params;
   try {
-    const query = area
-      ? "SELECT * FROM ric01 WHERE area=$1 ORDER BY fecha DESC"
-      : "SELECT * FROM ric01 ORDER BY fecha DESC";
-    const params = area ? [area] : [];
-    const result = await pool.query(query, params);
+    const result = await pool.query(
+      "SELECT * FROM ric01 WHERE area = $1 ORDER BY fecha DESC",
+      [area]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
