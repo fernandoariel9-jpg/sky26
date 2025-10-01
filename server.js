@@ -100,15 +100,15 @@ app.put("/tareas/:id", async (req, res) => {
   }
 });
 
-
-
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
-  const { nombre, servicio, movil, mail, password } = req.body;
+  const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO usuarios (nombre, servicio, movil, mail, password) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [nombre, servicio, movil, mail, password]
+      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [nombre, servicio, subservicio, area, movil, mail, password]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -194,5 +194,6 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
