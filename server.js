@@ -59,8 +59,13 @@ app.post("/personal", async (req, res) => {
 
 // ---------------- Servicios ----------------
 app.get("/servicios", async (req, res) => {
-  const result = await pool.query("SELECT servicio, area FROM servicios");
-  res.json(result.rows);
+  try {
+    const result = await pool.query("SELECT servicio, subservicio, area FROM servicios");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener servicios" });
+  }
 });
 
 // ---------------- Tareas ----------------
@@ -133,3 +138,4 @@ app.put("/tareas/:id", async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+
