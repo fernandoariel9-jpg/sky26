@@ -50,8 +50,8 @@ app.post("/tareas", async (req, res) => {
     );
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al crear tarea" });
+    console.error("ERROR DETALLADO:", err); // log completo
+    res.status(500).json({ error: err.message }); // devuelve mensaje real al frontend
   }
 });
 
@@ -199,6 +199,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
