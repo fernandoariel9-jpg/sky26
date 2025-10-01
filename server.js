@@ -27,8 +27,13 @@ const pool = new Pool({
 
 // ---------- TAREAS ----------
 app.get("/tareas", async (req, res) => {
+  const { area } = req.query; // ej: /tareas?area=Soporte
   try {
-    const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
+    const query = area
+      ? "SELECT * FROM ric01 WHERE area=$1 ORDER BY fecha DESC"
+      : "SELECT * FROM ric01 ORDER BY fecha DESC";
+    const params = area ? [area] : [];
+    const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -194,6 +199,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
