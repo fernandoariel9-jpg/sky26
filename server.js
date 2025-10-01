@@ -27,18 +27,24 @@ app.get("/usuarios", async (req, res) => {
 });
 
 app.post("/usuarios", async (req, res) => {
-  const { nombre, servicio, area, movil, mail, password } = req.body;
+  const { nombre, servicio, subservicio, movil, mail, password } = req.body;
   try {
     const result = await pool.query(
-      "INSERT INTO usuarios (nombre, servicio, area, movil, mail, password) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *",
-      [nombre, servicio, area, movil, mail, password]
+      `INSERT INTO usuarios (nombre, servicio, subservicio, movil, mail, password)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *`,
+      [nombre, servicio, subservicio, movil, mail, password]
     );
-    res.status(201).json(result.rows[0]);
+    res.json(result.rows[0]);
   } catch (err) {
+    if (err.code === "23505") {
+      return res.status(400).json({ error: "❌ El correo ya está registrado" });
+    }
     console.error(err);
     res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
+
 
 // ---------------- Personal ----------------
 app.get("/personal", async (req, res) => {
@@ -141,5 +147,6 @@ app.put("/tareas/:id", async (req, res) => {
 });
 
 app.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+
 
 
