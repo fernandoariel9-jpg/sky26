@@ -41,6 +41,18 @@ app.get("/tareas/:area", async (req, res) => {
   }
 });
 
+// Agregar esto en server.js (por ejemplo arriba o junto a las otras rutas)
+app.get("/tareas", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener todas las tareas", err);
+    res.status(500).json({ error: "Error al obtener tareas" });
+  }
+});
+
+
 app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area } = req.body;
@@ -225,6 +237,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
