@@ -101,15 +101,15 @@ app.post("/tareas", async (req, res) => {
 // Actualizar solo la solución (personal)
 app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
-  const { solucion } = req.body;
+  const { solucion, asignado } = req.body;
 
   try {
     const result = await pool.query(
       `UPDATE ric01
-       SET solucion = $1
-       WHERE id = $2
+       SET solucion = $1, asignado = $2
+       WHERE id = $3
        RETURNING *`,
-      [solucion, id]
+      [solucion, asignado || null, id]
     );
 
     if (result.rows.length === 0) {
@@ -242,6 +242,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
