@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -7,11 +6,20 @@ const { Pool } = require("pg");
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Middleware
-app.use(cors());
+// ----------------- CONFIGURACIÓN CORS -----------------
+const corsOptions = {
+  origin: "https://icsky26.onrender.com", // tu frontend
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions)); // responder a preflight requests
+
+// ----------------- BODY PARSER -----------------
 app.use(bodyParser.json({ limit: "5mb" })); // para imágenes en base64
 
-// Configuración PostgreSQL usando variables de entorno de Render
+// ----------------- POSTGRES -----------------
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
@@ -19,7 +27,7 @@ const pool = new Pool({
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
   ssl: {
-    rejectUnauthorized: false, // Render requiere SSL pero sin verificar certificado
+    rejectUnauthorized: false,
   },
 });
 
@@ -241,6 +249,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
