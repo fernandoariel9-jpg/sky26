@@ -57,7 +57,6 @@ app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
 
-    // Validaciones básicas (no rompen tu flujo, solo devuelven 400 si falta lo esencial)
     if (!usuario || !tarea) {
       return res.status(400).json({ error: "Falta 'usuario' o 'tarea' en el body" });
     }
@@ -71,19 +70,19 @@ app.post("/tareas", async (req, res) => {
         );
         if (userQ.rows.length > 0) {
           area = userQ.rows[0].area;
-        } else {
-          // Si no se encuentra usuario, area queda null (pero la inserción seguirá)
-          console.warn(`No se encontró usuario para asignar área: ${usuario}`);
         }
       } catch (lookupErr) {
         console.error("Error buscando area en usuarios:", lookupErr);
-        // continuar sin área (se registrará null si la tabla lo permite)
       }
     }
 
+    // Asegurarse de que servicio y subservicio tengan valor aunque sea vacío
+    servicio = servicio || "";
+    subservicio = subservicio || "";
+
     const result = await pool.query(
       "INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, area, servicio, subservicio) VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7) RETURNING *",
-      [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
+      [usuario, tarea, fin || false, imagen || null, area || null, servicio, subservicio]
     );
 
     res.json(result.rows[0]);
@@ -92,6 +91,7 @@ app.post("/tareas", async (req, res) => {
     res.status(500).json({ error: err.message || "Error al crear tarea" });
   }
 });
+
 
 // Actualizar solo la solución (personal)
 app.put("/tareas/:id/solucion", async (req, res) => {
@@ -237,5 +237,6 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
