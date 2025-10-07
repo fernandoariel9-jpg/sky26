@@ -57,32 +57,37 @@ app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
 
+    // Validaciones básicas
     if (!usuario || !tarea) {
       return res.status(400).json({ error: "Falta 'usuario' o 'tarea' en el body" });
     }
 
-    // Si no llega el área en el body, intentar obtenerla desde la tabla usuarios
-    if (!area) {
+    // Fallback de área, servicio y subservicio desde tabla usuarios
+    if (!area || !servicio || !subservicio) {
       try {
         const userQ = await pool.query(
-          "SELECT area FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
+          "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
           [usuario]
         );
         if (userQ.rows.length > 0) {
-          area = userQ.rows[0].area;
+          area = area || userQ.rows[0].area;
+          servicio = servicio || userQ.rows[0].servicio;
+          subservicio = subservicio || userQ.rows[0].subservicio;
+        } else {
+          console.warn(`No se encontró usuario para asignar valores: ${usuario}`);
         }
       } catch (lookupErr) {
-        console.error("Error buscando area en usuarios:", lookupErr);
+        console.error("Error buscando datos en usuarios:", lookupErr);
       }
     }
 
-    // Asegurarse de que servicio y subservicio tengan valor aunque sea vacío
-    servicio = servicio || "";
-    subservicio = subservicio || "";
-
+    // Inserción en ric01
     const result = await pool.query(
-      "INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, area, servicio, subservicio) VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7) RETURNING *",
-      [usuario, tarea, fin || false, imagen || null, area || null, servicio, subservicio]
+      `INSERT INTO ric01 
+        (usuario, tarea, fin, imagen, fecha, area, servicio, subservicio) 
+       VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7) 
+       RETURNING *`,
+      [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
     );
 
     res.json(result.rows[0]);
@@ -91,7 +96,6 @@ app.post("/tareas", async (req, res) => {
     res.status(500).json({ error: err.message || "Error al crear tarea" });
   }
 });
-
 
 // Actualizar solo la solución (personal)
 app.put("/tareas/:id/solucion", async (req, res) => {
@@ -237,6 +241,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
