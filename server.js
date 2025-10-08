@@ -49,22 +49,27 @@ app.post("/usuarios", async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password, verificado)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false)
-       RETURNING *`,
+      `INSERT INTO usuarios 
+       (nombre, servicio, subservicio, area, movil, mail, password, verificado)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING *`,
       [nombre, servicio, subservicio, area, movil, mail, hashed]
     );
 
-    // ✅ Responder éxito inmediato
-    res.json({
-      message: "Usuario registrado correctamente. Revisa tu correo para verificar la cuenta.",
-      user: result.rows[0],
+    // Enviar correo de verificación
+    const token = jwt.sign({ mail }, SECRET_KEY, { expiresIn: "24h" });
+    const link = `https://sky26.onrender.com/usuarios/verificar/${token}`;
+
+    await transporter.sendMail({
+      from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
+      to: mail,
+      subject: "Verifica tu cuenta Sky26",
+      html: `<p>Hola ${nombre}, haz clic en el link para verificar tu cuenta:</p>
+             <a href="${link}">Verificar cuenta</a>`,
     });
+
+    res.json({ message: "Usuario registrado. Revisa tu correo para verificar la cuenta." });
   } catch (err) {
-    console.error("Error registrando usuario:", err.message);
-    if (err.code === "23505") {
-      return res.status(400).json({ error: "Este correo ya está registrado" });
-    }
+    console.error(err);
     res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
@@ -421,6 +426,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
