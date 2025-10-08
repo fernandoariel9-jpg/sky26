@@ -13,8 +13,8 @@ const SECRET_KEY = process.env.JWT_SECRET || "repliKatM5";
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAIL_USER || "icsky26@gmail.com",
-    pass: process.env.EMAIL_PASS || "zgib jido igrg huit", // Reemplazar con App Password
+    user: process.env.EMAILUSER,
+    pass: process.env.EMAILPASS,
   },
 });
 
@@ -109,4 +109,5 @@ app.post("/usuarios/enviar-verificacion", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
