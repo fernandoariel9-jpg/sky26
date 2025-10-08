@@ -163,7 +163,6 @@ app.put("/tareas/:id", async (req, res) => {
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
   try {
-    // Cifrar la contraseña
     const hashed = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
@@ -173,32 +172,18 @@ app.post("/usuarios", async (req, res) => {
       [nombre, servicio, subservicio, area, movil, mail, hashed]
     );
 
-    // Enviar correo de verificación
-    const token = jwt.sign({ mail }, SECRET_KEY, { expiresIn: "24h" });
-    const link = `https://sky26.onrender.com/usuarios/verificar/${token}`;
-
-    await transporter.sendMail({
-      from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
-      to: mail,
-      subject: "Verifica tu cuenta Sky26",
-      html: `
-        <h3>Hola ${nombre},</h3>
-        <p>Gracias por registrarte en <b>Sky26</b>.</p>
-        <p>Haz clic en el siguiente enlace para verificar tu correo:</p>
-        <a href="${link}" target="_blank"
-          style="background:#2f855a;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;">
-          Verificar mi cuenta
-        </a>
-        <p>El enlace expirará en 24 horas.</p>
-      `,
-    });
-
-    res.json({ message: "Usuario registrado. Se envió correo de verificación." });
+    // ✅ Enviar mensaje de éxito al frontend
+    res.json({ message: "Usuario registrado correctamente. Revisa tu correo para verificar la cuenta." });
   } catch (err) {
-    console.error(err);
+    console.error("Error registrando usuario:", err.message);
+    if (err.code === "23505") {
+      // Código de error PostgreSQL para UNIQUE violation
+      return res.status(400).json({ error: "Este correo ya está registrado" });
+    }
     res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
+
 
 // ✅ Verificar correo desde enlace
 app.get("/usuarios/verificar/:token", async (req, res) => {
@@ -349,3 +334,4 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
