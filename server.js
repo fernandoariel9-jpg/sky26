@@ -19,7 +19,12 @@ const transporter = nodemailer.createTransport({
 });
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+  origin: "https://icsky26.onrender.com", // tu frontend
+  methods: "GET,POST,PUT,DELETE",
+  credentials: true,
+};
+app.use(cors(corsOptions));
 app.use(bodyParser.json({ limit: "5mb" }));
 
 // Configuración PostgreSQL
@@ -416,6 +421,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
