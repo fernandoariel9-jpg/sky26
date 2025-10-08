@@ -13,10 +13,12 @@ const SECRET_KEY = process.env.JWT_SECRET || "repliKatM5";
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.EMAILUSER,
-    pass: process.env.EMAILPASS,
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
+
+require('dotenv').config();
 
 // Middleware
 app.use(cors());
@@ -77,7 +79,7 @@ app.post("/usuarios/enviar-verificacion", async (req, res) => {
 
     try {
       await transporter.sendMail({
-        from: `"Sistema Sky26" <${process.env.EMAILUSER}>`,
+        from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
         to: mail,
         subject: "Verifica tu cuenta Sky26",
         html: `
@@ -416,6 +418,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
