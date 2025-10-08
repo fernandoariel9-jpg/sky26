@@ -77,7 +77,7 @@ app.post("/usuarios/enviar-verificacion", async (req, res) => {
 
     try {
       await transporter.sendMail({
-        from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
+        from: `"Sistema Sky26" <${process.env.EMAILUSER}>`,
         to: mail,
         subject: "Verifica tu cuenta Sky26",
         html: `
@@ -416,6 +416,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
