@@ -1,5 +1,4 @@
 // server.js
-import nodemailer from "nodemailer";
 require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
@@ -432,6 +431,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
