@@ -1,137 +1,30 @@
 // server.js
-require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
-const nodemailer = require("nodemailer");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
+
 const app = express();
 const PORT = process.env.PORT || 4000;
-const SECRET_KEY = process.env.JWT_SECRET || "repliKatM5";
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // SSL
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false, // evita errores de certificado en Render
-  },
-});
 
 // Middleware
-const corsOptions = {
-  origin: "https://icsky26.onrender.com", // tu frontend
-  methods: "GET,POST,PUT,DELETE",
-  credentials: true,
-};
-app.use(cors(corsOptions));
-app.use(bodyParser.json({ limit: "5mb" }));
+app.use(cors());
+app.use(bodyParser.json({ limit: "5mb" })); // para imágenes en base64
 
-// Configuración PostgreSQL
+// Configuración PostgreSQL usando variables de entorno de Render
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: false, // Render requiere SSL pero sin verificar certificado
+  },
 });
+
 
 // ----------------- RUTAS -----------------
-// (Todas las rutas de tareas, personal, servicios y áreas se mantienen igual)
-app.get("/test-email", async (req, res) => {
-  try {
-    await transporter.sendMail({
-      from: `"Test Sky26" <${process.env.EMAIL_USER}>`,
-      to: "fernandoariel9@gmail.com",
-      subject: "✅ Prueba desde Render con Gmail",
-      text: "Si ves esto, tu conexión SMTP funciona correctamente.",
-    });
-    res.send("Correo enviado correctamente ✅");
-  } catch (err) {
-    console.error("Error enviando correo:", err);
-    res.status(500).send("Error: " + err.message);
-  }
-});
-// ---------- USUARIOS ----------
-
-// Registro de usuario
-app.post("/usuarios", async (req, res) => {
-  const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
-  try {
-    const hashed = await bcrypt.hash(password, 10);
-
-    const result = await pool.query(
-      `INSERT INTO usuarios 
-       (nombre, servicio, subservicio, area, movil, mail, password, verificado)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,false) RETURNING *`,
-      [nombre, servicio, subservicio, area, movil, mail, hashed]
-    );
-
-    // Enviar correo de verificación
-    const token = jwt.sign({ mail }, SECRET_KEY, { expiresIn: "24h" });
-    const link = `https://sky26.onrender.com/usuarios/verificar/${token}`;
-
-    await transporter.sendMail({
-      from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
-      to: mail,
-      subject: "Verifica tu cuenta Sky26",
-      html: `<p>Hola ${nombre}, haz clic en el link para verificar tu cuenta:</p>
-             <a href="${link}">Verificar cuenta</a>`,
-    });
-
-    res.json({ message: "Usuario registrado. Revisa tu correo para verificar la cuenta." });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al registrar usuario" });
-  }
-});
-
-// Enviar correo de verificación
-app.post("/usuarios/enviar-verificacion", async (req, res) => {
-  try {
-    const { mail } = req.body;
-    const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [mail]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
-    if (result.rows[0].verificado) return res.json({ message: "Usuario ya verificado" });
-
-    const token = jwt.sign({ mail }, SECRET_KEY, { expiresIn: "24h" });
-    const link = `https://sky26.onrender.com/usuarios/verificar/${token}`;
-
-    try {
-      await transporter.sendMail({
-        from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
-        to: mail,
-        subject: "Verifica tu cuenta Sky26",
-        html: `
-          <h3>Hola ${result.rows[0].nombre},</h3>
-          <p>Gracias por registrarte en <b>Sky26</b>.</p>
-          <p>Haz clic en el siguiente enlace para verificar tu correo:</p>
-          <a href="${link}" target="_blank"
-            style="background:#2f855a;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;">
-            Verificar mi cuenta
-          </a>
-          <p>El enlace expirará en 24 horas.</p>
-        `,
-      });
-      res.json({ message: "Correo de verificación enviado correctamente" });
-    } catch (mailErr) {
-      console.error("Error enviando correo:", mailErr.message);
-      res.status(500).json({ error: "Usuario registrado, pero no se pudo enviar el correo de verificación" });
-    }
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error reenviando correo" });
-  }
-});
-
-// ---------- resto de rutas ----------
-// (Se mantienen exactamente igual que tu código original)
 
 // ---------- TAREAS ----------
 // Endpoint GET de tareas filtradas por área
@@ -259,130 +152,34 @@ app.put("/tareas/:id", async (req, res) => {
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
   try {
-    // Cifrar la contraseña
-    const hashed = await bcrypt.hash(password, 10);
-
     const result = await pool.query(
-      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password, verificado)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, false)
+      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [nombre, servicio, subservicio, area, movil, mail, hashed]
+      [nombre, servicio, subservicio, area, movil, mail, password]
     );
-
-    // Enviar correo de verificación
-    const token = jwt.sign({ mail }, SECRET_KEY, { expiresIn: "24h" });
-    const link = `https://sky26.onrender.com/usuarios/verificar/${token}`;
-
-    await transporter.sendMail({
-      from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
-      to: mail,
-      subject: "Verifica tu cuenta Sky26",
-      html: `
-        <h3>Hola ${nombre},</h3>
-        <p>Gracias por registrarte en <b>Sky26</b>.</p>
-        <p>Haz clic en el siguiente enlace para verificar tu correo:</p>
-        <a href="${link}" target="_blank"
-          style="background:#2f855a;color:white;padding:10px 20px;text-decoration:none;border-radius:8px;">
-          Verificar mi cuenta
-        </a>
-        <p>El enlace expirará en 24 horas.</p>
-      `,
-    });
-
-    res.json({ message: "Usuario registrado. Se envió correo de verificación." });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
 
-// ✅ Verificar correo desde enlace
-app.get("/usuarios/verificar/:token", async (req, res) => {
-  try {
-    const { token } = req.params;
-    const decoded = jwt.verify(token, SECRET_KEY);
-
-    const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [decoded.mail]);
-    if (result.rows.length === 0) return res.status(404).send("Usuario no encontrado");
-
-    if (result.rows[0].verificado) {
-      return res.send("✅ Tu cuenta ya está verificada.");
-    }
-
-    await pool.query("UPDATE usuarios SET verificado=true WHERE mail=$1", [decoded.mail]);
-    res.send("🎉 Cuenta verificada correctamente. Ya puedes iniciar sesión.");
-  } catch (err) {
-    console.error("Error verificando token:", err);
-    res.status(400).send("❌ Enlace inválido o expirado.");
-  }
-});
-
-app.post("/usuarios/enviar-verificacion", async (req, res) => {
-  try {
-    const { mail } = req.body;
-    const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [mail]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "Usuario no encontrado" });
-    if (result.rows[0].verificado) return res.json({ message: "Usuario ya verificado" });
-
-    const token = jwt.sign({ mail }, SECRET_KEY, { expiresIn: "24h" });
-    const link = `https://sky26.onrender.com/usuarios/verificar/${token}`;
-
-    await transporter.sendMail({
-      from: `"Sistema Sky26" <${process.env.EMAIL_USER}>`,
-      to: mail,
-      subject: "Reenvío de verificación Sky26",
-      html: `
-        <p>Por favor verifica tu cuenta haciendo clic aquí:</p>
-        <a href="${link}" target="_blank">Verificar cuenta</a>
-      `,
-    });
-
-    res.json({ message: "Correo de verificación reenviado" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error reenviando correo" });
-  }
-});
-
 app.post("/usuarios/login", async (req, res) => {
   const { mail, password } = req.body;
   try {
-    // Buscar usuario por correo
-    const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [mail]);
-
+    const result = await pool.query(
+      "SELECT * FROM usuarios WHERE mail=$1 AND password=$2",
+      [mail, password]
+    );
     if (result.rows.length === 0)
       return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
-
-    const usuario = result.rows[0];
-
-    // Verificar si el usuario confirmó su correo
-    if (!usuario.verificado) {
-      return res
-        .status(403)
-        .json({ error: "Tu cuenta no está verificada. Revisa tu correo electrónico." });
-    }
-
-    // Comparar contraseña cifrada
-    const bcrypt = require("bcryptjs");
-    const esValida = await bcrypt.compare(password, usuario.password);
-    if (!esValida)
-      return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
-
-    res.json({
-      id: usuario.id,
-      nombre: usuario.nombre,
-      mail: usuario.mail,
-      area: usuario.area,
-      servicio: usuario.servicio,
-      subservicio: usuario.subservicio,
-      movil: usuario.movil,
-    });
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error("Error al loguear usuario:", err);
+    console.error(err);
     res.status(500).json({ error: "Error al loguear usuario" });
   }
 });
-
 
 // ---------- PERSONAL ----------
 app.post("/personal", async (req, res) => {
@@ -440,20 +237,8 @@ app.get("/areas", async (req, res) => {
     res.status(500).json({ error: "Error al obtener áreas" });
   }
 });
+
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
