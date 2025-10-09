@@ -44,7 +44,20 @@ const pool = new Pool({
 
 // ----------------- RUTAS -----------------
 // (Todas las rutas de tareas, personal, servicios y áreas se mantienen igual)
-
+app.get("/test-email", async (req, res) => {
+  try {
+    await transporter.sendMail({
+      from: `"Test Sky26" <${process.env.EMAIL_USER}>`,
+      to: fernandoariel9@gmail.com",
+      subject: "✅ Prueba desde Render con Gmail",
+      text: "Si ves esto, tu conexión SMTP funciona correctamente.",
+    });
+    res.send("Correo enviado correctamente ✅");
+  } catch (err) {
+    console.error("Error enviando correo:", err);
+    res.status(500).send("Error: " + err.message);
+  }
+});
 // ---------- USUARIOS ----------
 
 // Registro de usuario
@@ -431,6 +444,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
