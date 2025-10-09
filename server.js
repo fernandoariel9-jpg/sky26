@@ -3,9 +3,19 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
-
+const nodemailer = require("nodemailer");
+const jwt = require("jsonwebtoken");
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Configurar transporte de correo
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 // Middleware
 app.use(cors());
@@ -152,32 +162,42 @@ app.put("/tareas/:id", async (req, res) => {
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
   try {
+    // Crear usuario como no verificado
     const result = await pool.query(
-      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password, verificado)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, false)
        RETURNING *`,
       [nombre, servicio, subservicio, area, movil, mail, password]
     );
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al registrar usuario" });
-  }
-});
 
-app.post("/usuarios/login", async (req, res) => {
-  const { mail, password } = req.body;
-  try {
-    const result = await pool.query(
-      "SELECT * FROM usuarios WHERE mail=$1 AND password=$2",
-      [mail, password]
-    );
-    if (result.rows.length === 0)
-      return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
-    res.json(result.rows[0]);
+    const user = result.rows[0];
+
+    // Crear token de verificación (expira en 24 h)
+    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+
+    // Enlace de verificación
+    const verifyLink = `${process.env.FRONTEND_URL}/verificar/${token}`;
+
+    // Enviar correo
+    await transporter.sendMail({
+      from: process.env.EMAIL_USER,
+      to: mail,
+      subject: "Verificá tu cuenta en Sky26",
+      html: `
+        <h2>Hola ${nombre} 👋</h2>
+        <p>Gracias por registrarte en <b>Sky26</b>.</p>
+        <p>Por favor hacé clic en el siguiente enlace para verificar tu cuenta:</p>
+        <a href="${verifyLink}" target="_blank">Verificar mi cuenta</a>
+        <p>El enlace expirará en 24 horas.</p>
+      `,
+    });
+
+    res.json({
+      message: "Usuario registrado. Revisá tu correo para verificar la cuenta.",
+    });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error al loguear usuario" });
+    console.error("❌ Error al registrar usuario:", err);
+    res.status(500).json({ error: "Error al registrar usuario" });
   }
 });
 
@@ -238,8 +258,28 @@ app.get("/areas", async (req, res) => {
   }
 });
 
+// ---------- VERIFICAR CORREO ----------
+app.get("/usuarios/verificar/:token", async (req, res) => {
+  try {
+    const decoded = jwt.verify(req.params.token, process.env.JWT_SECRET);
+    const result = await pool.query(
+      "UPDATE usuarios SET verificado = true WHERE id = $1 RETURNING *",
+      [decoded.id]
+    );
+
+    if (result.rows.length === 0)
+      return res.status(404).send("Usuario no encontrado.");
+
+    res.send("✅ Cuenta verificada con éxito. Ya podés ingresar a la aplicación.");
+  } catch (err) {
+    console.error("❌ Error en verificación:", err);
+    res.status(400).send("Token inválido o expirado.");
+  }
+});
+
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
