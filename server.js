@@ -8,7 +8,6 @@ const jwt = require("jsonwebtoken");
 const app = express();
 const PORT = process.env.PORT || 4000;
 const resend = new Resend(process.env.RESEND_API_KEY);
-const jwt = require("jsonwebtoken");
 
 // Configurar transporte de correo
 const transporter = nodemailer.createTransport({
@@ -280,6 +279,7 @@ app.get("/usuarios/verificar/:token", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
