@@ -3,10 +3,12 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
 const jwt = require("jsonwebtoken");
 const app = express();
 const PORT = process.env.PORT || 4000;
+const resend = new Resend(process.env.RESEND_API_KEY);
+const jwt = require("jsonwebtoken");
 
 // Configurar transporte de correo
 const transporter = nodemailer.createTransport({
@@ -173,24 +175,21 @@ app.post("/usuarios", async (req, res) => {
     const user = result.rows[0];
 
     // Crear token de verificación (expira en 24 h)
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+   const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: "1d" });
+const verifyLink = `${process.env.FRONTEND_URL}/verificar/${token}`;
 
-    // Enlace de verificación
-    const verifyLink = `${process.env.FRONTEND_URL}/verificar/${token}`;
-
-    // Enviar correo
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: mail,
-      subject: "Verificá tu cuenta en Sky26",
-      html: `
-        <h2>Hola ${nombre} 👋</h2>
-        <p>Gracias por registrarte en <b>Sky26</b>.</p>
-        <p>Por favor hacé clic en el siguiente enlace para verificar tu cuenta:</p>
-        <a href="${verifyLink}" target="_blank">Verificar mi cuenta</a>
-        <p>El enlace expirará en 24 horas.</p>
-      `,
-    });
+await resend.emails.send({
+  from: "Sky26 <no-reply@sky26.app>", // o el dominio que verifiques
+  to: mail,
+  subject: "Verificá tu cuenta en Sky26",
+  html: `
+    <h2>Hola ${nombre} 👋</h2>
+    <p>Gracias por registrarte en <b>Sky26</b>.</p>
+    <p>Por favor hacé clic en el siguiente enlace para verificar tu cuenta:</p>
+    <a href="${verifyLink}" target="_blank">Verificar mi cuenta</a>
+    <p>El enlace expirará en 24 horas.</p>
+  `,
+});
 
     res.json({
       message: "Usuario registrado. Revisá tu correo para verificar la cuenta.",
@@ -281,5 +280,6 @@ app.get("/usuarios/verificar/:token", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
