@@ -3,20 +3,13 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
-const { Resend } = require("resend");
-const jwt = require("jsonwebtoken");
 const app = express();
 const PORT = process.env.PORT || 4000;
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Configurar transporte de correo
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
+const jwt = require("jsonwebtoken");
 
 // Middleware
 app.use(cors());
@@ -279,6 +272,7 @@ app.get("/usuarios/verificar/:token", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
