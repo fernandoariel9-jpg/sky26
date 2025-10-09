@@ -230,7 +230,7 @@ app.get("/servicios", async (req, res) => {
 // ---------- AREAS ----------
 app.get("/areas", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM areas ORDER BY id");
+    const result = await pool.query("SELECT * FROM areas ORDER BY area");
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -242,3 +242,4 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
