@@ -148,6 +148,36 @@ app.put("/tareas/:id", async (req, res) => {
   }
 });
 
+// --- Ruta para actualizar la calificación de una tarea ---
+app.put("/tareas/:id/calificacion", async (req, res) => {
+  const { id } = req.params;
+  const { calificacion } = req.body;
+
+  if (!calificacion || calificacion < 1 || calificacion > 5) {
+    return res.status(400).json({ error: "Calificación inválida (1–5)" });
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE ric01 SET calificacion = $1 WHERE id = $2 RETURNING *",
+      [calificacion, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Tarea no encontrada" });
+    }
+
+    res.json({
+      mensaje: "Calificación actualizada correctamente",
+      tarea: result.rows[0],
+    });
+  } catch (err) {
+    console.error("Error al guardar calificación:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
