@@ -3,6 +3,7 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
+const bcrypt = require("bcryptjs");
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -182,6 +183,7 @@ app.put("/tareas/:id/calificacion", async (req, res) => {
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
   try {
+    const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -272,3 +274,4 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
