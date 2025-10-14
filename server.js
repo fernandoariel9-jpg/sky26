@@ -189,9 +189,9 @@ app.put("/tareas/:id/reasignar", async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    console.error("Error al reasignar tarea:", err);
-    res.status(500).json({ error: "Error interno del servidor" });
-  }
+  console.error("Error al reasignar tarea:", err.message, err.stack);
+  res.status(500).json({ error: err.message });
+}
 });
 
 // ---------- USUARIOS ----------
@@ -289,5 +289,6 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
