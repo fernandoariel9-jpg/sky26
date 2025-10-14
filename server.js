@@ -183,7 +183,7 @@ app.put("/tareas/:id/calificacion", async (req, res) => {
 // PUT /tareas/:id/reasignar
 app.put("/tareas/:id/reasignar", async (req, res) => {
   const { id } = req.params;
-  const { nueva_area, reasignado_por } = req.body;
+  const { nueva_area, reasignado_por } = req.body; // ✅ aquí se usa "nueva_area"
 
   try {
     const result = await pool.query(
@@ -198,7 +198,7 @@ app.put("/tareas/:id/reasignar", async (req, res) => {
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
-    res.json(result.rows[0]);
+    res.json({ ok: true, tarea: result.rows[0] });
   } catch (err) {
     console.error("Error al reasignar tarea:", err.message, err.stack);
     res.status(500).json({ error: err.message });
@@ -300,6 +300,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
