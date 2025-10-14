@@ -34,9 +34,11 @@ app.get("/tareas/:area", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM ric01 
-       WHERE area = $1 OR reasignado_a = $1 
+       WHERE 
+         (area = $1 AND reasignado_a IS NULL)  -- solo tareas propias no reasignadas
+         OR reasignado_a = $1                  -- y tareas reasignadas a este área
        ORDER BY fecha DESC`,
-      [area]
+     [area]
     );
     res.json(result.rows);
   } catch (err) {
@@ -300,6 +302,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
