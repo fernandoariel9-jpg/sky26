@@ -33,12 +33,14 @@ app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
   try {
     const result = await pool.query(
-     "SELECT * FROM ric01 WHERE area = $1 OR reasignado_a = $1 ORDER BY fecha DESC"
+      `SELECT * FROM ric01 
+       WHERE area = $1 OR reasignado_a = $1 
+       ORDER BY fecha DESC`,
       [area]
     );
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
+    console.error("Error al obtener tareas:", err.message);
     res.status(500).json({ error: "Error al obtener tareas" });
   }
 });
@@ -196,7 +198,7 @@ app.put("/tareas/:id/reasignar", async (req, res) => {
       return res.status(404).json({ error: "Tarea no encontrada" });
     }
 
-    res.json({ ok: true, tarea: result.rows[0] });
+    res.json(result.rows[0]);
   } catch (err) {
     console.error("Error al reasignar tarea:", err.message, err.stack);
     res.status(500).json({ error: err.message });
@@ -298,6 +300,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
