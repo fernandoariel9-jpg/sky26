@@ -178,6 +178,21 @@ app.put("/tareas/:id/calificacion", async (req, res) => {
   }
 });
 
+// PUT /tareas/:id/reasignar
+app.put("/tareas/:id/reasignar", async (req, res) => {
+  const { id } = req.params;
+  const { nuevo_area, reasignado_por } = req.body;
+  try {
+    await pool.query(
+      "UPDATE ric01 SET area = $1, reasignado_por = $2 WHERE id = $3",
+      [nuevo_area, reasignado_por, id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Error al reasignar tarea:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
 
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
@@ -274,4 +289,5 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
