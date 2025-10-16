@@ -4,6 +4,8 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
+const { Resend } = require("resend");
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -63,31 +65,24 @@ app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
 
-    // Validaciones básicas
     if (!usuario || !tarea) {
       return res.status(400).json({ error: "Falta 'usuario' o 'tarea' en el body" });
     }
 
-    // Fallback de área, servicio y subservicio desde tabla usuarios
+    // Obtener datos de usuario si faltan
     if (!area || !servicio || !subservicio) {
-      try {
-        const userQ = await pool.query(
-          "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
-          [usuario]
-        );
-        if (userQ.rows.length > 0) {
-          area = area || userQ.rows[0].area;
-          servicio = servicio || userQ.rows[0].servicio;
-          subservicio = subservicio || userQ.rows[0].subservicio;
-        } else {
-          console.warn(`No se encontró usuario para asignar valores: ${usuario}`);
-        }
-      } catch (lookupErr) {
-        console.error("Error buscando datos en usuarios:", lookupErr);
+      const userQ = await pool.query(
+        "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
+        [usuario]
+      );
+      if (userQ.rows.length > 0) {
+        area = area || userQ.rows[0].area;
+        servicio = servicio || userQ.rows[0].servicio;
+        subservicio = subservicio || userQ.rows[0].subservicio;
       }
     }
 
-    // Inserción en ric01
+    // Crear tarea en BD
     const result = await pool.query(
       `INSERT INTO ric01 
         (usuario, tarea, fin, imagen, fecha, area, servicio, subservicio) 
@@ -95,6 +90,28 @@ app.post("/tareas", async (req, res) => {
        RETURNING *`,
       [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
     );
+
+    // Obtener emails del personal del mismo área
+    const personalResult = await pool.query(
+      "SELECT mail FROM personal WHERE area = $1",
+      [area]
+    );
+    const correos = personalResult.rows.map(row => row.mail);
+
+    // Enviar notificación a cada miembro del personal
+    for (const correo of correos) {
+      try {
+        await resend.emails.send({
+          from: "sandbox@resend.dev", // email verificado en sandbox
+          to: correo,
+          subject: "Nueva tarea asignada",
+          html: `<p>Se ha creado una nueva tarea por <strong>${usuario}</strong>:</p>
+                 <p><strong>${tarea}</strong></p>`,
+        });
+      } catch (err) {
+        console.error(`Error enviando email a ${correo}:`, err);
+      }
+    }
 
     res.json(result.rows[0]);
   } catch (err) {
@@ -302,4 +319,5 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
