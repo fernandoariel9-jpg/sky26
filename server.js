@@ -30,6 +30,21 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+app.get("/test-mail", async (req, res) => {
+  try {
+    await transporter.sendMail({
+      from: `"IC-SkyApp" <${process.env.MAIL_USER}>`,
+      to: "fernandoariel9@gmail.com",
+      subject: "Prueba de notificación IC-SkyApp",
+      html: "<h3>¡Funciona el envío de correos! 🚀</h3>",
+    });
+    res.send("✅ Correo enviado correctamente");
+  } catch (err) {
+    console.error("❌ Error al enviar prueba:", err);
+    res.status(500).send("Error al enviar correo");
+  }
+});
+
 // ==================== RUTAS ====================
 
 // ---------- TAREAS ----------
@@ -355,6 +370,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
