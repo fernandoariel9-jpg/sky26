@@ -1,9 +1,11 @@
+import { Resend } from "resend";
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
 const nodemailer = require("nodemailer"); // 👈 agregado para enviar correos
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -30,17 +32,18 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Test
 app.get("/test-mail", async (req, res) => {
   try {
-    await transporter.sendMail({
-      from: `"IC-SkyApp" <${process.env.MAIL_USER}>`,
+    await resend.emails.send({
+      from: "IC-SkyApp <notificaciones@icskyapp.com>",
       to: "fernandoariel9@gmail.com",
-      subject: "Prueba de notificación IC-SkyApp",
-      html: "<h3>¡Funciona el envío de correos! 🚀</h3>",
+      subject: "Prueba IC-SkyApp desde Render",
+      html: "<h2>✅ El envío de correo funciona correctamente</h2>",
     });
-    res.send("✅ Correo enviado correctamente");
-  } catch (err) {
-    console.error("❌ Error al enviar prueba:", err);
+    res.send("Correo enviado correctamente con Resend 🚀");
+  } catch (error) {
+    console.error(error);
     res.status(500).send("Error al enviar correo");
   }
 });
@@ -370,6 +373,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
