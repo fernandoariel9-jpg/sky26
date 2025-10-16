@@ -147,6 +147,14 @@ app.post("/tareas", async (req, res) => {
 } catch (mailErr) {
   console.error("Error al enviar notificación por correo:", mailErr);
 }
+    // ✅ devolver la tarea creada al cliente
+    res.json(nuevaTarea);
+
+  } catch (err) {
+    console.error("Error al crear tarea:", err);
+    res.status(500).json({ error: "Error al crear tarea" });
+  }
+}); 
     
 // Actualizar solo la solución (personal)
 app.put("/tareas/:id/solucion", async (req, res) => {
@@ -347,6 +355,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
