@@ -1,44 +1,48 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
+const nodemailer = require("nodemailer"); // 👈 agregado para enviar correos
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// Middleware
 app.use(cors());
-app.use(bodyParser.json({ limit: "5mb" })); // para imágenes en base64
+app.use(bodyParser.json({ limit: "5mb" }));
 
-// Configuración PostgreSQL usando variables de entorno de Render
+// Configuración PostgreSQL (Render)
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
-  ssl: {
-    rejectUnauthorized: false, // Render requiere SSL pero sin verificar certificado
+  ssl: { rejectUnauthorized: false },
+});
+
+// ==================== CONFIGURACIÓN DE CORREO ====================
+const transporter = nodemailer.createTransport({
+  service: "gmail", // o smtp.tu_dominio.com
+  auth: {
+    user: process.env.MAIL_USER || "notificaciones.ic.skyapp@gmail.com",
+    pass: process.env.MAIL_PASS || "TU_CONTRASEÑA_DE_APP", // ⚠️ usar clave de aplicación, no tu password real
   },
 });
 
-
-// ----------------- RUTAS -----------------
+// ==================== RUTAS ====================
 
 // ---------- TAREAS ----------
-// Endpoint GET de tareas filtradas por área
 app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
   try {
     const result = await pool.query(
       `SELECT * FROM ric01 
        WHERE 
-         (area = $1 AND reasignado_a IS NULL)  -- solo tareas propias no reasignadas
-         OR reasignado_a = $1                  -- y tareas reasignadas a este área
+         (area = $1 AND reasignado_a IS NULL)
+         OR reasignado_a = $1
        ORDER BY fecha DESC`,
-     [area]
+      [area]
     );
     res.json(result.rows);
   } catch (err) {
@@ -47,7 +51,6 @@ app.get("/tareas/:area", async (req, res) => {
   }
 });
 
-// Agregar esto en server.js (por ejemplo arriba o junto a las otras rutas)
 app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
@@ -58,17 +61,16 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
-
+// ========= CREAR NUEVA TAREA (con notificación por correo) =========
 app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
 
-    // Validaciones básicas
     if (!usuario || !tarea) {
       return res.status(400).json({ error: "Falta 'usuario' o 'tarea' en el body" });
     }
 
-    // Fallback de área, servicio y subservicio desde tabla usuarios
+    // Fallback de área, servicio y subservicio
     if (!area || !servicio || !subservicio) {
       try {
         const userQ = await pool.query(
@@ -79,8 +81,6 @@ app.post("/tareas", async (req, res) => {
           area = area || userQ.rows[0].area;
           servicio = servicio || userQ.rows[0].servicio;
           subservicio = subservicio || userQ.rows[0].subservicio;
-        } else {
-          console.warn(`No se encontró usuario para asignar valores: ${usuario}`);
         }
       } catch (lookupErr) {
         console.error("Error buscando datos en usuarios:", lookupErr);
@@ -96,13 +96,58 @@ app.post("/tareas", async (req, res) => {
       [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
     );
 
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("ERROR DETALLADO (POST /tareas):", err);
-    res.status(500).json({ error: err.message || "Error al crear tarea" });
-  }
-});
+    const nuevaTarea = result.rows[0];
 
+    // ====== 🔔 Envío de notificación por correo ======
+
+    try {
+  const areaDestino = area;
+  const usuariosDestino = await pool.query(
+    "SELECT mail, nombre FROM personal WHERE area = $1",
+    [areaDestino]
+  );
+
+  if (usuariosDestino.rows.length > 0) {
+    for (const u of usuariosDestino.rows) {
+      const mailOptions = {
+        from: `"IC-SkyApp" <${process.env.MAIL_USER}>`,
+        to: u.mail,
+        subject: `🔔 Nueva tarea asignada a ${areaDestino}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; max-width: 600px; margin: auto;">
+            <div style="text-align: center;">
+              <img src="https://sky26.onrender.com/logosmall.png" alt="Logo IC-SkyApp" style="width: 80px; margin-bottom: 10px;" />
+              <h2 style="color: #0056b3;">IC-SkyApp</h2>
+            </div>
+            <hr style="border: none; border-top: 1px solid #ccc;" />
+            <p>Estimado/a <strong>${u.nombre}</strong>,</p>
+            <p>Se ha asignado una nueva tarea para el área <strong>${areaDestino}</strong>:</p>
+            <ul>
+              <li><b>ID:</b> ${result.rows[0].id}</li>
+              <li><b>Tarea:</b> ${tarea}</li>
+              <li><b>Creada por:</b> ${usuario}</li>
+              <li><b>Servicio:</b> ${servicio || "—"}</li>
+              <li><b>Subservicio:</b> ${subservicio || "—"}</li>
+              <li><b>Fecha:</b> ${new Date().toLocaleString()}</li>
+            </ul>
+            <p>Puedes gestionarla directamente desde el sistema.</p>
+            <p style="font-size: 12px; color: #777; text-align: center; margin-top: 20px;">
+              © ${new Date().getFullYear()} IC-SkyApp – Sistema de Gestión de Tareas
+            </p>
+          </div>
+        `,
+      };
+
+      await transporter.sendMail(mailOptions);
+      console.log(`📧 Notificación enviada a ${u.mail}`);
+    }
+  } else {
+    console.log(`⚠️ No hay personal registrado en el área ${areaDestino}`);
+  }
+} catch (mailErr) {
+  console.error("Error al enviar notificación por correo:", mailErr);
+}
+    
 // Actualizar solo la solución (personal)
 app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
@@ -302,6 +347,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
