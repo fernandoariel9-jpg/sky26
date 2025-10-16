@@ -97,7 +97,59 @@ app.post("/tareas", async (req, res) => {
        RETURNING *`,
       [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
     );
+  // 📧 Notificación por correo al área asignada
+    try {
+      const nodemailer = require("nodemailer");
 
+      // Buscar emails del personal del área
+      const personalQuery = await pool.query(
+        "SELECT mail FROM personal WHERE area = $1",
+        [area]
+      );
+
+      if (personalQuery.rows.length > 0) {
+        const destinatarios = personalQuery.rows.map(p => p.mail).join(",");
+
+        // Transporter configurado con Render (usa tus variables de entorno)
+        const transporter = nodemailer.createTransport({
+          host: process.env.SMTP_HOST || "smtp.gmail.com",
+          port: process.env.SMTP_PORT || 587,
+          secure: false,
+          auth: {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS,
+          },
+        });
+
+        // Contenido del correo (HTML institucional)
+        const mailOptions = {
+          from: `"IC-SkyApp" <${process.env.SMTP_USER}>`,
+          to: destinatarios,
+          subject: `📋 Nueva tarea asignada al área ${area}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; border:1px solid #ddd; border-radius:10px; padding:20px; max-width:600px;">
+              <div style="text-align:center; margin-bottom:20px;">
+                <img src="https://icsky26.onrender.com/logosmall.png" alt="IC-SkyApp" style="width:80px;"/>
+                <h2 style="color:#0b5394;">Nueva tarea asignada</h2>
+              </div>
+              <p>Se ha registrado una nueva tarea para su área <strong>${area}</strong>.</p>
+              <p><b>Tarea:</b> ${tarea}</p>
+              <p><b>Asignada por:</b> ${usuario}</p>
+              <p><b>Fecha:</b> ${new Date().toLocaleString("es-AR")}</p>
+              <hr>
+              <p style="font-size:12px; color:#888;">IC-SkyApp • Sistema de gestión institucional</p>
+            </div>
+          `,
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`📧 Correo enviado a ${destinatarios}`);
+      } else {
+        console.log(`⚠️ No hay personal registrado en el área ${area}`);
+      }
+    } catch (emailErr) {
+      console.error("❌ Error al enviar correo:", emailErr.message);
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error("ERROR DETALLADO (POST /tareas):", err);
@@ -367,4 +419,5 @@ if (originalPost) {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
