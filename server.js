@@ -1,66 +1,46 @@
-import { Resend } from "resend";
+// server.js
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
-const nodemailer = require("nodemailer"); // 👈 agregado para enviar correos
+const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Middleware
 app.use(cors());
-app.use(bodyParser.json({ limit: "5mb" }));
+app.use(bodyParser.json({ limit: "5mb" })); // para imágenes en base64
 
-// Configuración PostgreSQL (Render)
+// Configuración PostgreSQL usando variables de entorno de Render
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
-  ssl: { rejectUnauthorized: false },
-});
-
-// ==================== CONFIGURACIÓN DE CORREO ====================
-const transporter = nodemailer.createTransport({
-  service: "gmail", // o smtp.tu_dominio.com
-  auth: {
-    user: process.env.MAIL_USER || "notificaciones.ic.skyapp@gmail.com",
-    pass: process.env.MAIL_PASS || "TU_CONTRASEÑA_DE_APP", // ⚠️ usar clave de aplicación, no tu password real
+  ssl: {
+    rejectUnauthorized: false, // Render requiere SSL pero sin verificar certificado
   },
 });
 
-// Test
-app.get("/test-mail", async (req, res) => {
-  try {
-    await resend.emails.send({
-      from: "IC-SkyApp <notificaciones@icskyapp.com>",
-      to: "fernandoariel9@gmail.com",
-      subject: "Prueba IC-SkyApp desde Render",
-      html: "<h2>✅ El envío de correo funciona correctamente</h2>",
-    });
-    res.send("Correo enviado correctamente con Resend 🚀");
-  } catch (error) {
-    console.error(error);
-    res.status(500).send("Error al enviar correo");
-  }
-});
 
-// ==================== RUTAS ====================
+// ----------------- RUTAS -----------------
 
 // ---------- TAREAS ----------
+// Endpoint GET de tareas filtradas por área
 app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
   try {
     const result = await pool.query(
       `SELECT * FROM ric01 
        WHERE 
-         (area = $1 AND reasignado_a IS NULL)
-         OR reasignado_a = $1
+         (area = $1 AND reasignado_a IS NULL)  -- solo tareas propias no reasignadas
+         OR reasignado_a = $1                  -- y tareas reasignadas a este área
        ORDER BY fecha DESC`,
-      [area]
+     [area]
     );
     res.json(result.rows);
   } catch (err) {
@@ -69,6 +49,7 @@ app.get("/tareas/:area", async (req, res) => {
   }
 });
 
+// Agregar esto en server.js (por ejemplo arriba o junto a las otras rutas)
 app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
@@ -79,16 +60,17 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
-// ========= CREAR NUEVA TAREA (con notificación por correo) =========
+
 app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
 
+    // Validaciones básicas
     if (!usuario || !tarea) {
       return res.status(400).json({ error: "Falta 'usuario' o 'tarea' en el body" });
     }
 
-    // Fallback de área, servicio y subservicio
+    // Fallback de área, servicio y subservicio desde tabla usuarios
     if (!area || !servicio || !subservicio) {
       try {
         const userQ = await pool.query(
@@ -99,6 +81,8 @@ app.post("/tareas", async (req, res) => {
           area = area || userQ.rows[0].area;
           servicio = servicio || userQ.rows[0].servicio;
           subservicio = subservicio || userQ.rows[0].subservicio;
+        } else {
+          console.warn(`No se encontró usuario para asignar valores: ${usuario}`);
         }
       } catch (lookupErr) {
         console.error("Error buscando datos en usuarios:", lookupErr);
@@ -114,66 +98,13 @@ app.post("/tareas", async (req, res) => {
       [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
     );
 
-    const nuevaTarea = result.rows[0];
-
-    // ====== 🔔 Envío de notificación por correo ======
-
-    try {
-  const areaDestino = area;
-  const usuariosDestino = await pool.query(
-    "SELECT mail, nombre FROM personal WHERE area = $1",
-    [areaDestino]
-  );
-
-  if (usuariosDestino.rows.length > 0) {
-    for (const u of usuariosDestino.rows) {
-      const mailOptions = {
-        from: `"IC-SkyApp" <${process.env.MAIL_USER}>`,
-        to: u.mail,
-        subject: `🔔 Nueva tarea asignada a ${areaDestino}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; max-width: 600px; margin: auto;">
-            <div style="text-align: center;">
-              <img src="https://sky26.onrender.com/logosmall.png" alt="Logo IC-SkyApp" style="width: 80px; margin-bottom: 10px;" />
-              <h2 style="color: #0056b3;">IC-SkyApp</h2>
-            </div>
-            <hr style="border: none; border-top: 1px solid #ccc;" />
-            <p>Estimado/a <strong>${u.nombre}</strong>,</p>
-            <p>Se ha asignado una nueva tarea para el área <strong>${areaDestino}</strong>:</p>
-            <ul>
-              <li><b>ID:</b> ${result.rows[0].id}</li>
-              <li><b>Tarea:</b> ${tarea}</li>
-              <li><b>Creada por:</b> ${usuario}</li>
-              <li><b>Servicio:</b> ${servicio || "—"}</li>
-              <li><b>Subservicio:</b> ${subservicio || "—"}</li>
-              <li><b>Fecha:</b> ${new Date().toLocaleString()}</li>
-            </ul>
-            <p>Puedes gestionarla directamente desde el sistema.</p>
-            <p style="font-size: 12px; color: #777; text-align: center; margin-top: 20px;">
-              © ${new Date().getFullYear()} IC-SkyApp – Sistema de Gestión de Tareas
-            </p>
-          </div>
-        `,
-      };
-
-      await transporter.sendMail(mailOptions);
-      console.log(`📧 Notificación enviada a ${u.mail}`);
-    }
-  } else {
-    console.log(`⚠️ No hay personal registrado en el área ${areaDestino}`);
-  }
-} catch (mailErr) {
-  console.error("Error al enviar notificación por correo:", mailErr);
-}
-    // ✅ devolver la tarea creada al cliente
-    res.json(nuevaTarea);
-
+    res.json(result.rows[0]);
   } catch (err) {
-    console.error("Error al crear tarea:", err);
-    res.status(500).json({ error: "Error al crear tarea" });
+    console.error("ERROR DETALLADO (POST /tareas):", err);
+    res.status(500).json({ error: err.message || "Error al crear tarea" });
   }
-}); 
-    
+});
+
 // Actualizar solo la solución (personal)
 app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
@@ -369,18 +300,71 @@ app.get("/areas", async (req, res) => {
   }
 });
 
+async function enviarNotificacion(area, tarea, usuario) {
+  try {
+    const personal = await pool.query("SELECT mail, nombre FROM personal WHERE area=$1", [area]);
+    if (personal.rows.length === 0) {
+      console.log(`⚠️ No hay personal registrado en el área ${area}`);
+      return;
+    }
+
+    const correos = personal.rows.map(p => p.mail);
+
+    const html = `
+      <div style="font-family: Arial, sans-serif; border: 1px solid #ccc; padding: 20px; max-width: 600px;">
+        <div style="display: flex; align-items: center;">
+          <img src="https://icsky26.onrender.com/logosmall.png" style="height: 50px; margin-right: 10px;" />
+          <h2 style="color: #004080;">IC-SkyApp</h2>
+        </div>
+        <hr/>
+        <p>Estimado equipo de <strong>${area}</strong>,</p>
+        <p>Se ha asignado una nueva tarea:</p>
+        <blockquote style="border-left: 4px solid #004080; margin: 10px 0; padding-left: 10px;">
+          <strong>${tarea}</strong>
+        </blockquote>
+        <p><b>Asignado por:</b> ${usuario}</p>
+        <p><b>Fecha:</b> ${new Date().toLocaleString("es-AR")}</p>
+        <br/>
+        <p style="font-size: 12px; color: gray;">Este mensaje fue generado automáticamente por IC-SkyApp.</p>
+      </div>
+    `;
+
+    await resend.emails.send({
+      from: "IC-SkyApp <notificaciones@icskyapp.com>",
+      to: correos,
+      subject: `Nueva tarea asignada al área ${area}`,
+      html,
+    });
+
+    console.log(`📧 Notificación enviada a ${correos.length} destinatarios del área ${area}`);
+  } catch (error) {
+    console.error("❌ Error al enviar correo de notificación:", error);
+  }
+}
+
+// 🔹 Hook: intercepta las inserciones nuevas de tareas
+const originalPost = app._router.stack.find(r => r.route && r.route.path === "/tareas" && r.route.methods.post);
+if (originalPost) {
+  const originalHandler = originalPost.route.stack[0].handle;
+  originalPost.route.stack[0].handle = async (req, res, next) => {
+    // interceptamos la ejecución del POST
+    const oldJson = res.json.bind(res);
+    res.json = async (data) => {
+      try {
+        if (data && data.area && data.tarea && data.usuario) {
+          await enviarNotificacion(data.area, data.tarea, data.usuario);
+        }
+      } catch (e) {
+        console.error("Error al intentar notificar nueva tarea:", e);
+      }
+      oldJson(data);
+    };
+    return originalHandler(req, res, next);
+  };
+}
+
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
 
