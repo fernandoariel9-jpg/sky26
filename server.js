@@ -394,30 +394,10 @@ async function enviarNotificacion(area, tarea, usuario) {
   }
 }
 
-// 🔹 Hook: intercepta las inserciones nuevas de tareas
-const originalPost = app._router.stack.find(r => r.route && r.route.path === "/tareas" && r.route.methods.post);
-if (originalPost) {
-  const originalHandler = originalPost.route.stack[0].handle;
-  originalPost.route.stack[0].handle = async (req, res, next) => {
-    // interceptamos la ejecución del POST
-    const oldJson = res.json.bind(res);
-    res.json = async (data) => {
-      try {
-        if (data && data.area && data.tarea && data.usuario) {
-          await enviarNotificacion(data.area, data.tarea, data.usuario);
-        }
-      } catch (e) {
-        console.error("Error al intentar notificar nueva tarea:", e);
-      }
-      oldJson(data);
-    };
-    return originalHandler(req, res, next);
-  };
-}
-
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
