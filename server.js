@@ -136,7 +136,7 @@ app.put("/tareas/:id", async (req, res) => {
        const result = await pool.query(
       `UPDATE ric01
        SET fin = $1
-           WHERE id = $3
+           WHERE id = $2
        RETURNING *`,
       [fin, id]
     );
@@ -301,6 +301,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
