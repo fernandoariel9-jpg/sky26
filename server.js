@@ -133,14 +133,12 @@ app.put("/tareas/:id", async (req, res) => {
   const { fin } = req.body;
 
   try {
-    const fechaActual = new Date(); // Fecha y hora actual
-    const result = await pool.query(
+       const result = await pool.query(
       `UPDATE ric01
        SET fin = $1
-           fecha_fin = $2
-       WHERE id = $3
+           WHERE id = $3
        RETURNING *`,
-      [fin, fechaActual, id]
+      [fin, id]
     );
 
     if (result.rows.length === 0) {
@@ -303,6 +301,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
