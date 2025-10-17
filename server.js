@@ -109,18 +109,19 @@ app.put("/tareas/:id/solucion", async (req, res) => {
   const { solucion, asignado } = req.body;
 
   try {
-    const fecha_comp = new Date(); // Fecha y hora actual
+    const fechaActual = new Date(); // Fecha y hora actual
 
     await pool.query(
       `UPDATE ric01 
        SET solucion = $1, 
            asignado = $2, 
-           fecha_comp = $3 
+           fecha_comp = $3,
+           fecha_fin = $3
        WHERE id = $4`,
-      [solucion, asignado, fecha_comp, id]
+      [solucion, asignado, fechaActual, id]
     );
 
-    res.json({ message: "✅ Solución guardada y fecha de finalización registrada" });
+    res.json({ message: "✅ Solución guardada, fecha_comp y fecha_fin registradas" });
   } catch (err) {
     console.error("❌ Error al actualizar solución:", err);
     res.status(500).json({ error: "Error interno del servidor" });
@@ -301,5 +302,6 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
