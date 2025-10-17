@@ -116,8 +116,8 @@ app.put("/tareas/:id/solucion", async (req, res) => {
        SET solucion = $1, 
            asignado = $2, 
            fecha_comp = $3,
-           fecha_fin = $4
-       WHERE id = $5`,
+           fecha_fin = $3
+       WHERE id = $4`,
       [solucion, asignado, fechaActual, id]
     );
 
@@ -302,6 +302,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
