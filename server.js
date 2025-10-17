@@ -1,9 +1,9 @@
+// server.js
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 const bcrypt = require("bcryptjs");
-const nodemailer = require("nodemailer"); // ✅ agregado
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -24,14 +24,6 @@ const pool = new Pool({
   },
 });
 
-// ✅ Configuración de Nodemailer con Gmail
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: "EMAIL_USER", // ⚠️ tu Gmail real
-    pass: "EMAIL_PASS", // ⚠️ la generada en https://myaccount.google.com/apppasswords
-  },
-});
 
 // ----------------- RUTAS -----------------
 
@@ -46,7 +38,7 @@ app.get("/tareas/:area", async (req, res) => {
          (area = $1 AND reasignado_a IS NULL)  -- solo tareas propias no reasignadas
          OR reasignado_a = $1                  -- y tareas reasignadas a este área
        ORDER BY fecha DESC`,
-      [area]
+     [area]
     );
     res.json(result.rows);
   } catch (err) {
@@ -55,7 +47,7 @@ app.get("/tareas/:area", async (req, res) => {
   }
 });
 
-// Obtener todas las tareas
+// Agregar esto en server.js (por ejemplo arriba o junto a las otras rutas)
 app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
@@ -66,7 +58,7 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
-// Crear tarea (con notificación por correo)
+
 app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
@@ -104,32 +96,6 @@ app.post("/tareas", async (req, res) => {
       [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
     );
 
-    // ✅ Enviar notificación a todo el personal del área
-    try {
-      const personalResult = await pool.query("SELECT mail FROM personal WHERE area = $1", [area]);
-      const correos = personalResult.rows.map(r => r.mail);
-
-      if (correos.length > 0) {
-        const mailOptions = {
-          from: "EMAIL_USER", // ⚠️ mismo Gmail configurado arriba
-          to: correos.join(","),
-          subject: `Nueva tarea en el área ${area}`,
-          html: `
-            <h3>Nueva tarea creada</h3>
-            <p><strong>Usuario:</strong> ${usuario}</p>
-            <p><strong>Tarea:</strong> ${tarea}</p>
-            <p><strong>Servicio:</strong> ${servicio || "-"} | <strong>Subservicio:</strong> ${subservicio || "-"}</p>
-            <p><strong>Fecha:</strong> ${new Date().toLocaleString()}</p>
-          `,
-        };
-
-        await transporter.sendMail(mailOptions);
-        console.log(`📧 Notificación enviada a: ${correos.join(", ")}`);
-      }
-    } catch (mailErr) {
-      console.error("⚠️ Error al enviar notificación por correo:", mailErr.message);
-    }
-
     res.json(result.rows[0]);
   } catch (err) {
     console.error("ERROR DETALLADO (POST /tareas):", err);
@@ -137,8 +103,7 @@ app.post("/tareas", async (req, res) => {
   }
 });
 
-// Resto del código original sin cambios
-
+// Actualizar solo la solución (personal)
 app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
   const { solucion, asignado } = req.body;
@@ -163,6 +128,7 @@ app.put("/tareas/:id/solucion", async (req, res) => {
   }
 });
 
+// Finalizar tarea (usuario)
 app.put("/tareas/:id", async (req, res) => {
   const { id } = req.params;
   const { fin } = req.body;
@@ -187,6 +153,7 @@ app.put("/tareas/:id", async (req, res) => {
   }
 });
 
+// --- Ruta para actualizar la calificación de una tarea ---
 app.put("/tareas/:id/calificacion", async (req, res) => {
   const { id } = req.params;
   const { calificacion } = req.body;
@@ -215,9 +182,10 @@ app.put("/tareas/:id/calificacion", async (req, res) => {
   }
 });
 
+// PUT /tareas/:id/reasignar
 app.put("/tareas/:id/reasignar", async (req, res) => {
   const { id } = req.params;
-  const { nueva_area, reasignado_por } = req.body;
+  const { nueva_area, reasignado_por } = req.body; // ✅ aquí se usa "nueva_area"
 
   try {
     const result = await pool.query(
@@ -239,6 +207,7 @@ app.put("/tareas/:id/reasignar", async (req, res) => {
   }
 });
 
+// ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
   try {
@@ -272,6 +241,7 @@ app.post("/usuarios/login", async (req, res) => {
   }
 });
 
+// ---------- PERSONAL ----------
 app.post("/personal", async (req, res) => {
   const { nombre, movil, mail, area, password } = req.body;
   try {
@@ -306,16 +276,18 @@ app.post("/personal/login", async (req, res) => {
   }
 });
 
+// ---------- SERVICIOS ----------
 app.get("/servicios", async (req, res) => {
   try {
     const result = await pool.query("SELECT servicio, subservicio, area FROM servicios ORDER BY servicio");
     res.json(result.rows);
   } catch (err) {
-    console.error("Error al obtener servicios", err.message);
+    console.error("Error al obtener servicios", err.message); // log más claro
     res.status(500).json({ error: "Error al obtener servicios" });
   }
 });
 
+// ---------- AREAS ----------
 app.get("/areas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM areas ORDER BY id");
@@ -330,3 +302,4 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
