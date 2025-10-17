@@ -115,10 +115,9 @@ app.put("/tareas/:id/solucion", async (req, res) => {
       `UPDATE ric01 
        SET solucion = $1, 
            asignado = $2, 
-           fecha_comp = $3,
-           fecha_fin = $3
-       WHERE id = $4`,
-      [solucion, asignado, fechaActual, id]
+           fecha_comp = $3
+           WHERE id = $4`,
+      [solucion, asignado, fecha_comp, id]
     );
 
     res.json({ message: "✅ Solución guardada, fecha_comp y fecha_fin registradas" });
@@ -137,9 +136,10 @@ app.put("/tareas/:id", async (req, res) => {
     const result = await pool.query(
       `UPDATE ric01
        SET fin = $1
-       WHERE id = $2
+           fecha_fin=$2
+       WHERE id = $3
        RETURNING *`,
-      [fin, id]
+      [fin, fecha_fin, id]
     );
 
     if (result.rows.length === 0) {
@@ -302,6 +302,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
