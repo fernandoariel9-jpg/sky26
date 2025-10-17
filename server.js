@@ -109,7 +109,7 @@ app.put("/tareas/:id/solucion", async (req, res) => {
   const { solucion, asignado } = req.body;
 
   try {
-    const fechaActual = new Date(); // Fecha y hora actual
+    const fecha_comp = new Date(); // Fecha y hora actual
 
     await pool.query(
       `UPDATE ric01 
@@ -133,6 +133,7 @@ app.put("/tareas/:id", async (req, res) => {
   const { fin } = req.body;
 
   try {
+    const fecha_fin = new Date(); // Fecha y hora actual
     const result = await pool.query(
       `UPDATE ric01
        SET fin = $1
@@ -302,6 +303,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
