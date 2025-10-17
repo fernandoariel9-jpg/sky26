@@ -109,22 +109,21 @@ app.put("/tareas/:id/solucion", async (req, res) => {
   const { solucion, asignado } = req.body;
 
   try {
-    const result = await pool.query(
-      `UPDATE ric01
-       SET solucion = $1, asignado = $2
-       WHERE id = $3
-       RETURNING *`,
-      [solucion, asignado || null, id]
+    const fecha_comp = new Date(); // Fecha y hora actual
+
+    await pool.query(
+      `UPDATE ric01 
+       SET solucion = $1, 
+           asignado = $2, 
+           fecha_comp = $3 
+       WHERE id = $4`,
+      [solucion, asignado, fecha_comp, id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Tarea no encontrada" });
-    }
-
-    res.json(result.rows[0]);
+    res.json({ message: "✅ Solución guardada y fecha de finalización registrada" });
   } catch (err) {
     console.error("❌ Error al actualizar solución:", err);
-    res.status(500).json({ error: "Error al actualizar solución" });
+    res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
@@ -302,4 +301,5 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
