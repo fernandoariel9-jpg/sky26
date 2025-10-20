@@ -24,6 +24,19 @@ function fechaLocalArgentina() {
   return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}`;
 }
 
+// 📅 Convierte timestamps del servidor a hora local argentina legible
+function formatToLocal(fecha) {
+  if (!fecha) return null;
+  try {
+    return new Date(fecha).toLocaleString("es-AR", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      hour12: false,
+    });
+  } catch {
+    return fecha;
+  }
+}
+
 const fecha_local = new Date();
 const fecha_argentina = fecha_local
   .toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
@@ -59,7 +72,14 @@ app.get("/tareas/:area", async (req, res) => {
        ORDER BY fecha DESC`,
       [area]
     );
-    res.json(result.rows);
+   res.json(
+  result.rows.map((t) => ({
+    ...t,
+    fecha: formatToLocal(t.fecha),
+    fecha_comp: formatToLocal(t.fecha_comp),
+    fecha_fin: formatToLocal(t.fecha_fin),
+  }))
+);
   } catch (err) {
     console.error("Error al obtener tareas:", err.message);
     res.status(500).json({ error: "Error al obtener tareas" });
@@ -69,7 +89,14 @@ app.get("/tareas/:area", async (req, res) => {
 app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
-    res.json(result.rows);
+    res.json(
+  result.rows.map((t) => ({
+    ...t,
+    fecha: formatToLocal(t.fecha),
+    fecha_comp: formatToLocal(t.fecha_comp),
+    fecha_fin: formatToLocal(t.fecha_fin),
+  }))
+);
   } catch (err) {
     console.error("Error al obtener todas las tareas", err);
     res.status(500).json({ error: "Error al obtener tareas" });
@@ -320,3 +347,4 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
