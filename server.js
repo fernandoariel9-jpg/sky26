@@ -42,7 +42,7 @@ function toArgentinaISO(fecha) {
       second: "2-digit",
     }).formatToParts(d).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
     // Argentina usa -03:00 (sin DST actualmente) -> lo fijamos
-    const offset = "-03:00";
+    const offset = "00:00";
     return `${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}:${partes.second}${offset}`;
   } catch {
     return fecha;
@@ -374,5 +374,6 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
