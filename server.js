@@ -8,6 +8,9 @@ const bcrypt = require("bcryptjs");
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+const fecha_local = new Date();
+const fecha_argentina = fecha_local.toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).replace("T", " ");
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" })); // para imágenes en base64
@@ -109,7 +112,7 @@ app.put("/tareas/:id/solucion", async (req, res) => {
   const { solucion, asignado } = req.body;
 
   try {
-    const fecha_comp = new Date(); // Fecha y hora actual
+    const fecha_comp = fecha_local.toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).replace("T", " ");
 
     await pool.query(
       `UPDATE ric01 
@@ -301,6 +304,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
