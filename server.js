@@ -24,6 +24,31 @@ function fechaLocalArgentina() {
   return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}`;
 }
 
+// Convierte un valor Date/string a ISO con offset -03:00 (hora Argentina)
+// Resultado ejemplo: "2025-10-20T11:30:00-03:00"
+function toArgentinaISO(fecha) {
+  if (!fecha) return null;
+  try {
+    const d = new Date(fecha);
+    // Obtener componentes en zona America/Argentina/Buenos_Aires
+    const partes = new Intl.DateTimeFormat("sv-SE", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      hour12: false,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).formatToParts(d).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
+    // Argentina usa -03:00 (sin DST actualmente) -> lo fijamos
+    const offset = "-03:00";
+    return `${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}:${partes.second}${offset}`;
+  } catch {
+    return fecha;
+  }
+}
+
 // 📅 Convierte timestamps del servidor a hora local argentina legible
 function formatToLocal(fecha) {
   if (!fecha) return null;
@@ -72,12 +97,13 @@ app.get("/tareas/:area", async (req, res) => {
        ORDER BY fecha DESC`,
       [area]
     );
-   res.json(
+ res.json(
   result.rows.map((t) => ({
     ...t,
-    fecha: formatToLocal(t.fecha),
-    fecha_comp: formatToLocal(t.fecha_comp),
-    fecha_fin: formatToLocal(t.fecha_fin),
+    // convertimos solo si existe, a ISO con offset -03:00 para que el cliente haga new Date(...) bien
+    fecha: toArgentinaISO(t.fecha),
+    fecha_comp: toArgentinaISO(t.fecha_comp),
+    fecha_fin: toArgentinaISO(t.fecha_fin),
   }))
 );
   } catch (err) {
@@ -92,9 +118,10 @@ app.get("/tareas", async (req, res) => {
     res.json(
   result.rows.map((t) => ({
     ...t,
-    fecha: formatToLocal(t.fecha),
-    fecha_comp: formatToLocal(t.fecha_comp),
-    fecha_fin: formatToLocal(t.fecha_fin),
+    // convertimos solo si existe, a ISO con offset -03:00 para que el cliente haga new Date(...) bien
+    fecha: toArgentinaISO(t.fecha),
+    fecha_comp: toArgentinaISO(t.fecha_comp),
+    fecha_fin: toArgentinaISO(t.fecha_fin),
   }))
 );
   } catch (err) {
@@ -133,12 +160,12 @@ app.post("/tareas", async (req, res) => {
     const fecha = fechaLocalArgentina();
 
     const result = await pool.query(
-      `INSERT INTO ric01 
-        (usuario, tarea, fin, imagen, fecha, area, servicio, subservicio) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
-       RETURNING *`,
-      [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
-    );
+  `INSERT INTO ric01 
+    (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
+   VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6, $7, $8) 
+   RETURNING *`,
+  [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
+);
 
     res.json(result.rows[0]);
   } catch (err) {
@@ -347,4 +374,5 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
