@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
@@ -8,8 +7,27 @@ const bcrypt = require("bcryptjs");
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// 📆 Función para obtener la fecha local argentina sin segundos
+function fechaLocalArgentina() {
+  const ahora = new Date();
+  const opciones = { timeZone: "America/Argentina/Buenos_Aires", hour12: false };
+  const partes = new Intl.DateTimeFormat("sv-SE", {
+    ...opciones,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+    .formatToParts(ahora)
+    .reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
+  return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}`;
+}
+
 const fecha_local = new Date();
-const fecha_argentina = fecha_local.toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).replace("T", " ");
+const fecha_argentina = fecha_local
+  .toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
+  .replace("T", " ");
 
 // Middleware
 app.use(cors());
@@ -23,25 +41,23 @@ const pool = new Pool({
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
   ssl: {
-    rejectUnauthorized: false, // Render requiere SSL pero sin verificar certificado
+    rejectUnauthorized: false,
   },
 });
-
 
 // ----------------- RUTAS -----------------
 
 // ---------- TAREAS ----------
-// Endpoint GET de tareas filtradas por área
 app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
   try {
     const result = await pool.query(
       `SELECT * FROM ric01 
        WHERE 
-         (area = $1 AND reasignado_a IS NULL)  -- solo tareas propias no reasignadas
-         OR reasignado_a = $1                  -- y tareas reasignadas a este área
+         (area = $1 AND reasignado_a IS NULL)
+         OR reasignado_a = $1
        ORDER BY fecha DESC`,
-     [area]
+      [area]
     );
     res.json(result.rows);
   } catch (err) {
@@ -50,7 +66,6 @@ app.get("/tareas/:area", async (req, res) => {
   }
 });
 
-// Agregar esto en server.js (por ejemplo arriba o junto a las otras rutas)
 app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
@@ -61,17 +76,14 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
-
 app.post("/tareas", async (req, res) => {
   try {
     let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
 
-    // Validaciones básicas
     if (!usuario || !tarea) {
       return res.status(400).json({ error: "Falta 'usuario' o 'tarea' en el body" });
     }
 
-    // Fallback de área, servicio y subservicio desde tabla usuarios
     if (!area || !servicio || !subservicio) {
       try {
         const userQ = await pool.query(
@@ -90,13 +102,15 @@ app.post("/tareas", async (req, res) => {
       }
     }
 
-    // Inserción en ric01
+    // 📌 Usamos fecha local argentina en lugar de NOW()
+    const fecha = fechaLocalArgentina();
+
     const result = await pool.query(
       `INSERT INTO ric01 
         (usuario, tarea, fin, imagen, fecha, area, servicio, subservicio) 
-       VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
        RETURNING *`,
-      [usuario, tarea, fin || false, imagen || null, area || null, servicio || null, subservicio || null]
+      [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
     );
 
     res.json(result.rows[0]);
@@ -112,7 +126,7 @@ app.put("/tareas/:id/solucion", async (req, res) => {
   const { solucion, asignado } = req.body;
 
   try {
-    const fecha_comp = fecha_local.toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).replace("T", " ");
+    const fecha_comp = fechaLocalArgentina();
 
     await pool.query(
       `UPDATE ric01 
@@ -136,12 +150,15 @@ app.put("/tareas/:id", async (req, res) => {
   const { fin } = req.body;
 
   try {
-       const result = await pool.query(
+    const fecha_fin = fechaLocalArgentina();
+
+    const result = await pool.query(
       `UPDATE ric01
-       SET fin = $1
-           WHERE id = $2
+       SET fin = $1,
+           fecha_fin = $2
+       WHERE id = $3
        RETURNING *`,
-      [fin, id]
+      [fin, fecha_fin, id]
     );
 
     if (result.rows.length === 0) {
@@ -184,10 +201,9 @@ app.put("/tareas/:id/calificacion", async (req, res) => {
   }
 });
 
-// PUT /tareas/:id/reasignar
 app.put("/tareas/:id/reasignar", async (req, res) => {
   const { id } = req.params;
-  const { nueva_area, reasignado_por } = req.body; // ✅ aquí se usa "nueva_area"
+  const { nueva_area, reasignado_por } = req.body;
 
   try {
     const result = await pool.query(
@@ -284,7 +300,7 @@ app.get("/servicios", async (req, res) => {
     const result = await pool.query("SELECT servicio, subservicio, area FROM servicios ORDER BY servicio");
     res.json(result.rows);
   } catch (err) {
-    console.error("Error al obtener servicios", err.message); // log más claro
+    console.error("Error al obtener servicios", err.message);
     res.status(500).json({ error: "Error al obtener servicios" });
   }
 });
@@ -304,15 +320,3 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
