@@ -103,10 +103,10 @@ app.get("/tareas/:area", async (req, res) => {
  res.json(
   result.rows.map((t) => ({
     ...t,
-    // convertimos solo si existe, a ISO con offset -03:00 para que el cliente haga new Date(...) bien
-    fecha: toArgentinaISO(t.fecha),
-    fecha_comp: toArgentinaISO(t.fecha_comp),
-    fecha_fin: toArgentinaISO(t.fecha_fin),
+    // Dejar las columnas tal cual las devuelve pg (strings 'YYYY-MM-DD HH:mm:ss')
+    fecha: t.fecha || null,
+    fecha_comp: t.fecha_comp || null,
+    fecha_fin: t.fecha_fin || null,
   }))
 );
   } catch (err) {
@@ -121,10 +121,10 @@ app.get("/tareas", async (req, res) => {
     res.json(
   result.rows.map((t) => ({
     ...t,
-    // convertimos solo si existe, a ISO con offset -03:00 para que el cliente haga new Date(...) bien
-    fecha: toArgentinaISO(t.fecha),
-    fecha_comp: toArgentinaISO(t.fecha_comp),
-    fecha_fin: toArgentinaISO(t.fecha_fin),
+    // Dejar las columnas tal cual las devuelve pg (strings 'YYYY-MM-DD HH:mm:ss')
+    fecha: t.fecha || null,
+    fecha_comp: t.fecha_comp || null,
+    fecha_fin: t.fecha_fin || null,
   }))
 );
   } catch (err) {
@@ -377,6 +377,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
