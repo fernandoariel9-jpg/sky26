@@ -1,8 +1,11 @@
 const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const { Pool } = require("pg");
+const { Pool, types } = require("pg");
 const bcrypt = require("bcryptjs");
+
+// Evitar conversión automática de timestamptz WITHOUT TZ a Date
+types.setTypeParser(1114, (val) => val);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -374,6 +377,7 @@ app.get("/areas", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
 
 
 
