@@ -11,12 +11,6 @@ types.setTypeParser(1114, (val) => val);
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-webpush.setVapidDetails(
-  "mailto:icsky26@gmail.com",
-  process.env.VAPID_PUBLIC_KEY,
-  process.env.VAPID_PRIVATE_KEY
-);
-
 // 📆 Función para obtener la fecha local argentina sin segundos
 function fechaLocalArgentina() {
   const ahora = new Date();
@@ -92,6 +86,12 @@ const pool = new Pool({
     rejectUnauthorized: false,
   },
 });
+
+webpush.setVapidDetails(
+  "mailto:admin@sky26.com", // cambia por tu correo real
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 // ----------------- RUTAS -----------------
 
@@ -381,18 +381,40 @@ app.get("/areas", async (req, res) => {
 });
 
 app.post("/api/suscribir", async (req, res) => {
-  const { userId, subscription } = req.body;
   try {
+    const { userId, subscription } = req.body;
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "Faltan datos" });
+    }
+
     await pool.query(
-      "INSERT INTO suscripciones_push (user_id, subscription) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET subscription = $2",
-      [userId, subscription]
+      `UPDATE personal SET subscription = $1 WHERE id = $2`,
+      [JSON.stringify(subscription), userId]
     );
-    res.sendStatus(201);
+
+    res.status(201).json({ message: "Suscripción guardada" });
   } catch (error) {
     console.error("Error al guardar suscripción:", error);
-    res.sendStatus(500);
+    res.status(500).json({ error: "Error interno" });
   }
 });
+
+// 🚀 Enviar notificación a un usuario (por ejemplo al crear tarea nueva)
+async function enviarNotificacion(userId, payload) {
+  try {
+    const result = await pool.query(
+      "SELECT subscription FROM personal WHERE id = $1",
+      [userId]
+    );
+    const row = result.rows[0];
+    if (!row?.subscription) return;
+
+    const subscription = JSON.parse(row.subscription);
+    await webpush.sendNotification(subscription, JSON.stringify(payload));
+  } catch (err) {
+    console.error("Error enviando notificación:", err);
+  }
+}
 
 app.post("/api/tareas", async (req, res) => {
   const { descripcion, area_id, usuario_id } = req.body;
@@ -426,6 +448,12 @@ app.post("/api/tareas", async (req, res) => {
   }
 });
 
+await enviarNotificacion(id_personal, {
+  title: "Nueva tarea asignada",
+  body: "Revisa tus tareas pendientes en Sky26",
+  url: "https://sky26.onrender.com/tareas",
+});
+
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
@@ -444,6 +472,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
