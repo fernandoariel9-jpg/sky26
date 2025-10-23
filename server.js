@@ -1,9 +1,12 @@
-const express = require("express");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const { Pool, types } = require("pg");
-const bcrypt = require("bcryptjs");
-const webpush = require("web-push");
+// ----------------- IMPORTS -----------------
+import express from "express";
+import cors from "cors";
+import bodyParser from "body-parser";
+import pkg from "pg";
+const { Pool, types } = pkg;
+import bcrypt from "bcryptjs";
+import webpush from "web-push";
+import fetch from "node-fetch";
 
 // Evitar conversión automática de timestamptz WITHOUT TZ a Date
 types.setTypeParser(1114, (val) => val);
@@ -11,7 +14,7 @@ types.setTypeParser(1114, (val) => val);
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-// 📆 Función para obtener la fecha local argentina sin segundos
+// ----------------- FUNCIONES FECHA -----------------
 function fechaLocalArgentina() {
   const ahora = new Date();
   const opciones = { timeZone: "America/Argentina/Buenos_Aires", hour12: false };
@@ -28,13 +31,10 @@ function fechaLocalArgentina() {
   return `${partes.year}-${partes.month}-${partes.day} ${partes.hour}:${partes.minute}`;
 }
 
-// Convierte un valor Date/string a ISO con offset -03:00 (hora Argentina)
-// Resultado ejemplo: "2025-10-20T11:30:00-03:00"
 function toArgentinaISO(fecha) {
   if (!fecha) return null;
   try {
     const d = new Date(fecha);
-    // Obtener componentes en zona America/Argentina/Buenos_Aires
     const partes = new Intl.DateTimeFormat("sv-SE", {
       timeZone: "America/Argentina/Buenos_Aires",
       hour12: false,
@@ -45,7 +45,6 @@ function toArgentinaISO(fecha) {
       minute: "2-digit",
       second: "2-digit",
     }).formatToParts(d).reduce((acc, p) => ({ ...acc, [p.type]: p.value }), {});
-    // Argentina usa -03:00 (sin DST actualmente) -> lo fijamos
     const offset = "-03:00";
     return `${partes.year}-${partes.month}-${partes.day}T${partes.hour}:${partes.minute}:${partes.second}${offset}`;
   } catch {
@@ -53,7 +52,6 @@ function toArgentinaISO(fecha) {
   }
 }
 
-// 📅 Convierte timestamps del servidor a hora local argentina legible
 function formatToLocal(fecha) {
   if (!fecha) return null;
   try {
@@ -66,33 +64,41 @@ function formatToLocal(fecha) {
   }
 }
 
-const fecha_local = new Date();
-const fecha_argentina = fecha_local
-  .toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })
-  .replace("T", " ");
-
-// Middleware
+// ----------------- MIDDLEWARE -----------------
 app.use(cors());
-app.use(bodyParser.json({ limit: "5mb" })); // para imágenes en base64
+app.use(bodyParser.json({ limit: "5mb" }));
 
-// Configuración PostgreSQL usando variables de entorno de Render
+// ----------------- POSTGRES -----------------
 const pool = new Pool({
   user: process.env.PGUSER,
   host: process.env.PGHOST,
   database: process.env.PGDATABASE,
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  ssl: { rejectUnauthorized: false },
 });
 
+// ----------------- WEB PUSH -----------------
 webpush.setVapidDetails(
-  "mailto:admin@sky26.com", // cambia por tu correo real
+  "mailto:admin@sky26.com",
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
+async function enviarNotificacion(userId, payload) {
+  try {
+    const result = await pool.query(
+      "SELECT subscription FROM personal WHERE id = $1",
+      [userId]
+    );
+    const row = result.rows[0];
+    if (!row?.subscription) return;
+    const subscription = JSON.parse(row.subscription);
+    await webpush.sendNotification(subscription, JSON.stringify(payload));
+  } catch (err) {
+    console.error("Error enviando notificación:", err);
+  }
+}
 // ----------------- RUTAS -----------------
 
 // ---------- TAREAS ----------
@@ -380,18 +386,17 @@ app.get("/areas", async (req, res) => {
   }
 });
 
+// Ruta para suscribir push
 app.post("/api/suscribir", async (req, res) => {
   try {
     const { userId, subscription } = req.body;
     if (!userId || !subscription) {
       return res.status(400).json({ error: "Faltan datos" });
     }
-
     await pool.query(
       `UPDATE personal SET subscription = $1 WHERE id = $2`,
       [JSON.stringify(subscription), userId]
     );
-
     res.status(201).json({ message: "Suscripción guardada" });
   } catch (error) {
     console.error("Error al guardar suscripción:", error);
@@ -399,46 +404,33 @@ app.post("/api/suscribir", async (req, res) => {
   }
 });
 
-// 🚀 Enviar notificación a un usuario (por ejemplo al crear tarea nueva)
-async function enviarNotificacion(userId, payload) {
-  try {
-    const result = await pool.query(
-      "SELECT subscription FROM personal WHERE id = $1",
-      [userId]
-    );
-    const row = result.rows[0];
-    if (!row?.subscription) return;
-
-    const subscription = JSON.parse(row.subscription);
-    await webpush.sendNotification(subscription, JSON.stringify(payload));
-  } catch (err) {
-    console.error("Error enviando notificación:", err);
-  }
-}
-
+// Ejemplo de notificación al crear tarea nueva
 app.post("/api/tareas", async (req, res) => {
   const { descripcion, area_id, usuario_id } = req.body;
-  
+
   try {
     const result = await pool.query(
       "INSERT INTO tareas (descripcion, area_id, usuario_id, fecha_registro) VALUES ($1, $2, $3, NOW()) RETURNING *",
       [descripcion, area_id, usuario_id]
     );
-    
-    // Buscar suscripciones del personal de esa área
+
+    // Notificar al personal del área
     const subs = await pool.query(
-      "SELECT subscription FROM suscripciones_push s JOIN personal p ON s.user_id = p.id WHERE p.area_id = $1",
+      "SELECT subscription, id FROM personal WHERE area_id = $1",
       [area_id]
     );
 
-    const payload = JSON.stringify({
+    const payload = {
       title: "Nueva tarea asignada",
       body: descripcion,
       icon: "/icon-192x192.png",
-    });
+      url: "https://sky26.onrender.com/tareas",
+    };
 
-    subs.rows.forEach(({ subscription }) => {
-      webpush.sendNotification(subscription, payload).catch(console.error);
+    subs.rows.forEach(({ subscription, id }) => {
+      if (subscription) {
+        enviarNotificacion(id, payload).catch(console.error);
+      }
     });
 
     res.status(201).json(result.rows[0]);
@@ -448,34 +440,15 @@ app.post("/api/tareas", async (req, res) => {
   }
 });
 
-await enviarNotificacion(id_personal, {
-  title: "Nueva tarea asignada",
-  body: "Revisa tus tareas pendientes en Sky26",
-  url: "https://sky26.onrender.com/tareas",
-});
-
-// ----------------- INICIO SERVIDOR -----------------
-app.listen(PORT, () => {
-  console.log(`Servidor escuchando en http://localhost:${PORT}`);
-});
-
+// ----------------- SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor ejecutándose en el puerto ${PORT}`);
 });
 
-// 🔽 Aquí debajo
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-
-const SELF_URL = "https://sky26.onrender.com"; // tu dominio de Render
+// ----------------- PING INTERNO RENDER -----------------
+const SELF_URL = "https://sky26.onrender.com";
 setInterval(() => {
   fetch(SELF_URL)
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
-
-
-
-
-
-
-
