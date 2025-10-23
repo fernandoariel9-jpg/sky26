@@ -80,7 +80,7 @@ const pool = new Pool({
 
 // ----------------- WEB PUSH -----------------
 webpush.setVapidDetails(
-  "mailto:admin@sky26.com",
+  "mailto:icsky26@gmail.com",
   process.env.VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
@@ -452,3 +452,4 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
