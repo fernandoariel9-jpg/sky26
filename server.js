@@ -88,17 +88,20 @@ webpush.setVapidDetails(
 async function enviarNotificacion(userId, payload) {
   try {
     const result = await pool.query(
-      "SELECT subscription FROM personal WHERE id = $1",
+      "SELECT suscripcion FROM personal WHERE id = $1",
       [userId]
     );
+
     const row = result.rows[0];
-    if (!row?.subscription) return;
-    const subscription = JSON.parse(row.subscription);
+    if (!row?.suscripcion) return; // Si no hay suscripción, no enviar
+
+    const subscription = JSON.parse(row.suscripcion);
     await webpush.sendNotification(subscription, JSON.stringify(payload));
   } catch (err) {
     console.error("Error enviando notificación:", err);
   }
 }
+
 // ----------------- RUTAS -----------------
 
 // ---------- TAREAS ----------
@@ -147,30 +150,42 @@ app.get("/tareas", async (req, res) => {
 });
 
 app.post("/tareas", async (req, res) => {
+  const { usuario, tarea, area } = req.body;
+
   try {
-    let { usuario, tarea, fin, imagen, area, servicio, subservicio } = req.body;
+    const fecha = fechaLocalArgentina();
 
-    if (!usuario || !tarea) {
-      return res.status(400).json({ error: "Falta 'usuario' o 'tarea' en el body" });
-    }
+    const result = await pool.query(
+      `INSERT INTO ric01 (usuario, tarea, fecha, area) 
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [usuario, tarea, fecha, area]
+    );
 
-    if (!area || !servicio || !subservicio) {
-      try {
-        const userQ = await pool.query(
-          "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
-          [usuario]
-        );
-        if (userQ.rows.length > 0) {
-          area = area || userQ.rows[0].area;
-          servicio = servicio || userQ.rows[0].servicio;
-          subservicio = subservicio || userQ.rows[0].subservicio;
-        } else {
-          console.warn(`No se encontró usuario para asignar valores: ${usuario}`);
-        }
-      } catch (lookupErr) {
-        console.error("Error buscando datos en usuarios:", lookupErr);
+    // Buscar el personal del área y enviar notificación
+    const personalRes = await pool.query(
+      "SELECT id, suscripcion FROM personal WHERE area = $1 AND suscripcion IS NOT NULL",
+      [area]
+    );
+
+    const payload = {
+      title: "Nueva tarea asignada",
+      body: tarea,
+      icon: "/icon-192x192.png",
+    };
+
+    personalRes.rows.forEach(({ id, suscripcion }) => {
+      if (suscripcion) {
+        const sub = JSON.parse(suscripcion);
+        webpush.sendNotification(sub, JSON.stringify(payload)).catch(console.error);
       }
-    }
+    });
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error("Error creando tarea:", err);
+    res.status(500).json({ error: "Error creando tarea" });
+  }
+});
 
     // 📌 Usamos fecha local argentina en lugar de NOW()
     const fecha = fechaLocalArgentina();
@@ -393,13 +408,16 @@ app.post("/api/suscribir", async (req, res) => {
     if (!userId || !subscription) {
       return res.status(400).json({ error: "Faltan datos" });
     }
+
+    // Guardar la suscripción directamente en la columna 'suscripcion' de personal
     await pool.query(
-      `UPDATE personal SET subscription = $1 WHERE id = $2`,
+      `UPDATE personal SET suscripcion = $1 WHERE id = $2`,
       [JSON.stringify(subscription), userId]
     );
-    res.status(201).json({ message: "Suscripción guardada" });
-  } catch (error) {
-    console.error("Error al guardar suscripción:", error);
+
+    res.status(201).json({ message: "Suscripción guardada correctamente" });
+  } catch (err) {
+    console.error("Error guardando suscripción:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
@@ -416,7 +434,7 @@ app.post("/api/tareas", async (req, res) => {
 
     // Notificar al personal del área
     const subs = await pool.query(
-      "SELECT subscription, id FROM personal WHERE area_id = $1",
+      "SELECT subscripcion, id FROM personal WHERE area_id = $1",
       [area_id]
     );
 
@@ -427,7 +445,7 @@ app.post("/api/tareas", async (req, res) => {
       url: "https://sky26.onrender.com/tareas",
     };
 
-    subs.rows.forEach(({ subscription, id }) => {
+    subs.rows.forEach(({ subscripcion, id }) => {
       if (subscription) {
         enviarNotificacion(id, payload).catch(console.error);
       }
@@ -452,4 +470,5 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
