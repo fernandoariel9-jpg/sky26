@@ -150,10 +150,10 @@ app.post("/tareas", async (req, res) => {
   try {
     const fecha = fechaLocalArgentina();
     const result = await pool.query(
-      `INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
-       VALUES ($1,$2,$3,$4,$5,NULL,NULL,NULL,$6,$7,$8) RETURNING *`,
-      [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
-    );
+  `INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
+   VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8) RETURNING *`,
+  [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
+);
 
     // Notificar al personal del área
     const personalRes = await pool.query(
@@ -263,11 +263,15 @@ app.post("/usuarios/login", async (req, res) => {
   const { mail, password } = req.body;
   try {
     const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [mail]);
-    if (result.rows.length === 0) return res.status(401).json({ error: "Usuario no encontrado" });
+    if (result.rows.length === 0)
+      return res.status(401).json({ error: "Usuario no encontrado" });
 
     const user = result.rows[0];
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: "Contraseña incorrecta" });
+    const esValido = 
+      user.password === password || await bcrypt.compare(password, user.password);
+
+    if (!esValido)
+      return res.status(401).json({ error: "Contraseña incorrecta" });
 
     res.json(user);
   } catch (err) {
@@ -275,7 +279,6 @@ app.post("/usuarios/login", async (req, res) => {
     res.status(500).json({ error: "Error al loguear usuario" });
   }
 });
-
 // ---------- PERSONAL ----------
 app.post("/personal", async (req, res) => {
   const { nombre, movil, mail, area, password } = req.body;
