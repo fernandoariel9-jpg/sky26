@@ -146,15 +146,44 @@ app.get("/tareas", async (req, res) => {
 });
 
 app.post("/tareas", async (req, res) => {
-  const { usuario, tarea, area, fin, imagen, servicio, subservicio } = req.body;
-
+  // Aceptamos payload tanto con { usuario, tarea, area, servicio, subservicio, ... }
+  // como con campos faltantes — en ese caso intentamos completar desde la tabla usuarios
   try {
+    let { usuario, tarea, area, fin, imagen, servicio, subservicio } = req.body;
+
+    // Si faltan area/servicio/subservicio, intentar obtenerlas desde la tabla 'usuarios'
+    if ((!area || !servicio || !subservicio) && usuario) {
+      try {
+        const userQ = await pool.query(
+          "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
+          [usuario]
+        );
+        if (userQ.rows.length > 0) {
+          area = area || userQ.rows[0].area;
+          servicio = servicio || userQ.rows[0].servicio;
+          subservicio = subservicio || userQ.rows[0].subservicio;
+        } else {
+          // También intentar buscar en tabla personal por mail/nombre (por si el usuario es personal)
+          const personalQ = await pool.query(
+            "SELECT area FROM personal WHERE mail = $1 OR nombre = $1 LIMIT 1",
+            [usuario]
+          );
+          if (personalQ.rows.length > 0) {
+            area = area || personalQ.rows[0].area;
+          }
+        }
+      } catch (lookupErr) {
+        console.error("Error buscando area/servicio/subservicio en usuarios:", lookupErr);
+      }
+    }
+
     const fecha = fechaLocalArgentina();
+
     const result = await pool.query(
-  `INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
-   VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8) RETURNING *`,
-  [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
-);
+      `INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
+       VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8) RETURNING *`,
+      [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
+    );
 
     // Notificar al personal del área
     const personalRes = await pool.query(
@@ -379,5 +408,3 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
-
-
