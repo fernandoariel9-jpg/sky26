@@ -67,6 +67,7 @@ function formatToLocal(fecha) {
 // ----------------- MIDDLEWARE -----------------
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" }));
+app.use(express.json());
 
 // ----------------- POSTGRES -----------------
 const pool = new Pool({
@@ -378,4 +379,5 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
