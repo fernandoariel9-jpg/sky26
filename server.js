@@ -3,12 +3,19 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const { Pool, types } = require("pg");
 const bcrypt = require("bcryptjs");
+const webpush = require("web-push");
 
 // Evitar conversión automática de timestamptz WITHOUT TZ a Date
 types.setTypeParser(1114, (val) => val);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+webpush.setVapidDetails(
+  "mailto:icsky26@gmail.com",
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
 
 // 📆 Función para obtener la fecha local argentina sin segundos
 function fechaLocalArgentina() {
@@ -373,6 +380,52 @@ app.get("/areas", async (req, res) => {
   }
 });
 
+app.post("/api/suscribir", async (req, res) => {
+  const { userId, subscription } = req.body;
+  try {
+    await pool.query(
+      "INSERT INTO suscripciones_push (user_id, subscription) VALUES ($1, $2) ON CONFLICT (user_id) DO UPDATE SET subscription = $2",
+      [userId, subscription]
+    );
+    res.sendStatus(201);
+  } catch (error) {
+    console.error("Error al guardar suscripción:", error);
+    res.sendStatus(500);
+  }
+});
+
+app.post("/api/tareas", async (req, res) => {
+  const { descripcion, area_id, usuario_id } = req.body;
+  
+  try {
+    const result = await pool.query(
+      "INSERT INTO tareas (descripcion, area_id, usuario_id, fecha_registro) VALUES ($1, $2, $3, NOW()) RETURNING *",
+      [descripcion, area_id, usuario_id]
+    );
+    
+    // Buscar suscripciones del personal de esa área
+    const subs = await pool.query(
+      "SELECT subscription FROM suscripciones_push s JOIN personal p ON s.user_id = p.id WHERE p.area_id = $1",
+      [area_id]
+    );
+
+    const payload = JSON.stringify({
+      title: "Nueva tarea asignada",
+      body: descripcion,
+      icon: "/icon-192x192.png",
+    });
+
+    subs.rows.forEach(({ subscription }) => {
+      webpush.sendNotification(subscription, payload).catch(console.error);
+    });
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error("Error creando tarea:", error);
+    res.status(500).json({ error: "Error creando tarea" });
+  }
+});
+
 // ----------------- INICIO SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
@@ -391,6 +444,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
