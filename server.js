@@ -91,10 +91,8 @@ async function enviarNotificacion(userId, payload) {
       "SELECT suscripcion FROM personal WHERE id = $1",
       [userId]
     );
-
     const row = result.rows[0];
-    if (!row?.suscripcion) return; // Si no hay suscripción, no enviar
-
+    if (!row?.suscripcion) return;
     const subscription = JSON.parse(row.suscripcion);
     await webpush.sendNotification(subscription, JSON.stringify(payload));
   } catch (err) {
@@ -110,21 +108,19 @@ app.get("/tareas/:area", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM ric01 
-       WHERE 
-         (area = $1 AND reasignado_a IS NULL)
-         OR reasignado_a = $1
+       WHERE (area = $1 AND reasignado_a IS NULL)
+       OR reasignado_a = $1
        ORDER BY fecha DESC`,
       [area]
     );
- res.json(
-  result.rows.map((t) => ({
-    ...t,
-    // Dejar las columnas tal cual las devuelve pg (strings 'YYYY-MM-DD HH:mm:ss')
-    fecha: t.fecha || null,
-    fecha_comp: t.fecha_comp || null,
-    fecha_fin: t.fecha_fin || null,
-  }))
-);
+    res.json(
+      result.rows.map((t) => ({
+        ...t,
+        fecha: t.fecha || null,
+        fecha_comp: t.fecha_comp || null,
+        fecha_fin: t.fecha_fin || null,
+      }))
+    );
   } catch (err) {
     console.error("Error al obtener tareas:", err.message);
     res.status(500).json({ error: "Error al obtener tareas" });
@@ -135,14 +131,13 @@ app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
     res.json(
-  result.rows.map((t) => ({
-    ...t,
-    // Dejar las columnas tal cual las devuelve pg (strings 'YYYY-MM-DD HH:mm:ss')
-    fecha: t.fecha || null,
-    fecha_comp: t.fecha_comp || null,
-    fecha_fin: t.fecha_fin || null,
-  }))
-);
+      result.rows.map((t) => ({
+        ...t,
+        fecha: t.fecha || null,
+        fecha_comp: t.fecha_comp || null,
+        fecha_fin: t.fecha_fin || null,
+      }))
+    );
   } catch (err) {
     console.error("Error al obtener todas las tareas", err);
     res.status(500).json({ error: "Error al obtener tareas" });
@@ -150,34 +145,26 @@ app.get("/tareas", async (req, res) => {
 });
 
 app.post("/tareas", async (req, res) => {
-  const { usuario, tarea, area } = req.body;
+  const { usuario, tarea, area, fin, imagen, servicio, subservicio } = req.body;
 
   try {
     const fecha = fechaLocalArgentina();
-
     const result = await pool.query(
-      `INSERT INTO ric01 (usuario, tarea, fecha, area) 
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [usuario, tarea, fecha, area]
+      `INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
+       VALUES ($1,$2,$3,$4,$5,NULL,NULL,NULL,$6,$7,$8) RETURNING *`,
+      [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
     );
 
-    // Buscar el personal del área y enviar notificación
+    // Notificar al personal del área
     const personalRes = await pool.query(
       "SELECT id, suscripcion FROM personal WHERE area = $1 AND suscripcion IS NOT NULL",
       [area]
     );
 
-    const payload = {
-      title: "Nueva tarea asignada",
-      body: tarea,
-      icon: "/icon-192x192.png",
-    };
+    const payload = { title: "Nueva tarea asignada", body: tarea, icon: "/icon-192x192.png" };
 
     personalRes.rows.forEach(({ id, suscripcion }) => {
-      if (suscripcion) {
-        const sub = JSON.parse(suscripcion);
-        webpush.sendNotification(sub, JSON.stringify(payload)).catch(console.error);
-      }
+      if (suscripcion) enviarNotificacion(id, payload).catch(console.error);
     });
 
     res.status(201).json(result.rows[0]);
@@ -187,101 +174,54 @@ app.post("/tareas", async (req, res) => {
   }
 });
 
-    // 📌 Usamos fecha local argentina en lugar de NOW()
-    const fecha = fechaLocalArgentina();
-
-    const result = await pool.query(
-  `INSERT INTO ric01 
-    (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
-   VALUES ($1, $2, $3, $4, $5, NULL, NULL, $6, $7, $8) 
-   RETURNING *`,
-  [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
-);
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error("ERROR DETALLADO (POST /tareas):", err);
-    res.status(500).json({ error: err.message || "Error al crear tarea" });
-  }
-});
-
-// Actualizar solo la solución (personal)
+// ---------- ACTUALIZACIONES DE TAREAS ----------
 app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
   const { solucion, asignado } = req.body;
-
   try {
     const fecha_comp = fechaLocalArgentina();
-
     await pool.query(
-      `UPDATE ric01 
-       SET solucion = $1, 
-           asignado = $2, 
-           fecha_comp = $3
-           WHERE id = $4`,
+      `UPDATE ric01 SET solucion=$1, asignado=$2, fecha_comp=$3 WHERE id=$4`,
       [solucion, asignado, fecha_comp, id]
     );
-
     res.json({ message: "✅ Solución guardada" });
   } catch (err) {
-    console.error("❌ Error al actualizar solución:", err);
+    console.error(err);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
 
-// Finalizar tarea (usuario)
 app.put("/tareas/:id", async (req, res) => {
   const { id } = req.params;
   const { fin } = req.body;
-
   try {
     const fecha_fin = fechaLocalArgentina();
-
     const result = await pool.query(
-      `UPDATE ric01
-       SET fin = $1,
-           fecha_fin = $2
-       WHERE id = $3
-       RETURNING *`,
+      `UPDATE ric01 SET fin=$1, fecha_fin=$2 WHERE id=$3 RETURNING *`,
       [fin, fecha_fin, id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Tarea no encontrada" });
-    }
-
+    if (result.rows.length === 0) return res.status(404).json({ error: "Tarea no encontrada" });
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("❌ Error al finalizar tarea:", err);
+    console.error(err);
     res.status(500).json({ error: "Error al finalizar tarea" });
   }
 });
 
-// --- Ruta para actualizar la calificación de una tarea ---
 app.put("/tareas/:id/calificacion", async (req, res) => {
   const { id } = req.params;
   const { calificacion } = req.body;
-
-  if (!calificacion || calificacion < 1 || calificacion > 5) {
+  if (!calificacion || calificacion < 1 || calificacion > 5)
     return res.status(400).json({ error: "Calificación inválida (1–5)" });
-  }
-
   try {
     const result = await pool.query(
-      "UPDATE ric01 SET calificacion = $1 WHERE id = $2 RETURNING *",
+      "UPDATE ric01 SET calificacion=$1 WHERE id=$2 RETURNING *",
       [calificacion, id]
     );
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Tarea no encontrada" });
-    }
-
-    res.json({
-      mensaje: "Calificación actualizada correctamente",
-      tarea: result.rows[0],
-    });
+    if (result.rowCount === 0) return res.status(404).json({ error: "Tarea no encontrada" });
+    res.json({ mensaje: "Calificación actualizada", tarea: result.rows[0] });
   } catch (err) {
-    console.error("Error al guardar calificación:", err);
+    console.error(err);
     res.status(500).json({ error: "Error interno del servidor" });
   }
 });
@@ -289,23 +229,15 @@ app.put("/tareas/:id/calificacion", async (req, res) => {
 app.put("/tareas/:id/reasignar", async (req, res) => {
   const { id } = req.params;
   const { nueva_area, reasignado_por } = req.body;
-
   try {
     const result = await pool.query(
-      `UPDATE ric01
-       SET reasignado_a = $1, reasignado_por = $2
-       WHERE id = $3
-       RETURNING *`,
+      `UPDATE ric01 SET reasignado_a=$1, reasignado_por=$2 WHERE id=$3 RETURNING *`,
       [nueva_area, reasignado_por, id]
     );
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Tarea no encontrada" });
-    }
-
+    if (result.rows.length === 0) return res.status(404).json({ error: "Tarea no encontrada" });
     res.json({ ok: true, tarea: result.rows[0] });
   } catch (err) {
-    console.error("Error al reasignar tarea:", err.message, err.stack);
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -317,9 +249,8 @@ app.post("/usuarios", async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
-      [nombre, servicio, subservicio, area, movil, mail, password]
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [nombre, servicio, subservicio, area, movil, mail, hashedPassword]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -331,13 +262,14 @@ app.post("/usuarios", async (req, res) => {
 app.post("/usuarios/login", async (req, res) => {
   const { mail, password } = req.body;
   try {
-    const result = await pool.query(
-      "SELECT * FROM usuarios WHERE mail=$1 AND password=$2",
-      [mail, password]
-    );
-    if (result.rows.length === 0)
-      return res.status(401).json({ error: "Usuario o contraseña incorrectos" });
-    res.json(result.rows[0]);
+    const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [mail]);
+    if (result.rows.length === 0) return res.status(401).json({ error: "Usuario no encontrado" });
+
+    const user = result.rows[0];
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ error: "Contraseña incorrecta" });
+
+    res.json(user);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al loguear usuario" });
@@ -349,8 +281,7 @@ app.post("/personal", async (req, res) => {
   const { nombre, movil, mail, area, password } = req.body;
   try {
     const areaCheck = await pool.query("SELECT * FROM areas WHERE area=$1", [area]);
-    if (areaCheck.rows.length === 0)
-      return res.status(400).json({ error: "Área inválida" });
+    if (areaCheck.rows.length === 0) return res.status(400).json({ error: "Área inválida" });
 
     const result = await pool.query(
       "INSERT INTO personal(nombre,movil,mail,area,password) VALUES($1,$2,$3,$4,$5) RETURNING *",
@@ -366,12 +297,8 @@ app.post("/personal", async (req, res) => {
 app.post("/personal/login", async (req, res) => {
   const { mail, password } = req.body;
   try {
-    const result = await pool.query(
-      "SELECT * FROM personal WHERE mail=$1 AND password=$2",
-      [mail, password]
-    );
-    if (result.rows.length === 0)
-      return res.status(401).json({ error: "Credenciales inválidas" });
+    const result = await pool.query("SELECT * FROM personal WHERE mail=$1 AND password=$2", [mail, password]);
+    if (result.rows.length === 0) return res.status(401).json({ error: "Credenciales inválidas" });
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -385,7 +312,7 @@ app.get("/servicios", async (req, res) => {
     const result = await pool.query("SELECT servicio, subservicio, area FROM servicios ORDER BY servicio");
     res.json(result.rows);
   } catch (err) {
-    console.error("Error al obtener servicios", err.message);
+    console.error(err);
     res.status(500).json({ error: "Error al obtener servicios" });
   }
 });
@@ -401,60 +328,17 @@ app.get("/areas", async (req, res) => {
   }
 });
 
-// Ruta para suscribir push
+// ---------- SUSCRIPCIONES PUSH ----------
 app.post("/api/suscribir", async (req, res) => {
+  const { userId, subscription } = req.body;
+  if (!userId || !subscription) return res.status(400).json({ error: "Faltan datos" });
+
   try {
-    const { userId, subscription } = req.body;
-    if (!userId || !subscription) {
-      return res.status(400).json({ error: "Faltan datos" });
-    }
-
-    // Guardar la suscripción directamente en la columna 'suscripcion' de personal
-    await pool.query(
-      `UPDATE personal SET suscripcion = $1 WHERE id = $2`,
-      [JSON.stringify(subscription), userId]
-    );
-
+    await pool.query("UPDATE personal SET suscripcion=$1 WHERE id=$2", [JSON.stringify(subscription), userId]);
     res.status(201).json({ message: "Suscripción guardada correctamente" });
   } catch (err) {
-    console.error("Error guardando suscripción:", err);
+    console.error(err);
     res.status(500).json({ error: "Error interno" });
-  }
-});
-
-// Ejemplo de notificación al crear tarea nueva
-app.post("/api/tareas", async (req, res) => {
-  const { descripcion, area_id, usuario_id } = req.body;
-
-  try {
-    const result = await pool.query(
-      "INSERT INTO tareas (descripcion, area_id, usuario_id, fecha_registro) VALUES ($1, $2, $3, NOW()) RETURNING *",
-      [descripcion, area_id, usuario_id]
-    );
-
-    // Notificar al personal del área
-    const subs = await pool.query(
-      "SELECT subscripcion, id FROM personal WHERE area_id = $1",
-      [area_id]
-    );
-
-    const payload = {
-      title: "Nueva tarea asignada",
-      body: descripcion,
-      icon: "/icon-192x192.png",
-      url: "https://sky26.onrender.com/tareas",
-    };
-
-    subs.rows.forEach(({ subscripcion, id }) => {
-      if (subscription) {
-        enviarNotificacion(id, payload).catch(console.error);
-      }
-    });
-
-    res.status(201).json(result.rows[0]);
-  } catch (error) {
-    console.error("Error creando tarea:", error);
-    res.status(500).json({ error: "Error creando tarea" });
   }
 });
 
@@ -470,7 +354,3 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
-
-
-
-
