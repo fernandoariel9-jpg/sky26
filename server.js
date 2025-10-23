@@ -378,6 +378,19 @@ app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
 
+app.listen(PORT, () => {
+  console.log(`Servidor ejecutándose en el puerto ${PORT}`);
+});
+
+// 🔽 Aquí debajo
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+const SELF_URL = "https://sky26.onrender.com"; // tu dominio de Render
+setInterval(() => {
+  fetch(SELF_URL)
+    .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
+    .catch(err => console.log("Error en ping interno:", err.message));
+}, 13 * 60 * 1000);
 
 
 
