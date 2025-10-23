@@ -342,6 +342,27 @@ app.post("/api/suscribir", async (req, res) => {
   }
 });
 
+// Ruta para desuscribir push
+app.post("/desuscribir", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "Faltan datos" });
+    }
+
+    // Borrar la suscripción de la columna 'suscripcion'
+    await pool.query(
+      `UPDATE personal SET suscripcion = NULL WHERE id = $1`,
+      [userId]
+    );
+
+    res.status(200).json({ message: "Suscripción eliminada correctamente" });
+  } catch (err) {
+    console.error("Error desuscribiendo:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 // ----------------- SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor ejecutándose en el puerto ${PORT}`);
@@ -354,3 +375,4 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
