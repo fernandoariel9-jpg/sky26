@@ -362,6 +362,35 @@ app.get("/areas", async (req, res) => {
 });
 
 // ---------- SUSCRIPCIONES PUSH ----------
+
+app.post("/suscribir", async (req, res) => {
+  try {
+    const { userId, subscription } = req.body;
+
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    // Guardar la suscripción en la tabla 'personal'
+    const query = `
+      UPDATE personal
+      SET suscripcion = $1
+      WHERE id = $2
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [JSON.stringify(subscription), userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
+    res.json({ message: "Suscripción guardada correctamente" });
+  } catch (err) {
+    console.error("Error al guardar suscripción:", err);
+    res.status(500).json({ error: "Error al guardar suscripción" });
+  }
+});
+
 app.post("/api/suscribir", async (req, res) => {
   try {
     const { userId, subscription } = req.body;
@@ -424,4 +453,5 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
