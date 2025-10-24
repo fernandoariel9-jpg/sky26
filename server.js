@@ -391,6 +391,34 @@ app.post("/suscribir", async (req, res) => {
   }
 });
 
+app.post("/desuscribir", async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "Falta el ID del usuario" });
+    }
+
+    // Eliminar la suscripción del personal (dejarla en NULL)
+    const query = `
+      UPDATE personal
+      SET suscripcion = NULL
+      WHERE id = $1
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
+    res.json({ message: "Suscripción eliminada correctamente" });
+  } catch (err) {
+    console.error("Error al eliminar suscripción:", err);
+    res.status(500).json({ error: "Error al eliminar suscripción" });
+  }
+});
+
 app.post("/api/suscribir", async (req, res) => {
   try {
     const { userId, subscription } = req.body;
@@ -453,5 +481,6 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
