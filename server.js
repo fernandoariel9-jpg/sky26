@@ -363,14 +363,30 @@ app.get("/areas", async (req, res) => {
 
 // ---------- SUSCRIPCIONES PUSH ----------
 app.post("/api/suscribir", async (req, res) => {
-  const { userId, subscription } = req.body;
-  if (!userId || !subscription) return res.status(400).json({ error: "Faltan datos" });
-
   try {
-    await pool.query("UPDATE personal SET suscripcion=$1 WHERE id=$2", [JSON.stringify(subscription), userId]);
+    const { userId, subscription } = req.body;
+    console.log("Recibido en /api/suscribir:", req.body);
+
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "Faltan datos" });
+    }
+
+    // Verificar que el usuario exista antes de actualizar
+    const check = await pool.query("SELECT id FROM personal WHERE id=$1", [userId]);
+    if (check.rowCount === 0) {
+      console.error("Usuario no encontrado para guardar suscripción:", userId);
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    await pool.query(
+      "UPDATE personal SET suscripcion=$1 WHERE id=$2",
+      [JSON.stringify(subscription), userId]
+    );
+
+    console.log("✅ Suscripción guardada correctamente para usuario", userId);
     res.status(201).json({ message: "Suscripción guardada correctamente" });
   } catch (err) {
-    console.error(err);
+    console.error("Error en /api/suscribir:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
@@ -408,3 +424,4 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
