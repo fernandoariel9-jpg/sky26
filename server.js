@@ -469,34 +469,62 @@ app.post("/desuscribir", async (req, res) => {
   }
 });
 
-// En server.js (parte inferior)
+// 🔹 Asistente IA conectado a la base de datos
 app.post("/api/ia", async (req, res) => {
-  const { mensaje } = req.body;
-  console.log("IA recibió:", mensaje);
+  const { pregunta } = req.body;
 
-  // 🔹 Opción 2: Con API real (requiere clave OpenAI)
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: "Eres un asistente técnico de ingeniería clínica hospitalaria. Responde de forma breve y útil." },
-          { role: "user", content: mensaje },
-        ],
-      }),
-    });
+    if (!pregunta) return res.status(400).json({ respuesta: "No se envió ninguna pregunta." });
 
-    const data = await response.json();
-    const respuesta = data.choices?.[0]?.message?.content || "No tengo una respuesta clara.";
+    let respuesta = "";
+    const texto = pregunta.toLowerCase();
+
+    // Ejemplo de interpretación básica
+    if (texto.includes("tareas pendientes") || texto.includes("pendientes")) {
+      const { rows } = await pool.query("SELECT COUNT(*) FROM ric01 WHERE solucion IS NULL AND fin IS NULL");
+      respuesta = `Actualmente hay ${rows[0].count} tareas pendientes.`;
+    } 
+    else if (texto.includes("tareas finalizadas") || texto.includes("finalizadas")) {
+      const { rows } = await pool.query("SELECT COUNT(*) FROM ric01 WHERE fin IS NOT NULL");
+      respuesta = `Hay ${rows[0].count} tareas finalizadas registradas.`;
+    } 
+    else if (texto.includes("usuarios registrados") || texto.includes("cuantos usuarios")) {
+      const { rows } = await pool.query("SELECT COUNT(*) FROM usuarios");
+      respuesta = `Hay ${rows[0].count} usuarios registrados en el sistema.`;
+    } 
+    else if (texto.includes("personal activo") || texto.includes("personal disponible")) {
+      const { rows } = await pool.query("SELECT COUNT(*) FROM personal");
+      respuesta = `Actualmente hay ${rows[0].count} miembros del personal registrados.`;
+    } 
+    else if (texto.includes("última tarea") || texto.includes("último registro")) {
+      const { rows } = await pool.query(`
+        SELECT usuario, tarea, fecha_registro 
+        FROM ric01 
+        ORDER BY fecha_registro DESC 
+        LIMIT 1
+      `);
+      if (rows.length > 0) {
+        const t = rows[0];
+        respuesta = `La última tarea registrada fue de ${t.usuario}, con la descripción "${t.tarea}", el día ${new Date(t.fecha_registro).toLocaleString()}.`;
+      } else {
+        respuesta = "No hay tareas registradas todavía.";
+      }
+    } 
+    else if (texto.includes("servicios")) {
+      const { rows } = await pool.query("SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10");
+      respuesta =
+        rows.length > 0
+          ? `Algunos servicios disponibles son: ${rows.map((r) => r.nombre).join(", ")}.`
+          : "No hay servicios registrados aún.";
+    } 
+    else {
+      respuesta = "🤖 Puedo responder preguntas sobre tareas, usuarios, servicios o el estado del sistema. Pregúntame algo como '¿Cuántas tareas pendientes hay?'";
+    }
+
     res.json({ respuesta });
-  } catch (err) {
-    console.error("Error IA:", err);
-    res.status(500).json({ error: "Error al contactar la IA" });
+  } catch (error) {
+    console.error("Error en IA:", error);
+    res.status(500).json({ respuesta: "❌ Error al procesar la consulta." });
   }
 });
 
@@ -512,6 +540,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
