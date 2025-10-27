@@ -469,6 +469,37 @@ app.post("/desuscribir", async (req, res) => {
   }
 });
 
+// En server.js (parte inferior)
+app.post("/api/ia", async (req, res) => {
+  const { mensaje } = req.body;
+  console.log("IA recibió:", mensaje);
+
+  // 🔹 Opción 2: Con API real (requiere clave OpenAI)
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "Eres un asistente técnico de ingeniería clínica hospitalaria. Responde de forma breve y útil." },
+          { role: "user", content: mensaje },
+        ],
+      }),
+    });
+
+    const data = await response.json();
+    const respuesta = data.choices?.[0]?.message?.content || "No tengo una respuesta clara.";
+    res.json({ respuesta });
+  } catch (err) {
+    console.error("Error IA:", err);
+    res.status(500).json({ error: "Error al contactar la IA" });
+  }
+});
+
 // ----------------- SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor ejecutándose en el puerto ${PORT}`);
@@ -481,6 +512,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
