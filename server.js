@@ -475,8 +475,14 @@ app.post("/desuscribir", async (req, res) => {
 
 app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId, filtros = {} } = req.body;
-  if (!pregunta || !sessionId) return res.status(400).json({ respuesta: "Faltan datos." });
-
+  console.log("📩 Pregunta recibida:", pregunta);
+  console.log("🆔 SessionId:", sessionId);
+  console.log("📌 Filtros:", filtros);
+  if (!pregunta || !sessionId) {
+    console.log("⚠️ Faltan datos");
+    return res.status(400).json({ respuesta: "Faltan datos." });
+  }
+  
   if (!memoriaIA[sessionId]) memoriaIA[sessionId] = [];
 
   // Normalizar texto
@@ -550,9 +556,9 @@ app.post("/api/ia", async (req, res) => {
     if (memoriaIA[sessionId].length > MAX_MEMORIA) memoriaIA[sessionId].shift();
 
     res.json({ respuesta });
-  } catch (err) {
-    console.error("❌ Error IA avanzado:", err);
-    res.status(500).json({ respuesta: "Error al procesar la consulta." });
+} catch (error) {
+    console.error("❌ Error en /api/ia:", error);
+    res.status(500).json({ respuesta: "Error al procesar la consulta en la base de datos." });
   }
 });
 
@@ -568,6 +574,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
