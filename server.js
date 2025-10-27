@@ -469,62 +469,104 @@ app.post("/desuscribir", async (req, res) => {
   }
 });
 
-// 🔹 Asistente IA conectado a la base de datos
+// 🔹 Asistente IA mejorado: consultas más precisas y detección flexible
 app.post("/api/ia", async (req, res) => {
   const { pregunta } = req.body;
 
   try {
-    if (!pregunta) return res.status(400).json({ respuesta: "No se envió ninguna pregunta." });
+    if (!pregunta) {
+      return res.status(400).json({ respuesta: "No se envió ninguna pregunta." });
+    }
+
+    // 🧩 Normalización del texto (sin tildes, minúsculas)
+    const texto = pregunta
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, ""); // elimina acentos
 
     let respuesta = "";
-    const texto = pregunta.toLowerCase();
 
-    // Ejemplo de interpretación básica
+    // 🔸 TAREAS PENDIENTES
     if (texto.includes("tareas pendientes") || texto.includes("pendientes")) {
-      const { rows } = await pool.query("SELECT COUNT(*) FROM ric01 WHERE solucion IS NULL AND fin IS NULL");
-      respuesta = `Actualmente hay ${rows[0].count} tareas pendientes.`;
-    } 
-    else if (texto.includes("tareas finalizadas") || texto.includes("finalizadas")) {
-      const { rows } = await pool.query("SELECT COUNT(*) FROM ric01 WHERE fin IS NOT NULL");
-      respuesta = `Hay ${rows[0].count} tareas finalizadas registradas.`;
-    } 
-    else if (texto.includes("usuarios registrados") || texto.includes("cuantos usuarios")) {
-      const { rows } = await pool.query("SELECT COUNT(*) FROM usuarios");
-      respuesta = `Hay ${rows[0].count} usuarios registrados en el sistema.`;
-    } 
-    else if (texto.includes("personal activo") || texto.includes("personal disponible")) {
-      const { rows } = await pool.query("SELECT COUNT(*) FROM personal");
-      respuesta = `Actualmente hay ${rows[0].count} miembros del personal registrados.`;
-    } 
-    else if (texto.includes("última tarea") || texto.includes("último registro")) {
+      const { rows } = await pool.query(`
+        SELECT COUNT(*)::int AS total 
+        FROM ric01 
+        WHERE (solucion IS NULL OR solucion = '') 
+          AND (fin IS NULL OR fin = '')
+      `);
+      respuesta = `Actualmente hay ${rows[0].total} tareas pendientes.`;
+    }
+
+    // 🔸 TAREAS FINALIZADAS
+    else if (texto.includes("tareas finalizadas") || texto.includes("finalizadas") || texto.includes("completadas")) {
+      const { rows } = await pool.query(`
+        SELECT COUNT(*)::int AS total 
+        FROM ric01 
+        WHERE fin IS NOT NULL AND fin <> ''
+      `);
+      respuesta = `Hay ${rows[0].total} tareas finalizadas registradas.`;
+    }
+
+    // 🔸 USUARIOS REGISTRADOS
+    else if (texto.includes("usuarios registrados") || texto.includes("cuantos usuarios") || texto.includes("total usuarios")) {
+      const { rows } = await pool.query(`
+        SELECT COUNT(*)::int AS total FROM usuarios
+      `);
+      respuesta = `Hay ${rows[0].total} usuarios registrados en el sistema.`;
+    }
+
+    // 🔸 PERSONAL ACTIVO
+    else if (texto.includes("personal activo") || texto.includes("personal disponible") || texto.includes("personal registrado")) {
+      const { rows } = await pool.query(`
+        SELECT COUNT(*)::int AS total FROM personal
+      `);
+      respuesta = `Actualmente hay ${rows[0].total} miembros del personal registrados.`;
+    }
+
+    // 🔸 ÚLTIMA TAREA REGISTRADA
+    else if (texto.includes("ultima tarea") || texto.includes("ultimo registro") || texto.includes("reciente")) {
       const { rows } = await pool.query(`
         SELECT usuario, tarea, fecha_registro 
         FROM ric01 
+        WHERE fecha_registro IS NOT NULL 
         ORDER BY fecha_registro DESC 
         LIMIT 1
       `);
+
       if (rows.length > 0) {
         const t = rows[0];
-        respuesta = `La última tarea registrada fue de ${t.usuario}, con la descripción "${t.tarea}", el día ${new Date(t.fecha_registro).toLocaleString()}.`;
+        respuesta = `La última tarea registrada fue de ${t.usuario}, con la descripción "${t.tarea}", el día ${new Date(
+          t.fecha_registro
+        ).toLocaleString("es-AR")}.`;
       } else {
         respuesta = "No hay tareas registradas todavía.";
       }
-    } 
-    else if (texto.includes("servicios")) {
-      const { rows } = await pool.query("SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10");
-      respuesta =
-        rows.length > 0
-          ? `Algunos servicios disponibles son: ${rows.map((r) => r.nombre).join(", ")}.`
-          : "No hay servicios registrados aún.";
-    } 
-    else {
-      respuesta = "🤖 Puedo responder preguntas sobre tareas, usuarios, servicios o el estado del sistema. Pregúntame algo como '¿Cuántas tareas pendientes hay?'";
     }
 
+    // 🔸 SERVICIOS DISPONIBLES
+    else if (texto.includes("servicios") || texto.includes("lista de servicios") || texto.includes("que servicios")) {
+      const { rows } = await pool.query(`
+        SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10
+      `);
+
+      if (rows.length > 0) {
+        respuesta = `Algunos servicios disponibles son: ${rows.map((r) => r.nombre).join(", ")}.`;
+      } else {
+        respuesta = "No hay servicios registrados aún.";
+      }
+    }
+
+    // 🔸 RESPUESTA POR DEFECTO
+    else {
+      respuesta =
+        "🤖 Puedo responder preguntas sobre tareas, usuarios, personal o servicios del sistema. Por ejemplo: '¿Cuántas tareas pendientes hay?' o '¿Quién registró la última tarea?'.";
+    }
+
+    console.log("✅ Pregunta:", pregunta, "→ Respuesta:", respuesta); // 🔍 Log para depurar
     res.json({ respuesta });
   } catch (error) {
-    console.error("Error en IA:", error);
-    res.status(500).json({ respuesta: "❌ Error al procesar la consulta." });
+    console.error("❌ Error en IA:", error);
+    res.status(500).json({ respuesta: "Error al procesar la consulta en la base de datos." });
   }
 });
 
@@ -540,6 +582,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
