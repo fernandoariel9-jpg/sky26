@@ -14,6 +14,10 @@ types.setTypeParser(1114, (val) => val);
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+// Memoria temporal de la IA
+const memoriaIA = {}; // { sessionId: [ { pregunta, respuesta } ] }
+const MAX_MEMORIA = 10; // máximo de interacciones guardadas por sesión
+
 // ----------------- FUNCIONES FECHA -----------------
 function fechaLocalArgentina() {
   const ahora = new Date();
@@ -469,25 +473,21 @@ app.post("/desuscribir", async (req, res) => {
   }
 });
 
-// 🔹 Asistente IA mejorado: consultas más precisas y detección flexible
 app.post("/api/ia", async (req, res) => {
-  const { pregunta } = req.body;
+  const { pregunta, sessionId } = req.body;
+  if (!pregunta || !sessionId) return res.status(400).json({ respuesta: "Faltan datos." });
+
+  // Inicializar memoria si no existe
+  if (!memoriaIA[sessionId]) memoriaIA[sessionId] = [];
+
+  // Normalizar texto
+  const texto = pregunta.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  let respuesta = "";
 
   try {
-    if (!pregunta) {
-      return res.status(400).json({ respuesta: "No se envió ninguna pregunta." });
-    }
-
-    // 🧩 Normalización del texto (sin tildes, minúsculas)
-    const texto = pregunta
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, ""); // elimina acentos
-
-    let respuesta = "";
-
-    // 🔸 TAREAS PENDIENTES
-    if (texto.includes("tareas pendientes") || texto.includes("pendientes")) {
+    // 🔹 Consultas con contexto
+    if (texto.includes("tareas pendientes")) {
       const { rows } = await pool.query(`
         SELECT COUNT(*)::int AS total 
         FROM ric01 
@@ -495,78 +495,55 @@ app.post("/api/ia", async (req, res) => {
           AND (fin IS NULL OR fin = '')
       `);
       respuesta = `Actualmente hay ${rows[0].total} tareas pendientes.`;
-    }
-
-    // 🔸 TAREAS FINALIZADAS
-    else if (texto.includes("tareas finalizadas") || texto.includes("finalizadas") || texto.includes("completadas")) {
+    } 
+    else if (texto.includes("tareas finalizadas") || texto.includes("completadas")) {
       const { rows } = await pool.query(`
         SELECT COUNT(*)::int AS total 
         FROM ric01 
         WHERE fin IS NOT NULL AND fin <> ''
       `);
       respuesta = `Hay ${rows[0].total} tareas finalizadas registradas.`;
-    }
-
-    // 🔸 USUARIOS REGISTRADOS
-    else if (texto.includes("usuarios registrados") || texto.includes("cuantos usuarios") || texto.includes("total usuarios")) {
-      const { rows } = await pool.query(`
-        SELECT COUNT(*)::int AS total FROM usuarios
-      `);
-      respuesta = `Hay ${rows[0].total} usuarios registrados en el sistema.`;
-    }
-
-    // 🔸 PERSONAL ACTIVO
-    else if (texto.includes("personal activo") || texto.includes("personal disponible") || texto.includes("personal registrado")) {
-      const { rows } = await pool.query(`
-        SELECT COUNT(*)::int AS total FROM personal
-      `);
-      respuesta = `Actualmente hay ${rows[0].total} miembros del personal registrados.`;
-    }
-
-    // 🔸 ÚLTIMA TAREA REGISTRADA
-    else if (texto.includes("ultima tarea") || texto.includes("ultimo registro") || texto.includes("reciente")) {
-      const { rows } = await pool.query(`
+    } 
+    else if (texto.includes("ultima tarea") || texto.includes("anterior")) {
+      let query = `
         SELECT usuario, tarea, fecha_registro 
         FROM ric01 
         WHERE fecha_registro IS NOT NULL 
         ORDER BY fecha_registro DESC 
         LIMIT 1
-      `);
+      `;
 
+      // Si pregunta por "anterior", buscamos la penúltima
+      if (texto.includes("anterior") && memoriaIA[sessionId].length > 0) {
+        query = `
+          SELECT usuario, tarea, fecha_registro 
+          FROM ric01 
+          WHERE fecha_registro IS NOT NULL 
+          ORDER BY fecha_registro DESC 
+          OFFSET 1 LIMIT 1
+        `;
+      }
+
+      const { rows } = await pool.query(query);
       if (rows.length > 0) {
         const t = rows[0];
-        respuesta = `La última tarea registrada fue de ${t.usuario}, con la descripción "${t.tarea}", el día ${new Date(
-          t.fecha_registro
-        ).toLocaleString("es-AR")}.`;
+        respuesta = `La tarea fue de ${t.usuario}, descripción "${t.tarea}", el día ${new Date(t.fecha_registro).toLocaleString("es-AR")}.`;
       } else {
-        respuesta = "No hay tareas registradas todavía.";
+        respuesta = "No hay registros disponibles.";
       }
     }
-
-    // 🔸 SERVICIOS DISPONIBLES
-    else if (texto.includes("servicios") || texto.includes("lista de servicios") || texto.includes("que servicios")) {
-      const { rows } = await pool.query(`
-        SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10
-      `);
-
-      if (rows.length > 0) {
-        respuesta = `Algunos servicios disponibles son: ${rows.map((r) => r.nombre).join(", ")}.`;
-      } else {
-        respuesta = "No hay servicios registrados aún.";
-      }
-    }
-
-    // 🔸 RESPUESTA POR DEFECTO
     else {
-      respuesta =
-        "🤖 Puedo responder preguntas sobre tareas, usuarios, personal o servicios del sistema. Por ejemplo: '¿Cuántas tareas pendientes hay?' o '¿Quién registró la última tarea?'.";
+      respuesta = "🤖 Puedo responder sobre tareas, usuarios, servicios y personal. Por ejemplo: '¿Cuántas tareas pendientes hay?' o '¿quién registró la última tarea?'.";
     }
 
-    console.log("✅ Pregunta:", pregunta, "→ Respuesta:", respuesta); // 🔍 Log para depurar
+    // 🔹 Guardar en memoria
+    memoriaIA[sessionId].push({ pregunta, respuesta });
+    if (memoriaIA[sessionId].length > MAX_MEMORIA) memoriaIA[sessionId].shift(); // eliminar la más antigua
+
     res.json({ respuesta });
   } catch (error) {
-    console.error("❌ Error en IA:", error);
-    res.status(500).json({ respuesta: "Error al procesar la consulta en la base de datos." });
+    console.error("❌ Error IA con memoria:", error);
+    res.status(500).json({ respuesta: "Error al procesar la consulta." });
   }
 });
 
@@ -582,6 +559,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
