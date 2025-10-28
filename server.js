@@ -474,6 +474,104 @@ app.post("/desuscribir", async (req, res) => {
   }
 });
 
+// ---------- PROMEDIOS ----------
+
+// Guardar promedios diarios
+app.post("/promedios", async (req, res) => {
+  const { fecha, promedio_solucion, promedio_finalizacion } = req.body;
+
+  if (!fecha || promedio_solucion == null || promedio_finalizacion == null) {
+    return res.status(400).json({ error: "Faltan datos para guardar los promedios" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO promedios (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (fecha) 
+       DO UPDATE SET promedio_solucion = EXCLUDED.promedio_solucion,
+                     promedio_finalizacion = EXCLUDED.promedio_finalizacion
+       RETURNING *`,
+      [fecha, promedio_solucion, promedio_finalizacion]
+    );
+    res.json({ message: "Promedios guardados correctamente", data: result.rows[0] });
+  } catch (err) {
+    console.error("Error guardando promedios:", err);
+    res.status(500).json({ error: "Error al guardar los promedios" });
+  }
+});
+
+// Obtener todos los promedios
+app.get("/promedios", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM promedios ORDER BY fecha ASC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error obteniendo promedios:", err);
+    res.status(500).json({ error: "Error al obtener los promedios" });
+  }
+});
+
+// ---------- CÁLCULO AUTOMÁTICO DE PROMEDIOS DIARIOS ----------
+async function calcularYGuardarPromedios() {
+  try {
+    const hoy = new Date();
+    const fechaHoy = hoy.toISOString().split("T")[0]; // 'YYYY-MM-DD'
+
+    // Obtener todas las tareas finalizadas hoy
+    const result = await pool.query(
+      `SELECT fecha, fecha_comp, fecha_fin 
+       FROM ric01
+       WHERE fecha::date = $1::date`,
+      [fechaHoy]
+    );
+
+    const tareas = result.rows;
+
+    let totalSol = 0, cantSol = 0;
+    let totalFin = 0, cantFin = 0;
+
+    tareas.forEach((t) => {
+      if (t.fecha_comp) {
+        const tiempoSol = (new Date(t.fecha_comp) - new Date(t.fecha)) / (1000 * 60 * 60);
+        totalSol += tiempoSol;
+        cantSol += 1;
+      }
+      if (t.fecha_fin) {
+        const tiempoFin = (new Date(t.fecha_fin) - new Date(t.fecha)) / (1000 * 60 * 60);
+        totalFin += tiempoFin;
+        cantFin += 1;
+      }
+    });
+
+    const promedio_solucion = cantSol ? totalSol / cantSol : 0;
+    const promedio_finalizacion = cantFin ? totalFin / cantFin : 0;
+
+    // Guardar en la tabla 'promedios' (insertar o actualizar)
+    await pool.query(
+      `INSERT INTO promedios (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (fecha)
+       DO UPDATE SET promedio_solucion = EXCLUDED.promedio_solucion,
+                     promedio_finalizacion = EXCLUDED.promedio_finalizacion`,
+      [fechaHoy, promedio_solucion, promedio_finalizacion]
+    );
+
+    console.log(`✅ Promedios guardados para ${fechaHoy}`);
+  } catch (err) {
+    console.error("❌ Error calculando promedios:", err);
+  }
+}
+
+// Ejecutar al iniciar el servidor
+calcularYGuardarPromedios();
+
+// Opcional: recalcular cada 24 horas
+setInterval(calcularYGuardarPromedios, 24 * 60 * 60 * 1000);
+
+
 app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId } = req.body;
   if (!pregunta) {
@@ -599,6 +697,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
