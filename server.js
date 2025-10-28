@@ -16,6 +16,7 @@ const PORT = process.env.PORT || 4000;
 
 // Memoria temporal de la IA
 const memoriaIA = {}; // { sessionId: [ { pregunta, respuesta } ] }
+const sesionesIA = {}; // 🧠 Memoria por sessionId
 const MAX_MEMORIA = 10; // máximo de interacciones guardadas por sesión
 
 // ----------------- FUNCIONES FECHA -----------------
@@ -473,37 +474,46 @@ app.post("/desuscribir", async (req, res) => {
   }
 });
 
-// ------------------------------------
-// 🔹 ASISTENTE IA LOCAL (sin OpenAI)
-// ------------------------------------
 app.post("/api/ia", async (req, res) => {
-  const { pregunta } = req.body;
+  const { pregunta, sessionId } = req.body;
   if (!pregunta) {
     return res.status(400).json({ respuesta: "Falta la pregunta del usuario." });
   }
 
   const texto = pregunta.toLowerCase().trim();
   let respuesta = "";
+  const sesion = sesionesIA[sessionId] || [];
 
   try {
+    // 🧠 Recupera último contexto
+    const ultimaPregunta = sesion.length
+      ? sesion[sesion.length - 1].pregunta
+      : "";
+
+    // 🔍 Si la pregunta es corta, intenta inferir contexto
+    let contextoTexto = texto;
+    if (texto.startsWith("y ") || texto === "y" || texto === "y cuántas" || texto.includes("y cuántas")) {
+      contextoTexto = `${ultimaPregunta || ""} ${texto.replace(/^y\s*/i, "")}`.trim();
+    }
+
     // -------------------------------
     // 🔍 Detección de intención local
     // -------------------------------
-    if (/(pendiente|sin resolver|no finalizad)/.test(texto)) {
+    if (/(pendiente|sin resolver|no finalizad)/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT COUNT(*)::int AS total FROM ric01 WHERE (solucion IS NULL OR solucion = '') AND (fin IS NULL OR fin = FALSE)`
       );
       respuesta = `Actualmente hay ${rows[0].total} tareas pendientes.`;
     } 
     
-    else if (/(finalizad|resuelt|complet)/.test(texto)) {
+    else if (/(finalizad|resuelt|complet)/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT COUNT(*)::int AS total FROM ric01 WHERE fin = TRUE`
       );
       respuesta = `Hay ${rows[0].total} tareas finalizadas.`;
     } 
     
-    else if (/(última|ultima|recient|último|ultimo)/.test(texto)) {
+    else if (/(última|ultima|recient|último|ultimo)/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT usuario, tarea, fecha_registro 
          FROM ric01 
@@ -518,21 +528,21 @@ app.post("/api/ia", async (req, res) => {
       }
     } 
     
-    else if (/(usuario|registrad)/.test(texto)) {
+    else if (/(usuario|registrad)/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT COUNT(*)::int AS total FROM usuarios`
       );
       respuesta = `Actualmente hay ${rows[0].total} usuarios registrados.`;
     } 
     
-    else if (/(personal|emplead|técnic|tecnic|miembros)/.test(texto)) {
+    else if (/(personal|emplead|técnic|tecnic|miembros)/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT COUNT(*)::int AS total FROM personal`
       );
       respuesta = `Hay ${rows[0].total} miembros del personal registrados.`;
     } 
     
-    else if (/(servici|área|sector|departamento)/.test(texto)) {
+    else if (/(servici|área|sector|departamento)/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10`
       );
@@ -542,7 +552,7 @@ app.post("/api/ia", async (req, res) => {
           : "No hay servicios registrados aún.";
     } 
     
-    else if (/(quién|quien|usuario).*más tareas/.test(texto)) {
+    else if (/(quién|quien|usuario).*más tareas/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT usuario, COUNT(*)::int AS total
          FROM ric01
@@ -559,18 +569,23 @@ app.post("/api/ia", async (req, res) => {
     
     else {
       respuesta =
-        "🤖 Puedo responder preguntas sobre tareas pendientes o finalizadas, usuarios, personal y servicios. Por ejemplo: '¿Cuántas tareas pendientes hay?' o 'Mostrame los servicios registrados'.";
+        "🤖 Puedo responder sobre tareas pendientes, finalizadas, usuarios, personal y servicios. Por ejemplo: '¿Cuántas tareas pendientes hay?' o 'Mostrame los servicios registrados'.";
     }
+
+    // 🧠 Guardar en memoria
+    sesionesIA[sessionId] = [
+      ...(sesionesIA[sessionId] || []),
+      { pregunta: texto, respuesta },
+    ].slice(-10); // Mantiene solo las últimas 10 interacciones
 
     res.json({ respuesta });
   } catch (error) {
-    console.error("❌ Error en IA local:", error);
+    console.error("❌ Error en IA con memoria:", error);
     res.status(500).json({
       respuesta: "Error al procesar la consulta en el servidor.",
     });
   }
 });
-
 
 // ----------------- SERVIDOR -----------------
 app.listen(PORT, () => {
@@ -584,6 +599,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
