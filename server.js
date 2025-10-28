@@ -571,6 +571,7 @@ calcularYGuardarPromedios();
 // Opcional: recalcular cada 24 horas
 setInterval(calcularYGuardarPromedios, 24 * 60 * 60 * 1000);
 
+// ---------- ASISTENTE IA ----------
 
 app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId } = req.body;
@@ -697,6 +698,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
