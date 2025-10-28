@@ -473,100 +473,104 @@ app.post("/desuscribir", async (req, res) => {
   }
 });
 
+// ------------------------------------
+// 🔹 ASISTENTE IA LOCAL (sin OpenAI)
+// ------------------------------------
 app.post("/api/ia", async (req, res) => {
-  const { pregunta, sessionId, filtros = {} } = req.body;
-
-  if (!pregunta || !sessionId) {
-    return res.status(400).json({ respuesta: "Faltan datos." });
+  const { pregunta } = req.body;
+  if (!pregunta) {
+    return res.status(400).json({ respuesta: "Falta la pregunta del usuario." });
   }
 
-  const texto = pregunta.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const texto = pregunta.toLowerCase().trim();
   let respuesta = "";
 
-  // Filtros opcionales
-  const condiciones = [];
-  const values = [];
-  if (filtros.fecha_inicio) {
-    condiciones.push(`fecha_registro >= $${values.length + 1}`);
-    values.push(filtros.fecha_inicio);
-  }
-  if (filtros.fecha_fin) {
-    condiciones.push(`fecha_registro <= $${values.length + 1}`);
-    values.push(filtros.fecha_fin);
-  }
-  if (filtros.usuario) {
-    condiciones.push(`usuario = $${values.length + 1}`);
-    values.push(filtros.usuario);
-  }
-  const whereFiltro = condiciones.length > 0 ? `AND ${condiciones.join(" AND ")}` : "";
-
   try {
-    if (texto.includes("tareas pendientes") || texto.includes("pendientes")) {
-      // ✅ solucion es TEXT, fin es BOOLEAN
+    // -------------------------------
+    // 🔍 Detección de intención local
+    // -------------------------------
+    if (/(pendiente|sin resolver|no finalizad)/.test(texto)) {
       const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total
-         FROM ric01
-         WHERE (solucion IS NULL OR solucion = '')
-         AND (fin IS NULL OR fin = FALSE)
-         ${whereFiltro}`,
-        values
+        `SELECT COUNT(*)::int AS total FROM ric01 WHERE (solucion IS NULL OR solucion = '') AND (fin IS NULL OR fin = FALSE)`
       );
       respuesta = `Actualmente hay ${rows[0].total} tareas pendientes.`;
-    }
-
-    else if (texto.includes("tareas finalizadas") || texto.includes("finalizadas")) {
+    } 
+    
+    else if (/(finalizad|resuelt|complet)/.test(texto)) {
       const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total
-         FROM ric01
-         WHERE fin = TRUE
-         ${whereFiltro}`,
-        values
+        `SELECT COUNT(*)::int AS total FROM ric01 WHERE fin = TRUE`
       );
       respuesta = `Hay ${rows[0].total} tareas finalizadas.`;
-    }
-
-    else if (texto.includes("usuarios registrados") || texto.includes("cuantos usuarios")) {
-      const { rows } = await pool.query("SELECT COUNT(*)::int AS total FROM usuarios");
-      respuesta = `Hay ${rows[0].total} usuarios registrados en el sistema.`;
-    }
-
-    else if (texto.includes("personal activo") || texto.includes("personal disponible")) {
-      const { rows } = await pool.query("SELECT COUNT(*)::int AS total FROM personal");
-      respuesta = `Actualmente hay ${rows[0].total} miembros del personal registrados.`;
-    }
-
-    else if (texto.includes("última tarea") || texto.includes("último registro")) {
-      const { rows } = await pool.query(`
-        SELECT usuario, tarea, fecha_registro
-        FROM ric01
-        ORDER BY fecha_registro DESC
-        LIMIT 1
-      `);
+    } 
+    
+    else if (/(última|ultima|recient|último|ultimo)/.test(texto)) {
+      const { rows } = await pool.query(
+        `SELECT usuario, tarea, fecha_registro 
+         FROM ric01 
+         ORDER BY fecha_registro DESC 
+         LIMIT 1`
+      );
       if (rows.length > 0) {
         const t = rows[0];
-        respuesta = `La última tarea registrada fue de ${t.usuario}, con la descripción "${t.tarea}", el día ${new Date(t.fecha_registro).toLocaleString()}.`;
+        respuesta = `La última tarea fue registrada por ${t.usuario}, con descripción "${t.tarea}", el ${new Date(t.fecha_registro).toLocaleString()}.`;
       } else {
-        respuesta = "No hay tareas registradas todavía.";
+        respuesta = "No hay tareas registradas aún.";
       }
-    }
-
-    else if (texto.includes("servicios")) {
-      const { rows } = await pool.query("SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10");
+    } 
+    
+    else if (/(usuario|registrad)/.test(texto)) {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM usuarios`
+      );
+      respuesta = `Actualmente hay ${rows[0].total} usuarios registrados.`;
+    } 
+    
+    else if (/(personal|emplead|técnic|tecnic|miembros)/.test(texto)) {
+      const { rows } = await pool.query(
+        `SELECT COUNT(*)::int AS total FROM personal`
+      );
+      respuesta = `Hay ${rows[0].total} miembros del personal registrados.`;
+    } 
+    
+    else if (/(servici|área|sector|departamento)/.test(texto)) {
+      const { rows } = await pool.query(
+        `SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10`
+      );
+      respuesta =
+        rows.length > 0
+          ? `Los primeros servicios registrados son: ${rows.map(r => r.nombre).join(", ")}.`
+          : "No hay servicios registrados aún.";
+    } 
+    
+    else if (/(quién|quien|usuario).*más tareas/.test(texto)) {
+      const { rows } = await pool.query(
+        `SELECT usuario, COUNT(*)::int AS total
+         FROM ric01
+         GROUP BY usuario
+         ORDER BY total DESC
+         LIMIT 5`
+      );
       respuesta = rows.length
-        ? `Algunos servicios disponibles son: ${rows.map((r) => r.nombre).join(", ")}.`
-        : "No hay servicios registrados aún.";
-    }
-
+        ? `Los usuarios con más tareas registradas son: ${rows
+            .map(r => `${r.usuario} (${r.total})`)
+            .join(", ")}.`
+        : "No hay registros de tareas aún.";
+    } 
+    
     else {
-      respuesta = "🤖 Puedo responder preguntas sobre tareas, usuarios, servicios o el estado del sistema. Pregúntame algo como '¿Cuántas tareas pendientes hay?'";
+      respuesta =
+        "🤖 Puedo responder preguntas sobre tareas pendientes o finalizadas, usuarios, personal y servicios. Por ejemplo: '¿Cuántas tareas pendientes hay?' o 'Mostrame los servicios registrados'.";
     }
 
     res.json({ respuesta });
   } catch (error) {
-    console.error("❌ Error en /api/ia:", error);
-    res.status(500).json({ respuesta: "Error al procesar la consulta en la base de datos." });
+    console.error("❌ Error en IA local:", error);
+    res.status(500).json({
+      respuesta: "Error al procesar la consulta en el servidor.",
+    });
   }
 });
+
 
 // ----------------- SERVIDOR -----------------
 app.listen(PORT, () => {
@@ -580,6 +584,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
