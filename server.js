@@ -480,11 +480,10 @@ app.post("/api/ia", async (req, res) => {
     return res.status(400).json({ respuesta: "Faltan datos." });
   }
 
-  // Normalizar texto
   const texto = pregunta.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   let respuesta = "";
 
-  // Construir filtros de forma segura
+  // Filtros opcionales
   const condiciones = [];
   const values = [];
   if (filtros.fecha_inicio) {
@@ -502,20 +501,64 @@ app.post("/api/ia", async (req, res) => {
   const whereFiltro = condiciones.length > 0 ? `AND ${condiciones.join(" AND ")}` : "";
 
   try {
-    if (texto.includes("tareas pendientes")) {
+    if (texto.includes("tareas pendientes") || texto.includes("pendientes")) {
+      // ✅ solucion es TEXT, fin es BOOLEAN
       const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM ric01 WHERE (solucion IS NULL OR solucion = '') AND (fin IS NULL OR fin = '') ${whereFiltro}`,
+        `SELECT COUNT(*)::int AS total
+         FROM ric01
+         WHERE (solucion IS NULL OR solucion = '')
+         AND (fin IS NULL OR fin = FALSE)
+         ${whereFiltro}`,
         values
       );
       respuesta = `Actualmente hay ${rows[0].total} tareas pendientes.`;
-    } else if (texto.includes("tareas finalizadas")) {
+    }
+
+    else if (texto.includes("tareas finalizadas") || texto.includes("finalizadas")) {
       const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM ric01 WHERE fin IS NOT NULL AND fin <> '' ${whereFiltro}`,
+        `SELECT COUNT(*)::int AS total
+         FROM ric01
+         WHERE fin = TRUE
+         ${whereFiltro}`,
         values
       );
       respuesta = `Hay ${rows[0].total} tareas finalizadas.`;
-    } else {
-      respuesta = "🤖 Puedo responder sobre tareas, usuarios, personal y servicios.";
+    }
+
+    else if (texto.includes("usuarios registrados") || texto.includes("cuantos usuarios")) {
+      const { rows } = await pool.query("SELECT COUNT(*)::int AS total FROM usuarios");
+      respuesta = `Hay ${rows[0].total} usuarios registrados en el sistema.`;
+    }
+
+    else if (texto.includes("personal activo") || texto.includes("personal disponible")) {
+      const { rows } = await pool.query("SELECT COUNT(*)::int AS total FROM personal");
+      respuesta = `Actualmente hay ${rows[0].total} miembros del personal registrados.`;
+    }
+
+    else if (texto.includes("última tarea") || texto.includes("último registro")) {
+      const { rows } = await pool.query(`
+        SELECT usuario, tarea, fecha_registro
+        FROM ric01
+        ORDER BY fecha_registro DESC
+        LIMIT 1
+      `);
+      if (rows.length > 0) {
+        const t = rows[0];
+        respuesta = `La última tarea registrada fue de ${t.usuario}, con la descripción "${t.tarea}", el día ${new Date(t.fecha_registro).toLocaleString()}.`;
+      } else {
+        respuesta = "No hay tareas registradas todavía.";
+      }
+    }
+
+    else if (texto.includes("servicios")) {
+      const { rows } = await pool.query("SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10");
+      respuesta = rows.length
+        ? `Algunos servicios disponibles son: ${rows.map((r) => r.nombre).join(", ")}.`
+        : "No hay servicios registrados aún.";
+    }
+
+    else {
+      respuesta = "🤖 Puedo responder preguntas sobre tareas, usuarios, servicios o el estado del sistema. Pregúntame algo como '¿Cuántas tareas pendientes hay?'";
     }
 
     res.json({ respuesta });
@@ -537,6 +580,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
