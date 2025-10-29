@@ -650,6 +650,41 @@ app.post("/api/ia", async (req, res) => {
           ? `Los primeros servicios registrados son: ${rows.map(r => r.nombre).join(", ")}.`
           : "No hay servicios registrados aún.";
     } 
+      else if (/(más común|mas comun|frecuente|repetid).*tarea/.test(contextoTexto)) {
+  // ✅ Detecta cuál es el tipo de tarea más común por área o en general
+  let filtro = "";
+  const matchArea = contextoTexto.match(/(área|area|servicio|sector)\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)/);
+  if (matchArea) {
+    const area = matchArea[2];
+    filtro = `WHERE LOWER(area) LIKE LOWER('%${area}%')`;
+  }
+
+  const { rows } = await pool.query(`
+    SELECT tarea, COUNT(*)::int AS cantidad
+    FROM ric01
+    ${filtro}
+    GROUP BY tarea
+    ORDER BY cantidad DESC
+    LIMIT 3
+  `);
+
+  if (rows.length > 0) {
+    if (filtro) {
+      respuesta = `En esa área, las tareas más comunes son: ${rows
+        .map(r => `${r.tarea} (${r.cantidad})`)
+        .join(", ")}.`;
+    } else {
+      respuesta = `En general, las tareas más frecuentes son: ${rows
+        .map(r => `${r.tarea} (${r.cantidad})`)
+        .join(", ")}.`;
+    }
+  } else {
+    respuesta = filtro
+      ? "No hay tareas registradas en esa área."
+      : "No se encontraron tareas registradas aún.";
+  }
+}
+
     
     else if (/(quién|quien|usuario).*más tareas/.test(contextoTexto)) {
       const { rows } = await pool.query(
@@ -698,6 +733,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
