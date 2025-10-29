@@ -650,34 +650,39 @@ app.post("/api/ia", async (req, res) => {
           ? `Los primeros servicios registrados son: ${rows.map(r => r.nombre).join(", ")}.`
           : "No hay servicios registrados aún.";
     } 
-      else if (/(más común|mas comun|frecuente|repetid).*tarea/.test(contextoTexto)) {
-  // ✅ Detecta cuál es el tipo de tarea más común por área o en general
+
+    else if (/(más común|mas comun|frecuente|repetid).*tarea/.test(contextoTexto)) {
+  // ✅ Analiza las tareas más comunes y calcula porcentajes
   let filtro = "";
-  const matchArea = contextoTexto.match(/(área|area|servicio|sector)\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)/);
+  const matchArea = contextoTexto.match(/(área|area|servicio|sector)\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)/i);
   if (matchArea) {
     const area = matchArea[2];
     filtro = `WHERE LOWER(area) LIKE LOWER('%${area}%')`;
   }
 
-  const { rows } = await pool.query(`
-    SELECT tarea, COUNT(*)::int AS cantidad
+  const query = `
+    SELECT tarea,
+           COUNT(*)::int AS cantidad,
+           ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS porcentaje
     FROM ric01
     ${filtro}
     GROUP BY tarea
     ORDER BY cantidad DESC
-    LIMIT 3
-  `);
+    LIMIT 5;
+  `;
+
+  const { rows } = await pool.query(query);
 
   if (rows.length > 0) {
-    if (filtro) {
-      respuesta = `En esa área, las tareas más comunes son: ${rows
-        .map(r => `${r.tarea} (${r.cantidad})`)
-        .join(", ")}.`;
-    } else {
-      respuesta = `En general, las tareas más frecuentes son: ${rows
-        .map(r => `${r.tarea} (${r.cantidad})`)
-        .join(", ")}.`;
-    }
+    const totalMsg = filtro
+      ? "En esa área, los tipos de tarea más frecuentes son:"
+      : "En general, las tareas más comunes son:";
+
+    const listado = rows
+      .map((r) => `${r.tarea} (${r.cantidad} registros, ${r.porcentaje}%)`)
+      .join("; ");
+
+    respuesta = `${totalMsg} ${listado}.`;
   } else {
     respuesta = filtro
       ? "No hay tareas registradas en esa área."
@@ -685,7 +690,6 @@ app.post("/api/ia", async (req, res) => {
   }
 }
 
-    
     else if (/(quién|quien|usuario).*más tareas/.test(contextoTexto)) {
       const { rows } = await pool.query(
         `SELECT usuario, COUNT(*)::int AS total
@@ -733,6 +737,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
