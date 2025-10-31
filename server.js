@@ -210,6 +210,56 @@ app.post("/tareas", async (req, res) => {
 });
 
 // ---------- ACTUALIZACIONES DE TAREAS ----------
+// 🔹 Función para obtener fecha/hora local argentina
+function fechaLocalArgentina() {
+  return new Date().toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+}
+
+// 🔹 Función para calcular y guardar promedios de todas las fechas
+async function calcularYGuardarPromedios() {
+  try {
+    const result = await pool.query(`
+      SELECT
+        DATE(fecha_registro) AS fecha,
+        COUNT(*) AS total_tareas,
+        COUNT(fecha_comp) AS tareas_completadas,
+        COUNT(fecha_fin) AS tareas_finalizadas,
+        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha_registro)) / 60) AS promedio_minutos_comp,
+        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_registro)) / 60) AS promedio_minutos_fin
+      FROM ric01
+      GROUP BY DATE(fecha_registro)
+      ORDER BY fecha DESC
+    `);
+
+    for (const row of result.rows) {
+      await pool.query(
+        `INSERT INTO promedios (fecha, total_tareas, tareas_completadas, tareas_finalizadas, promedio_minutos_comp, promedio_minutos_fin)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (fecha)
+         DO UPDATE SET
+           total_tareas = EXCLUDED.total_tareas,
+           tareas_completadas = EXCLUDED.tareas_completadas,
+           tareas_finalizadas = EXCLUDED.tareas_finalizadas,
+           promedio_minutos_comp = EXCLUDED.promedio_minutos_comp,
+           promedio_minutos_fin = EXCLUDED.promedio_minutos_fin`,
+        [
+          row.fecha,
+          row.total_tareas,
+          row.tareas_completadas,
+          row.tareas_finalizadas,
+          row.promedio_minutos_comp,
+          row.promedio_minutos_fin,
+        ]
+      );
+    }
+
+    console.log("📊 Promedios recalculados correctamente");
+  } catch (err) {
+    console.error("❌ Error al calcular promedios:", err);
+  }
+}
+
+// ---------- ACTUALIZACIONES DE TAREAS ----------
 app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
   const { solucion, asignado } = req.body;
@@ -219,8 +269,10 @@ app.put("/tareas/:id/solucion", async (req, res) => {
       `UPDATE ric01 SET solucion=$1, asignado=$2, fecha_comp=$3 WHERE id=$4`,
       [solucion, asignado, fecha_comp, id]
     );
-    await calcularYGuardarPromedios();
-    res.json({ message: "✅ Solución guardada" });
+
+    await calcularYGuardarPromedios(); // 🔁 recalcula después de completar tarea
+
+    res.json({ message: "✅ Solución guardada y promedios actualizados" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error interno del servidor" });
@@ -236,9 +288,16 @@ app.put("/tareas/:id", async (req, res) => {
       `UPDATE ric01 SET fin=$1, fecha_fin=$2 WHERE id=$3 RETURNING *`,
       [fin, fecha_fin, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Tarea no encontrada" });
-    await calcularYGuardarPromedios();
-    res.json(result.rows[0]);
+
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "Tarea no encontrada" });
+
+    await calcularYGuardarPromedios(); // 🔁 recalcula después de finalizar tarea
+
+    res.json({
+      message: "✅ Tarea finalizada y promedios actualizados",
+      tarea: result.rows[0],
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al finalizar tarea" });
@@ -739,6 +798,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
