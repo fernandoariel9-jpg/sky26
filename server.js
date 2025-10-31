@@ -219,6 +219,7 @@ app.put("/tareas/:id/solucion", async (req, res) => {
       `UPDATE ric01 SET solucion=$1, asignado=$2, fecha_comp=$3 WHERE id=$4`,
       [solucion, asignado, fecha_comp, id]
     );
+    await calcularYGuardarPromedios();
     res.json({ message: "✅ Solución guardada" });
   } catch (err) {
     console.error(err);
@@ -236,6 +237,7 @@ app.put("/tareas/:id", async (req, res) => {
       [fin, fecha_fin, id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Tarea no encontrada" });
+    await calcularYGuardarPromedios();
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
@@ -737,6 +739,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
