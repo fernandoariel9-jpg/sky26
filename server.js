@@ -210,10 +210,6 @@ app.post("/tareas", async (req, res) => {
 });
 
 // ---------- ACTUALIZACIONES DE TAREAS ----------
-// 🔹 Función para obtener fecha/hora local argentina
-function fechaLocalArgentina() {
-  return new Date().toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
-}
 
 // 🔹 Función para calcular y guardar promedios de todas las fechas
 async function calcularYGuardarPromedios() {
@@ -798,23 +794,4 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
