@@ -212,7 +212,7 @@ app.post("/tareas", async (req, res) => {
 // ---------- ACTUALIZACIONES DE TAREAS ----------
 
 // 🔹 Función para calcular y guardar promedios de todas las fechas
-async function calcularYGuardarPromedios() {
+async function calcularYGuardarPromediosGlobal() {   // ← renombrada
   try {
     const result = await pool.query(`
       SELECT
@@ -288,7 +288,7 @@ app.put("/tareas/:id", async (req, res) => {
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Tarea no encontrada" });
 
-    await calcularYGuardarPromedios(); // 🔁 recalcula después de finalizar tarea
+    await calcularYGuardarPromediosGlobal(); // 🔁 recalcula después de finalizar tarea
 
     res.json({
       message: "✅ Tarea finalizada y promedios actualizados",
@@ -794,4 +794,5 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
