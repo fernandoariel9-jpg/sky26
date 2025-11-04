@@ -321,13 +321,54 @@ app.put("/tareas/:id/calificacion", async (req, res) => {
 app.put("/tareas/:id/reasignar", async (req, res) => {
   const { id } = req.params;
   const { nueva_area, reasignado_por } = req.body;
+
   try {
+    // 1️⃣ Actualizar la tarea en la base de datos
     const result = await pool.query(
       `UPDATE ric01 SET reasignado_a=$1, reasignado_por=$2 WHERE id=$3 RETURNING *`,
       [nueva_area, reasignado_por, id]
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Tarea no encontrada" });
-    res.json({ ok: true, tarea: result.rows[0] });
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Tarea no encontrada" });
+    }
+
+    const tarea = result.rows[0];
+
+    // 2️⃣ Enviar notificación al nuevo personal del área
+    try {
+      const subsResult = await pool.query(
+        `SELECT suscripcion FROM personal WHERE area=$1 AND suscripcion IS NOT NULL`,
+        [nueva_area]
+      );
+
+      if (subsResult.rows.length > 0) {
+        const payload = JSON.stringify({
+          title: "Tarea reasignada a tu área",
+          body: `La tarea ID ${id} fue reasignada al área ${nueva_area}.`,
+          icon: "/icon-192x192.png",
+          data: { tareaId: id },
+        });
+
+        for (const row of subsResult.rows) {
+          try {
+            const sub = JSON.parse(row.suscripcion);
+            await webpush.sendNotification(sub, payload);
+          } catch (err) {
+            console.warn("⚠️ Error enviando notificación:", err.message);
+          }
+        }
+
+        console.log(`📢 Notificación enviada a ${subsResult.rows.length} usuarios del área ${nueva_area}`);
+      } else {
+        console.log(`ℹ️ No hay personal suscrito en el área ${nueva_area}`);
+      }
+    } catch (notifyErr) {
+      console.error("Error al enviar notificación:", notifyErr);
+    }
+
+    // 3️⃣ Responder al cliente
+    res.json({ ok: true, tarea });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -794,5 +835,6 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
