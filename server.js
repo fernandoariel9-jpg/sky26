@@ -673,86 +673,101 @@ setInterval(calcularYGuardarPromedios, 24 * 60 * 60 * 1000);
 // 🧠 Asistente IA con interpretación de lenguaje natural y conexión a PostgreSQL
 app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId } = req.body;
-  if (!pregunta) return res.status(400).json({ respuesta: "Falta la pregunta." });
 
   try {
-    // 🧠 Cargar historial previo de la sesión (si existe)
-    const historial = sesionesIA[sessionId] || [];
+    // -----------------------------------
+    // 🧩 1️⃣ INTENTAR RESPUESTA DIRECTA CON SQL
+    // -----------------------------------
+    const q = pregunta.toLowerCase();
 
-    // 🔍 1️⃣ Generar SQL desde lenguaje natural usando ApiFreeLLM
-    const prompt = `
-Eres un asistente experto en bases de datos PostgreSQL del Servicio de Ingeniería Clínica.
-Tienes acceso a las tablas:
-- ric01(id, usuario, tarea, area, tipo, solucion, fin, fecha, fecha_comp, fecha_fin, reasignado_a, reasignado_por)
-- usuarios(id, nombre, servicio, mail, area)
-- personal(id, nombre, area)
-- servicios(id, servicio, encargado, area)
-
-Usa el contexto previo si ayuda a entender la pregunta. 
-Convierte la siguiente pregunta en una consulta SQL SELECT válida, segura y relevante.
-NO expliques nada, solo devuelve el SQL.
-
-Historial previo:
-${historial.map((h) => `Usuario: ${h.pregunta}\nAsistente: ${h.respuesta}`).join("\n")}
-
-Pregunta nueva: "${pregunta}"
-`;
-
-    const sqlResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${process.env.OPENROUTER_KEY}`,
-  },
-  body: JSON.stringify({
-    model: "mistralai/mistral-7b-instruct:free",
-    messages: [
-      { role: "system", content: "Eres un generador SQL que responde con consultas seguras." },
-      { role: "user", content: prompt },
-    ],
-  }),
-});
-
-    if (!sqlResponse.ok) throw new Error("Error en ApiFreeLLM");
-    const sqlData = await sqlResponse.json();
-    const generatedSQL = sqlData.choices?.[0]?.message?.content?.trim();
-
-    console.log("🧩 SQL generado:", generatedSQL);
-
-    // 🧱 2️⃣ Validamos el SQL antes de ejecutar
-    if (!generatedSQL?.toLowerCase().startsWith("select")) {
+    // Total de tareas
+    if (/cu[aá]ntas.*tareas|total.*tareas/i.test(q)) {
+      const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01");
       return res.json({
-        respuesta: "⚠️ Solo puedo ejecutar consultas SELECT seguras.",
+        respuesta: `Actualmente hay ${rows[0].total} tareas registradas en el sistema.`,
       });
     }
 
-    // 🧾 3️⃣ Ejecutamos el SQL generado
-    const { rows } = await pool.query(generatedSQL);
-
-    let respuestaIA;
-    if (rows.length > 0) {
-      const preview = rows
-        .slice(0, 5)
-        .map((r) => Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(" | "))
-        .join("\n\n");
-      respuestaIA = `📊 Resultado:\n\n${preview}${
-        rows.length > 5 ? "\n\n(mostrando los primeros 5 resultados)" : ""
-      }`;
-    } else {
-      respuestaIA = "🤖 No se encontraron resultados para esa consulta.";
+    // Tareas finalizadas
+    if (/finalizadas|terminadas|completadas/i.test(q)) {
+      const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = true");
+      return res.json({
+        respuesta: `Hay ${rows[0].total} tareas finalizadas.`,
+      });
     }
 
-    // 💾 4️⃣ Guardar en la memoria de la sesión
-    sesionesIA[sessionId] = [
-      ...(sesionesIA[sessionId] || []),
-      { pregunta, respuesta: respuestaIA },
-    ].slice(-10); // Guardamos solo las últimas 10 interacciones
+    // Tareas pendientes
+    if (/pendientes|sin finalizar|no finalizadas/i.test(q)) {
+      const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = false");
+      return res.json({
+        respuesta: `Hay ${rows[0].total} tareas pendientes.`,
+      });
+    }
 
-    // ✅ 5️⃣ Responder al frontend
-    res.json({ respuesta: respuestaIA });
-  } catch (err) {
-    console.error("❌ Error en IA con memoria:", err);
-    res.status(500).json({ respuesta: "❌ Error en IA con memoria." });
+    // Tipos de tareas más comunes
+    if (/tipo.*com[uú]n|tareas m[aá]s comunes|tipos frecuentes/i.test(q)) {
+      const { rows } = await pool.query(`
+        SELECT tipo, COUNT(*) AS cantidad
+        FROM ric01
+        GROUP BY tipo
+        ORDER BY cantidad DESC
+        LIMIT 3
+      `);
+      const resumen = rows.map(r => `${r.tipo} (${r.cantidad})`).join(", ");
+      return res.json({
+        respuesta: `Los tipos de tareas más comunes son: ${resumen}.`,
+      });
+    }
+
+    // -----------------------------------
+    // 🧠 2️⃣ SI NO COINCIDE NINGUNA, CONSULTAR A OPENROUTER
+    // -----------------------------------
+    const tareas = await pool.query(`
+      SELECT id, area, tipo, descripcion, solucion, fin, fecha, fecha_comp, fecha_fin
+      FROM ric01
+      ORDER BY id DESC
+      LIMIT 100
+    `);
+
+    const contexto = JSON.stringify(tareas.rows.slice(0, 20));
+
+    const prompt = `
+Eres un asistente del Servicio de Ingeniería Clínica.
+Tu misión es analizar y responder preguntas sobre tareas (área, tipo, descripción, solución, fin).
+Datos disponibles:
+${contexto}
+
+Pregunta del usuario:
+${pregunta}
+
+Responde con claridad, sin inventar datos ni usar SQL directamente.
+`;
+
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.OPENROUTER_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "mistralai/mistral-7b-instruct:free",
+        messages: [
+          { role: "system", content: "Eres un analista experto en mantenimiento hospitalario." },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+
+    if (!response.ok) throw new Error(`Error en OpenRouter: ${response.statusText}`);
+
+    const data = await response.json();
+    const respuesta = data.choices?.[0]?.message?.content || "No se pudo generar respuesta.";
+
+    res.json({ respuesta });
+
+  } catch (error) {
+    console.error("❌ Error en IA híbrida:", error);
+    res.status(500).json({ error: "Error al procesar la solicitud del asistente IA." });
   }
 });
 
@@ -768,6 +783,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
