@@ -723,7 +723,7 @@ app.post("/api/ia", async (req, res) => {
     // 🧠 2️⃣ SI NO COINCIDE NINGUNA, CONSULTAR A OPENROUTER
     // -----------------------------------
     const tareas = await pool.query(`
-      SELECT id, area, tipo, descripcion, solucion, fin, fecha, fecha_comp, fecha_fin
+      SELECT id, area, tarea, usuario, solucion, fin, fecha, fecha_comp, fecha_fin, servicio, subservicio, asignado, reasignado_a, reasignado_por
       FROM ric01
       ORDER BY id DESC
       LIMIT 100
@@ -733,7 +733,7 @@ app.post("/api/ia", async (req, res) => {
 
     const prompt = `
 Eres un asistente del Servicio de Ingeniería Clínica.
-Tu misión es analizar y responder preguntas sobre tareas (área, tipo, descripción, solución, fin).
+Tu misión es analizar y responder preguntas sobre tareas (area, tarea, usuario, solucion, fin, fecha, fecha_comp, fecha_fin, servicio, subservicio, asignado, reasignado_a, reasignado_por).
 Datos disponibles:
 ${contexto}
 
@@ -783,6 +783,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
