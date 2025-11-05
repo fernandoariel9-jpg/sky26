@@ -712,14 +712,14 @@ app.post("/api/ia", async (req, res) => {
     
     else if (/(última|ultima|recient|último|ultimo)/.test(contextoTexto)) {
       const { rows } = await pool.query(
-        `SELECT usuario, tarea, fecha_registro 
+        `SELECT usuario, tarea, fecha 
          FROM ric01 
          ORDER BY fecha_registro DESC 
          LIMIT 1`
       );
       if (rows.length > 0) {
         const t = rows[0];
-        respuesta = `La última tarea fue registrada por ${t.usuario}, con descripción "${t.tarea}", el ${new Date(t.fecha_registro).toLocaleString()}.`;
+        respuesta = `La última tarea fue registrada por ${t.usuario}, con descripción "${t.tarea}", el ${new Date(t.fecha).toLocaleString()}.`;
       } else {
         respuesta = "No hay tareas registradas aún.";
       }
@@ -835,6 +835,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
