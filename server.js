@@ -714,7 +714,7 @@ app.post("/api/ia", async (req, res) => {
       const { rows } = await pool.query(
         `SELECT usuario, tarea, fecha 
          FROM ric01 
-         ORDER BY fecha_registro DESC 
+         ORDER BY fecha DESC 
          LIMIT 1`
       );
       if (rows.length > 0) {
@@ -835,6 +835,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
