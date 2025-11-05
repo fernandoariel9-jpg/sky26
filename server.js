@@ -698,17 +698,20 @@ ${historial.map((h) => `Usuario: ${h.pregunta}\nAsistente: ${h.respuesta}`).join
 Pregunta nueva: "${pregunta}"
 `;
 
-    const sqlResponse = await fetch("https://apifreellm.com/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "llama3-8b",
-        messages: [
-          { role: "system", content: "Eres un generador SQL que responde con consultas seguras." },
-          { role: "user", content: prompt },
-        ],
-      }),
-    });
+    const sqlResponse = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${process.env.OPENROUTER_KEY}`,
+  },
+  body: JSON.stringify({
+    model: "mistralai/mistral-7b-instruct:free",
+    messages: [
+      { role: "system", content: "Eres un generador SQL que responde con consultas seguras." },
+      { role: "user", content: prompt },
+    ],
+  }),
+});
 
     if (!sqlResponse.ok) throw new Error("Error en ApiFreeLLM");
     const sqlData = await sqlResponse.json();
@@ -765,6 +768,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
