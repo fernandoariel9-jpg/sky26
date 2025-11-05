@@ -698,7 +698,7 @@ ${historial.map((h) => `Usuario: ${h.pregunta}\nAsistente: ${h.respuesta}`).join
 Pregunta nueva: "${pregunta}"
 `;
 
-    const sqlResponse = await fetch("https://api.apifreellm.com/v1/chat/completions", {
+    const sqlResponse = await fetch("https://apifreellm.com/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -765,6 +765,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
