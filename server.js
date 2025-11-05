@@ -670,156 +670,86 @@ calcularYGuardarPromedios();
 setInterval(calcularYGuardarPromedios, 24 * 60 * 60 * 1000);
 
 // ---------- ASISTENTE IA ----------
-
+// 🧠 Asistente IA con interpretación de lenguaje natural y conexión a PostgreSQL
 app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId } = req.body;
-  if (!pregunta) {
-    return res.status(400).json({ respuesta: "Falta la pregunta del usuario." });
-  }
-
-  const texto = pregunta.toLowerCase().trim();
-  let respuesta = "";
-  const sesion = sesionesIA[sessionId] || [];
+  if (!pregunta) return res.status(400).json({ respuesta: "Falta la pregunta." });
 
   try {
-    // 🧠 Recupera último contexto
-    const ultimaPregunta = sesion.length
-      ? sesion[sesion.length - 1].pregunta
-      : "";
+    // 🧠 Cargar historial previo de la sesión (si existe)
+    const historial = sesionesIA[sessionId] || [];
 
-    // 🔍 Si la pregunta es corta, intenta inferir contexto
-    let contextoTexto = texto;
-    if (texto.startsWith("y ") || texto === "y" || texto === "y cuántas" || texto.includes("y cuántas")) {
-      contextoTexto = `${ultimaPregunta || ""} ${texto.replace(/^y\s*/i, "")}`.trim();
+    // 🔍 1️⃣ Generar SQL desde lenguaje natural usando ApiFreeLLM
+    const prompt = `
+Eres un asistente experto en bases de datos PostgreSQL del Servicio de Ingeniería Clínica.
+Tienes acceso a las tablas:
+- ric01(id, usuario, tarea, area, tipo, solucion, fin, fecha_registro, fecha_comp)
+- usuarios(id, nombre, mail, area)
+- personal(id, nombre, activo)
+- servicios(id, nombre)
+
+Usa el contexto previo si ayuda a entender la pregunta. 
+Convierte la siguiente pregunta en una consulta SQL SELECT válida, segura y relevante.
+NO expliques nada, solo devuelve el SQL.
+
+Historial previo:
+${historial.map((h) => `Usuario: ${h.pregunta}\nAsistente: ${h.respuesta}`).join("\n")}
+
+Pregunta nueva: "${pregunta}"
+`;
+
+    const sqlResponse = await fetch("https://api.apifreellm.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "llama3-8b",
+        messages: [
+          { role: "system", content: "Eres un generador SQL que responde con consultas seguras." },
+          { role: "user", content: prompt },
+        ],
+      }),
+    });
+
+    if (!sqlResponse.ok) throw new Error("Error en ApiFreeLLM");
+    const sqlData = await sqlResponse.json();
+    const generatedSQL = sqlData.choices?.[0]?.message?.content?.trim();
+
+    console.log("🧩 SQL generado:", generatedSQL);
+
+    // 🧱 2️⃣ Validamos el SQL antes de ejecutar
+    if (!generatedSQL?.toLowerCase().startsWith("select")) {
+      return res.json({
+        respuesta: "⚠️ Solo puedo ejecutar consultas SELECT seguras.",
+      });
     }
 
-    // -------------------------------
-    // 🔍 Detección de intención local
-    // -------------------------------
-    if (/(pendiente|sin resolver|no finalizad)/.test(contextoTexto)) {
-      const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM ric01 WHERE (solucion IS NULL OR solucion = '') AND (fin IS NULL OR fin = FALSE)`
-      );
-      respuesta = `Actualmente hay ${rows[0].total} tareas pendientes.`;
-    } 
-    
-    else if (/(finalizad|resuelt|complet)/.test(contextoTexto)) {
-      const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM ric01 WHERE fin = TRUE`
-      );
-      respuesta = `Hay ${rows[0].total} tareas finalizadas.`;
-    } 
-    
-    else if (/(última|ultima|recient|último|ultimo)/.test(contextoTexto)) {
-      const { rows } = await pool.query(
-        `SELECT usuario, tarea, fecha 
-         FROM ric01 
-         ORDER BY fecha DESC 
-         LIMIT 1`
-      );
-      if (rows.length > 0) {
-        const t = rows[0];
-        respuesta = `La última tarea fue registrada por ${t.usuario}, con descripción "${t.tarea}", el ${new Date(t.fecha).toLocaleString()}.`;
-      } else {
-        respuesta = "No hay tareas registradas aún.";
-      }
-    } 
-    
-    else if (/(usuario|registrad)/.test(contextoTexto)) {
-      const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM usuarios`
-      );
-      respuesta = `Actualmente hay ${rows[0].total} usuarios registrados.`;
-    } 
-    
-    else if (/(personal|emplead|técnic|tecnic|miembros)/.test(contextoTexto)) {
-      const { rows } = await pool.query(
-        `SELECT COUNT(*)::int AS total FROM personal`
-      );
-      respuesta = `Hay ${rows[0].total} miembros del personal registrados.`;
-    } 
-    
-    else if (/(servici|área|sector|departamento)/.test(contextoTexto)) {
-      const { rows } = await pool.query(
-        `SELECT nombre FROM servicios ORDER BY nombre ASC LIMIT 10`
-      );
-      respuesta =
-        rows.length > 0
-          ? `Los primeros servicios registrados son: ${rows.map(r => r.nombre).join(", ")}.`
-          : "No hay servicios registrados aún.";
-    } 
+    // 🧾 3️⃣ Ejecutamos el SQL generado
+    const { rows } = await pool.query(generatedSQL);
 
-    else if (/(más común|mas comun|frecuente|repetid).*tarea/.test(contextoTexto)) {
-  // ✅ Analiza las tareas más comunes y calcula porcentajes
-  let filtro = "";
-  const matchArea = contextoTexto.match(/(área|area|servicio|sector)\s+([a-zA-ZáéíóúÁÉÍÓÚ]+)/i);
-  if (matchArea) {
-    const area = matchArea[2];
-    filtro = `WHERE LOWER(area) LIKE LOWER('%${area}%')`;
-  }
-
-  const query = `
-    SELECT tarea,
-           COUNT(*)::int AS cantidad,
-           ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER (), 1) AS porcentaje
-    FROM ric01
-    ${filtro}
-    GROUP BY tarea
-    ORDER BY cantidad DESC
-    LIMIT 5;
-  `;
-
-  const { rows } = await pool.query(query);
-
-  if (rows.length > 0) {
-    const totalMsg = filtro
-      ? "En esa área, los tipos de tarea más frecuentes son:"
-      : "En general, las tareas más comunes son:";
-
-    const listado = rows
-      .map((r) => `${r.tarea} (${r.cantidad} registros, ${r.porcentaje}%)`)
-      .join("; ");
-
-    respuesta = `${totalMsg} ${listado}.`;
-  } else {
-    respuesta = filtro
-      ? "No hay tareas registradas en esa área."
-      : "No se encontraron tareas registradas aún.";
-  }
-}
-
-    else if (/(quién|quien|usuario).*más tareas/.test(contextoTexto)) {
-      const { rows } = await pool.query(
-        `SELECT usuario, COUNT(*)::int AS total
-         FROM ric01
-         GROUP BY usuario
-         ORDER BY total DESC
-         LIMIT 5`
-      );
-      respuesta = rows.length
-        ? `Los usuarios con más tareas registradas son: ${rows
-            .map(r => `${r.usuario} (${r.total})`)
-            .join(", ")}.`
-        : "No hay registros de tareas aún.";
-    } 
-    
-    else {
-      respuesta =
-        "🤖 Puedo responder sobre tareas pendientes, finalizadas, usuarios, personal y servicios. Por ejemplo: '¿Cuántas tareas pendientes hay?' o 'Mostrame los servicios registrados'.";
+    let respuestaIA;
+    if (rows.length > 0) {
+      const preview = rows
+        .slice(0, 5)
+        .map((r) => Object.entries(r).map(([k, v]) => `${k}: ${v}`).join(" | "))
+        .join("\n\n");
+      respuestaIA = `📊 Resultado:\n\n${preview}${
+        rows.length > 5 ? "\n\n(mostrando los primeros 5 resultados)" : ""
+      }`;
+    } else {
+      respuestaIA = "🤖 No se encontraron resultados para esa consulta.";
     }
 
-    // 🧠 Guardar en memoria
+    // 💾 4️⃣ Guardar en la memoria de la sesión
     sesionesIA[sessionId] = [
       ...(sesionesIA[sessionId] || []),
-      { pregunta: texto, respuesta },
-    ].slice(-10); // Mantiene solo las últimas 10 interacciones
+      { pregunta, respuesta: respuestaIA },
+    ].slice(-10); // Guardamos solo las últimas 10 interacciones
 
-    res.json({ respuesta });
-  } catch (error) {
-    console.error("❌ Error en IA con memoria:", error);
-    res.status(500).json({
-      respuesta: "Error al procesar la consulta en el servidor.",
-    });
+    // ✅ 5️⃣ Responder al frontend
+    res.json({ respuesta: respuestaIA });
+  } catch (err) {
+    console.error("❌ Error en IA con memoria:", err);
+    res.status(500).json({ respuesta: "❌ Error en IA con memoria." });
   }
 });
 
@@ -835,6 +765,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
