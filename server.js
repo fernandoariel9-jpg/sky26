@@ -683,10 +683,10 @@ app.post("/api/ia", async (req, res) => {
     const prompt = `
 Eres un asistente experto en bases de datos PostgreSQL del Servicio de Ingeniería Clínica.
 Tienes acceso a las tablas:
-- ric01(id, usuario, tarea, area, tipo, solucion, fin, fecha_registro, fecha_comp)
-- usuarios(id, nombre, mail, area)
-- personal(id, nombre, activo)
-- servicios(id, nombre)
+- ric01(id, usuario, tarea, area, tipo, solucion, fin, fecha, fecha_comp, fecha_fin, reasignado_a, reasignado_por)
+- usuarios(id, nombre, servicio, mail, area)
+- personal(id, nombre, area)
+- servicios(id, servicio, encargado, area)
 
 Usa el contexto previo si ayuda a entender la pregunta. 
 Convierte la siguiente pregunta en una consulta SQL SELECT válida, segura y relevante.
@@ -765,6 +765,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
