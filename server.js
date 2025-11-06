@@ -670,78 +670,110 @@ calcularYGuardarPromedios();
 setInterval(calcularYGuardarPromedios, 24 * 60 * 60 * 1000);
 
 // ---------- ASISTENTE IA ----------
-// 🧠 Asistente IA con interpretación de lenguaje natural y conexión a PostgreSQL
+// Helper para insertar en ia_logs de forma segura y consistente
+async function logIALog({ session_id = "", pregunta = null, respuesta = null, correccion = null }) {
+  // usamos casts explícitos para evitar conversiones implícitas
+  const q = `
+    INSERT INTO ia_logs (session_id, pregunta, respuesta, correccion)
+    VALUES ($1::text, $2::text, $3::text, $4::text)
+    RETURNING id
+  `;
+  const params = [session_id, pregunta || null, respuesta || null, correccion || null];
+  return pool.query(q, params);
+}
+
 app.post("/api/ia", async (req, res) => {
   let { pregunta, sessionId } = req.body;
 
   try {
-    // 🧱 Asegurar que sessionId sea texto (evita error 22003)
+    if (!pregunta) return res.status(400).json({ error: "Falta la pregunta." });
+
+    // Asegurar sessionId como texto
     sessionId = String(sessionId || "");
 
-    // 🔍 Buscar si ya hubo una corrección previa para una pregunta similar
-    // 🔍 Buscar si ya hubo una corrección previa para una pregunta similar
-const { rows: correcciones } = await pool.query(
-  `SELECT correccion FROM ia_logs 
-   WHERE correccion IS NOT NULL 
-   AND similarity(pregunta, $1) > 0.6 
-   ORDER BY fecha DESC LIMIT 1`,
-  [pregunta]
-);
-
-if (correcciones.length > 0) {
-  let respuesta;
-  const correccion = correcciones[0].correccion.trim();
-
-  // 🧠 Si la corrección empieza con "SELECT", la ejecutamos como SQL
-  if (/^select/i.test(correccion)) {
+    // ------------------------------
+    // 0) Buscar corrección previa
+    // ------------------------------
     try {
-      const { rows } = await pool.query(correccion);
-      if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
-        const valor = Object.values(rows[0])[0];
-        respuesta = `El resultado es ${valor}.`;
-      } else {
-        respuesta = JSON.stringify(rows, null, 2);
+      const { rows: correcciones } = await pool.query(
+        `SELECT correccion FROM ia_logs
+         WHERE correccion IS NOT NULL
+         AND similarity(pregunta, $1) > 0.6
+         ORDER BY fecha DESC
+         LIMIT 1`,
+        [pregunta]
+      );
+
+      if (correcciones.length > 0) {
+        let respuesta;
+        const correccion = correcciones[0].correccion ? correcciones[0].correccion.trim() : "";
+
+        // Si la corrección es SQL, la ejecutamos
+        if (/^select/i.test(correccion)) {
+          try {
+            console.log("🔎 Ejecutando corrección SQL:", correccion);
+            const { rows } = await pool.query(correccion);
+            if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+              const valor = Object.values(rows[0])[0];
+              // Mensaje natural si es número simple
+              if (typeof valor === "number" || !isNaN(Number(valor))) {
+                respuesta = `Hay ${valor} registros.`;
+              } else {
+                respuesta = `${valor}`;
+              }
+            } else {
+              respuesta = JSON.stringify(rows, null, 2);
+            }
+          } catch (errSql) {
+            console.error("❌ Error al ejecutar SQL de corrección:", errSql);
+            respuesta = "La corrección contiene una consulta SQL no válida.";
+          }
+        } else {
+          // Si es texto plano, devolverlo
+          respuesta = correccion;
+        }
+
+        // Guardar la interacción en ia_logs de forma segura
+        try {
+          await logIALog({ session_id: sessionId, pregunta, respuesta });
+        } catch (logErr) {
+          // logging extra si falla el guardado (no abortamos la respuesta)
+          console.error("❌ Error al guardar ia_logs (después de usar corrección):", {
+            error: logErr && logErr.message,
+            params: { sessionId, pregunta, respuesta },
+          });
+        }
+
+        return res.json({ respuesta });
       }
-    } catch (err) {
-      console.error("❌ Error al ejecutar SQL de corrección:", err);
-      respuesta = "La corrección contiene una consulta SQL no válida.";
+    } catch (errFind) {
+      console.error("❌ Error buscando correcciones previas:", errFind);
+      // seguimos adelante (no abortamos) — la búsqueda de correcciones no es crítica
     }
-  } else {
-    // 🗣 Si no es SQL, usar el texto directamente
-    respuesta = correccion;
-  }
-
-  await pool.query(
-    "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
-    [sessionId, pregunta, respuesta]
-  );
-
-  return res.json({ respuesta });
-}
 
     const q = pregunta.toLowerCase();
 
     // -----------------------------------
-    // 🧩 1️⃣ RESPUESTAS DIRECTAS SQL
+    // 1) Respuestas SQL directas (patrones)
     // -----------------------------------
     if (/cu[aá]ntas.*tareas|total.*tareas/i.test(q)) {
       const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01");
       const respuesta = `Actualmente hay ${rows[0].total} tareas registradas en el sistema.`;
-      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      await logIALog({ session_id: sessionId, pregunta, respuesta });
       return res.json({ respuesta });
     }
 
     if (/finalizadas|terminadas|completadas/i.test(q)) {
       const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = true");
       const respuesta = `Hay ${rows[0].total} tareas finalizadas.`;
-      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      await logIALog({ session_id: sessionId, pregunta, respuesta });
       return res.json({ respuesta });
     }
 
     if (/pendientes|sin finalizar|no finalizadas/i.test(q)) {
       const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = false");
       const respuesta = `Hay ${rows[0].total} tareas pendientes.`;
-      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      await logIALog({ session_id: sessionId, pregunta, respuesta });
       return res.json({ respuesta });
     }
 
@@ -755,12 +787,12 @@ if (correcciones.length > 0) {
       `);
       const resumen = rows.map(r => `${r.tarea} (${r.cantidad})`).join(", ");
       const respuesta = `Los tipos de tareas más comunes son: ${resumen}.`;
-      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      await logIALog({ session_id: sessionId, pregunta, respuesta });
       return res.json({ respuesta });
     }
 
     // -----------------------------------
-    // 🧠 2️⃣ CONTEXTO: HISTORIAL + DATOS REALES
+    // 2) Contexto + llamada al modelo (OpenRouter)
     // -----------------------------------
     const { rows: historial } = await pool.query(
       `SELECT pregunta, respuesta FROM ia_logs WHERE session_id = $1 ORDER BY fecha DESC LIMIT 5`,
@@ -775,13 +807,8 @@ if (correcciones.length > 0) {
     `);
 
     const contexto = JSON.stringify(tareas, null, 2);
-    const historialTexto = historial
-      .map(h => `Usuario: ${h.pregunta}\nIA: ${h.respuesta}`)
-      .join("\n\n");
+    const historialTexto = historial.map(h => `Usuario: ${h.pregunta}\nIA: ${h.respuesta}`).join("\n\n");
 
-    // -----------------------------------
-    // 🧩 3️⃣ PROMPT ENTRENADO CON MEMORIA
-    // -----------------------------------
     const prompt = `
 Eres el asistente del Servicio de Ingeniería Clínica.
 Solo puedes responder basándote en los datos disponibles.
@@ -798,9 +825,6 @@ Pregunta actual:
 ${pregunta}
 `;
 
-    // -----------------------------------
-    // 🤖 4️⃣ CONSULTA A OPENROUTER
-    // -----------------------------------
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -818,65 +842,92 @@ ${pregunta}
       }),
     });
 
-    if (!response.ok) throw new Error(`Error en OpenRouter: ${response.statusText}`);
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      console.error("❌ OpenRouter responded with non-ok:", response.status, text);
+      throw new Error(`Error en OpenRouter: ${response.statusText}`);
+    }
 
     const data = await response.json();
-    const respuesta = data.choices?.[0]?.message?.content?.trim() || "No se pudo generar respuesta.";
+    const respuesta = (data.choices?.[0]?.message?.content || "No se pudo generar respuesta.").trim();
 
-    // -----------------------------------
-    // 💾 5️⃣ GUARDAR EN HISTORIAL
-    // -----------------------------------
-    await pool.query(
-      "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
-      [sessionId, pregunta, respuesta]
-    );
+    // Guardar interacción en ia_logs (segura)
+    try {
+      await logIALog({ session_id: sessionId, pregunta, respuesta });
+    } catch (errSave) {
+      console.error("❌ Error guardando ia_logs (después de OpenRouter):", {
+        error: errSave && errSave.message,
+        params: { sessionId, pregunta, respuestaSnippet: respuesta?.slice(0, 200) },
+      });
+    }
 
-    res.json({ respuesta });
+    return res.json({ respuesta });
 
   } catch (error) {
-    console.error("❌ Error en IA con memoria:", error);
-    res.status(500).json({ error: "Error al procesar la solicitud del asistente IA." });
+    // Logging muy detallado para depuración (mostrar en logs)
+    console.error("❌ Error general en /api/ia:", {
+      message: error && error.message,
+      stack: error && error.stack,
+      input: { pregunta: req.body?.pregunta, sessionId: req.body?.sessionId },
+    });
+
+    // Devolver mensaje al cliente (no exponemos stack completo en la respuesta)
+    return res.status(500).json({ error: "Error al procesar la solicitud del asistente IA.", details: error && error.message });
   }
 });
 
 
-// 📘 Guardar corrección manual de una respuesta de la IA
+// POST /api/ia/corregir  (guardar corrección manual; ahora acepta SQL dinámico)
 app.post("/api/ia/corregir", async (req, res) => {
-  const { pregunta_original, correccion } = req.body;
+  const { pregunta_original, correccion, sessionId } = req.body;
 
   if (!pregunta_original || !correccion) {
     return res.status(400).json({ error: "Faltan datos: pregunta_original o correccion." });
   }
 
   try {
-    await pool.query(
-      `INSERT INTO ia_logs (pregunta, correccion) VALUES ($1, $2)`,
-      [pregunta_original, correccion]
+    // Asegurar sessionId texto
+    const sid = String(sessionId || "");
+
+    // Guardar corrección de forma segura
+    const result = await pool.query(
+      `INSERT INTO ia_logs (session_id, pregunta, correccion) VALUES ($1::text, $2::text, $3::text) RETURNING id`,
+      [sid, pregunta_original, correccion]
     );
 
-    res.json({ mensaje: "✅ Corrección guardada exitosamente. El asistente la recordará en el futuro." });
+    return res.json({ mensaje: "✅ Corrección guardada exitosamente.", id: result.rows[0].id });
   } catch (error) {
-    console.error("❌ Error al guardar corrección:", error);
-    res.status(500).json({ error: "No se pudo guardar la corrección." });
+    console.error("❌ Error al guardar corrección:", {
+      message: error && error.message,
+      stack: error && error.stack,
+      params: { pregunta_original, correccion, sessionId },
+    });
+    return res.status(500).json({ error: "No se pudo guardar la corrección.", details: error && error.message });
   }
 });
 
-
-// ✅ Guardar corrección manual de respuesta IA
+// PUT /api/ia/corregir/:id (actualizar corrección existente)
 app.put("/api/ia/corregir/:id", async (req, res) => {
   const { id } = req.params;
   const { nuevaRespuesta } = req.body;
 
   try {
-    await pool.query(
-      "UPDATE ia_logs SET correccion = $1 WHERE id = $2",
-      [nuevaRespuesta, id]
+    // actualizar correccion en forma segura
+    const result = await pool.query(
+      "UPDATE ia_logs SET correccion = $1::text WHERE id = $2::int RETURNING id",
+      [nuevaRespuesta, Number(id)]
     );
 
-    res.json({ mensaje: "✅ Corrección guardada con éxito." });
+    if (result.rowCount === 0) return res.status(404).json({ error: "Registro no encontrado" });
+
+    res.json({ mensaje: "✅ Corrección guardada con éxito.", id: result.rows[0].id });
   } catch (error) {
-    console.error("❌ Error al guardar corrección:", error);
-    res.status(500).json({ error: "No se pudo guardar la corrección." });
+    console.error("❌ Error al guardar corrección (PUT):", {
+      message: error && error.message,
+      stack: error && error.stack,
+      params: { id, nuevaRespuesta },
+    });
+    return res.status(500).json({ error: "No se pudo guardar la corrección.", details: error && error.message });
   }
 });
 
@@ -892,6 +943,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
