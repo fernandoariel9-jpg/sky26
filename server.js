@@ -220,10 +220,10 @@ async function calcularYGuardarPromediosGlobal() {   // ← renombrada
         COUNT(*) AS total_tareas,
         COUNT(fecha_comp) AS tareas_completadas,
         COUNT(fecha_fin) AS tareas_finalizadas,
-        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha_registro)) / 60) AS promedio_minutos_comp,
-        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_registro)) / 60) AS promedio_minutos_fin
+        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha)) / 60) AS promedio_minutos_comp,
+        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha)) / 60) AS promedio_minutos_fin
       FROM ric01
-      GROUP BY DATE(fecha_registro)
+      GROUP BY DATE(fecha)
       ORDER BY fecha DESC
     `);
 
@@ -783,6 +783,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
