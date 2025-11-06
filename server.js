@@ -695,58 +695,63 @@ app.post("/api/ia", async (req, res) => {
     // 0) Buscar corrección previa
     // ------------------------------
     try {
-      const { rows: correcciones } = await pool.query(
-        `SELECT correccion FROM ia_logs
-         WHERE correccion IS NOT NULL
-         AND similarity(pregunta, $1) > 0.6
-         ORDER BY fecha DESC
-         LIMIT 1`,
-        [pregunta]
-      );
+     // 🔍 Buscar si ya hubo una corrección previa para una pregunta similar
+const { rows: correcciones } = await pool.query(
+  `SELECT pregunta, correccion FROM ia_logs 
+   WHERE correccion IS NOT NULL 
+   AND similarity(pregunta, $1) > 0.6 
+   ORDER BY fecha DESC LIMIT 1`,
+  [pregunta]
+);
 
-      if (correcciones.length > 0) {
-        let respuesta;
-        const correccion = correcciones[0].correccion ? correcciones[0].correccion.trim() : "";
+if (correcciones.length > 0) {
+  let aplicarCorreccion = true;
+  let respuesta;
+  const correccion = correcciones[0].correccion.trim();
 
-        // Si la corrección es SQL, la ejecutamos
-        if (/^select/i.test(correccion)) {
-          try {
-            console.log("🔎 Ejecutando corrección SQL:", correccion);
-            const { rows } = await pool.query(correccion);
-            if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
-              const valor = Object.values(rows[0])[0];
-              // Mensaje natural si es número simple
-              if (typeof valor === "number" || !isNaN(Number(valor))) {
-                respuesta = `Hay ${valor} registros.`;
-              } else {
-                respuesta = `${valor}`;
-              }
-            } else {
-              respuesta = JSON.stringify(rows, null, 2);
-            }
-          } catch (errSql) {
-            console.error("❌ Error al ejecutar SQL de corrección:", errSql);
-            respuesta = "La corrección contiene una consulta SQL no válida.";
-          }
+  // 🧩 Detectar si hay número de área en la pregunta actual
+  const areaMatchActual = pregunta.match(/área\s*(\d+)/i);
+  const areaActual = areaMatchActual ? areaMatchActual[1] : null;
+
+  // 🧩 Detectar si hay número de área en la corrección guardada
+  const areaMatchCorreccion = correcciones[0].pregunta.match(/área\s*(\d+)/i);
+  const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] : null;
+
+  // 🚫 Si ambas tienen número de área y son distintas, no aplicar la corrección
+  if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
+    aplicarCorreccion = false;
+    console.log(`⚠️ Corrección descartada: pregunta refiere al Área ${areaActual}, pero la corrección era del Área ${areaCorreccion}`);
+  }
+
+  if (aplicarCorreccion) {
+    // 🧠 Si la corrección empieza con "SELECT", ejecutarla como SQL
+    if (/^select/i.test(correccion)) {
+      try {
+        const { rows } = await pool.query(correccion);
+        if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+          const valor = Object.values(rows[0])[0];
+          respuesta = `El resultado es ${valor}.`;
         } else {
-          // Si es texto plano, devolverlo
-          respuesta = correccion;
+          respuesta = JSON.stringify(rows, null, 2);
         }
-
-        // Guardar la interacción en ia_logs de forma segura
-        try {
-          await logIALog({ session_id: sessionId, pregunta, respuesta });
-        } catch (logErr) {
-          // logging extra si falla el guardado (no abortamos la respuesta)
-          console.error("❌ Error al guardar ia_logs (después de usar corrección):", {
-            error: logErr && logErr.message,
-            params: { sessionId, pregunta, respuesta },
-          });
-        }
-
-        return res.json({ respuesta });
+      } catch (err) {
+        console.error("❌ Error al ejecutar SQL de corrección:", err);
+        respuesta = "La corrección contiene una consulta SQL no válida.";
       }
-    } catch (errFind) {
+    } else {
+      // 🗣 Si no es SQL, usar el texto directamente
+      respuesta = correccion;
+    }
+
+    await pool.query(
+      "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+      [sessionId, pregunta, respuesta]
+    );
+
+    return res.json({ respuesta });
+  }
+}
+  catch (errFind) {
       console.error("❌ Error buscando correcciones previas:", errFind);
       // seguimos adelante (no abortamos) — la búsqueda de correcciones no es crítica
     }
@@ -944,6 +949,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
