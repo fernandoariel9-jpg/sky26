@@ -912,22 +912,23 @@ app.put("/api/ia/corregir/:id", async (req, res) => {
   const { nuevaRespuesta } = req.body;
 
   try {
-    // actualizar correccion en forma segura
+    // Usamos bigint en lugar de int
     const result = await pool.query(
-      "UPDATE ia_logs SET correccion = $1::text WHERE id = $2::int RETURNING id",
-      [nuevaRespuesta, Number(id)]
+      "UPDATE ia_logs SET correccion = $1::text WHERE id = $2::bigint RETURNING id",
+      [nuevaRespuesta, id]
     );
 
-    if (result.rowCount === 0) return res.status(404).json({ error: "Registro no encontrado" });
+    if (result.rowCount === 0)
+      return res.status(404).json({ error: "Registro no encontrado" });
 
     res.json({ mensaje: "✅ Corrección guardada con éxito.", id: result.rows[0].id });
   } catch (error) {
     console.error("❌ Error al guardar corrección (PUT):", {
-      message: error && error.message,
-      stack: error && error.stack,
+      message: error?.message,
+      stack: error?.stack,
       params: { id, nuevaRespuesta },
     });
-    return res.status(500).json({ error: "No se pudo guardar la corrección.", details: error && error.message });
+    res.status(500).json({ error: "No se pudo guardar la corrección.", details: error?.message });
   }
 });
 
@@ -943,6 +944,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
