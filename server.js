@@ -812,6 +812,27 @@ ${pregunta}
   }
 });
 
+// 📘 Guardar corrección manual de una respuesta de la IA
+app.post("/api/ia/corregir", async (req, res) => {
+  const { pregunta_original, correccion } = req.body;
+
+  if (!pregunta_original || !correccion) {
+    return res.status(400).json({ error: "Faltan datos: pregunta_original o correccion." });
+  }
+
+  try {
+    await pool.query(
+      `INSERT INTO ia_logs (pregunta, correccion) VALUES ($1, $2)`,
+      [pregunta_original, correccion]
+    );
+
+    res.json({ mensaje: "✅ Corrección guardada exitosamente. El asistente la recordará en el futuro." });
+  } catch (error) {
+    console.error("❌ Error al guardar corrección:", error);
+    res.status(500).json({ error: "No se pudo guardar la corrección." });
+  }
+});
+
 // ✅ Guardar corrección manual de respuesta IA
 app.put("/api/ia/corregir/:id", async (req, res) => {
   const { id } = req.params;
@@ -842,4 +863,5 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
