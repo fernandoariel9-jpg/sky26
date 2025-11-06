@@ -675,74 +675,88 @@ app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId } = req.body;
 
   try {
-    // -----------------------------------
-    // 🧩 1️⃣ INTENTAR RESPUESTA DIRECTA CON SQL
-    // -----------------------------------
     const q = pregunta.toLowerCase();
 
-    // Total de tareas
+    // -----------------------------------
+    // 🧩 1️⃣ RESPUESTAS DIRECTAS SQL
+    // -----------------------------------
     if (/cu[aá]ntas.*tareas|total.*tareas/i.test(q)) {
       const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01");
-      return res.json({
-        respuesta: `Actualmente hay ${rows[0].total} tareas registradas en el sistema.`,
-      });
+      const respuesta = `Actualmente hay ${rows[0].total} tareas registradas en el sistema.`;
+      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      return res.json({ respuesta });
     }
 
-    // Tareas finalizadas
     if (/finalizadas|terminadas|completadas/i.test(q)) {
       const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = true");
-      return res.json({
-        respuesta: `Hay ${rows[0].total} tareas finalizadas.`,
-      });
+      const respuesta = `Hay ${rows[0].total} tareas finalizadas.`;
+      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      return res.json({ respuesta });
     }
 
-    // Tareas pendientes
     if (/pendientes|sin finalizar|no finalizadas/i.test(q)) {
       const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = false");
-      return res.json({
-        respuesta: `Hay ${rows[0].total} tareas pendientes.`,
-      });
+      const respuesta = `Hay ${rows[0].total} tareas pendientes.`;
+      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      return res.json({ respuesta });
     }
 
-    // Tipos de tareas más comunes
     if (/tipo.*com[uú]n|tareas m[aá]s comunes|tipos frecuentes/i.test(q)) {
       const { rows } = await pool.query(`
-        SELECT tipo, COUNT(*) AS cantidad
+        SELECT tarea, COUNT(*) AS cantidad
         FROM ric01
-        GROUP BY tipo
+        GROUP BY tarea
         ORDER BY cantidad DESC
         LIMIT 3
       `);
-      const resumen = rows.map(r => `${r.tipo} (${r.cantidad})`).join(", ");
-      return res.json({
-        respuesta: `Los tipos de tareas más comunes son: ${resumen}.`,
-      });
+      const resumen = rows.map(r => `${r.tarea} (${r.cantidad})`).join(", ");
+      const respuesta = `Los tipos de tareas más comunes son: ${resumen}.`;
+      await pool.query("INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)", [sessionId, pregunta, respuesta]);
+      return res.json({ respuesta });
     }
 
     // -----------------------------------
-    // 🧠 2️⃣ SI NO COINCIDE NINGUNA, CONSULTAR A OPENROUTER
+    // 🧠 2️⃣ CONTEXTO: HISTORIAL + DATOS REALES
     // -----------------------------------
-    const tareas = await pool.query(`
+    const { rows: historial } = await pool.query(
+      `SELECT pregunta, respuesta FROM ia_logs WHERE session_id = $1 ORDER BY fecha DESC LIMIT 5`,
+      [sessionId]
+    );
+
+    const { rows: tareas } = await pool.query(`
       SELECT id, area, tarea, usuario, solucion, fin, fecha, fecha_comp, fecha_fin, servicio, subservicio, asignado, reasignado_a, reasignado_por
       FROM ric01
       ORDER BY id DESC
       LIMIT 100
     `);
 
-    const contexto = JSON.stringify(tareas.rows.slice(0, 20));
+    const contexto = JSON.stringify(tareas, null, 2);
+    const historialTexto = historial
+      .map(h => `Usuario: ${h.pregunta}\nIA: ${h.respuesta}`)
+      .join("\n\n");
 
+    // -----------------------------------
+    // 🧩 3️⃣ PROMPT ENTRENADO CON MEMORIA
+    // -----------------------------------
     const prompt = `
-Eres un asistente del Servicio de Ingeniería Clínica.
-Tu misión es analizar y responder preguntas sobre tareas (area, tarea, usuario, solucion, fin, fecha, fecha_comp, fecha_fin, servicio, subservicio, asignado, reasignado_a, reasignado_por).
-Datos disponibles:
+Eres el asistente del Servicio de Ingeniería Clínica.
+Solo puedes responder basándote en los datos disponibles.
+No inventes información. Si no sabes algo, di "No tengo esa información en el sistema".
+Usa lenguaje técnico y profesional.
+
+Historial reciente:
+${historialTexto || "(sin historial previo)"}
+
+Datos actuales del sistema (ric01):
 ${contexto}
 
-Pregunta del usuario:
+Pregunta actual:
 ${pregunta}
-
-Responde con claridad, sin inventar datos ni usar SQL directamente.
 `;
 
+    // -----------------------------------
+    // 🤖 4️⃣ CONSULTA A OPENROUTER
+    // -----------------------------------
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -752,21 +766,31 @@ Responde con claridad, sin inventar datos ni usar SQL directamente.
       body: JSON.stringify({
         model: "mistralai/mistral-7b-instruct:free",
         messages: [
-          { role: "system", content: "Eres un analista experto en mantenimiento hospitalario." },
+          { role: "system", content: "Eres un analista experto en mantenimiento hospitalario y gestión de tareas técnicas." },
           { role: "user", content: prompt },
         ],
+        max_tokens: 400,
+        temperature: 0.2,
       }),
     });
 
     if (!response.ok) throw new Error(`Error en OpenRouter: ${response.statusText}`);
 
     const data = await response.json();
-    const respuesta = data.choices?.[0]?.message?.content || "No se pudo generar respuesta.";
+    const respuesta = data.choices?.[0]?.message?.content?.trim() || "No se pudo generar respuesta.";
+
+    // -----------------------------------
+    // 💾 5️⃣ GUARDAR EN HISTORIAL
+    // -----------------------------------
+    await pool.query(
+      "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+      [sessionId, pregunta, respuesta]
+    );
 
     res.json({ respuesta });
 
   } catch (error) {
-    console.error("❌ Error en IA híbrida:", error);
+    console.error("❌ Error en IA con memoria:", error);
     res.status(500).json({ error: "Error al procesar la solicitud del asistente IA." });
   }
 });
@@ -783,15 +807,3 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
-
-
-
-
-
-
-
-
-
-
-
-
