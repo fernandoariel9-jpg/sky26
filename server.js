@@ -679,22 +679,45 @@ app.post("/api/ia", async (req, res) => {
     sessionId = String(sessionId || "");
 
     // 🔍 Buscar si ya hubo una corrección previa para una pregunta similar
-    const { rows: correcciones } = await pool.query(
-      `SELECT correccion FROM ia_logs 
-       WHERE correccion IS NOT NULL 
-       AND similarity(pregunta, $1) > 0.6 
-       ORDER BY fecha DESC LIMIT 1`,
-      [pregunta]
-    );
+    // 🔍 Buscar si ya hubo una corrección previa para una pregunta similar
+const { rows: correcciones } = await pool.query(
+  `SELECT correccion FROM ia_logs 
+   WHERE correccion IS NOT NULL 
+   AND similarity(pregunta, $1) > 0.6 
+   ORDER BY fecha DESC LIMIT 1`,
+  [pregunta]
+);
 
-    if (correcciones.length > 0) {
-      const respuesta = `🧩 Respuesta basada en corrección previa: ${correcciones[0].correccion}`;
-      await pool.query(
-        "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
-        [sessionId, pregunta, respuesta]
-      );
-      return res.json({ respuesta });
+if (correcciones.length > 0) {
+  let respuesta;
+  const correccion = correcciones[0].correccion.trim();
+
+  // 🧠 Si la corrección empieza con "SELECT", la ejecutamos como SQL
+  if (/^select/i.test(correccion)) {
+    try {
+      const { rows } = await pool.query(correccion);
+      if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+        const valor = Object.values(rows[0])[0];
+        respuesta = `El resultado es ${valor}.`;
+      } else {
+        respuesta = JSON.stringify(rows, null, 2);
+      }
+    } catch (err) {
+      console.error("❌ Error al ejecutar SQL de corrección:", err);
+      respuesta = "La corrección contiene una consulta SQL no válida.";
     }
+  } else {
+    // 🗣 Si no es SQL, usar el texto directamente
+    respuesta = correccion;
+  }
+
+  await pool.query(
+    "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+    [sessionId, pregunta, respuesta]
+  );
+
+  return res.json({ respuesta });
+}
 
     const q = pregunta.toLowerCase();
 
@@ -869,6 +892,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
