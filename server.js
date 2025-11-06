@@ -675,6 +675,23 @@ app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId } = req.body;
 
   try {
+    // 🔍 Buscar si ya hubo una corrección previa para una pregunta similar
+const { rows: correcciones } = await pool.query(
+  `SELECT correccion FROM ia_logs 
+   WHERE correccion IS NOT NULL 
+   AND similarity(pregunta, $1) > 0.6 
+   ORDER BY fecha DESC LIMIT 1`,
+  [pregunta]
+);
+
+if (correcciones.length > 0) {
+  const respuesta = `🧩 Respuesta basada en corrección previa: ${correcciones[0].correccion}`;
+  await pool.query(
+    "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+    [sessionId, pregunta, respuesta]
+  );
+  return res.json({ respuesta });
+}
     const q = pregunta.toLowerCase();
 
     // -----------------------------------
@@ -795,6 +812,24 @@ ${pregunta}
   }
 });
 
+// ✅ Guardar corrección manual de respuesta IA
+app.put("/api/ia/corregir/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nuevaRespuesta } = req.body;
+
+  try {
+    await pool.query(
+      "UPDATE ia_logs SET correccion = $1 WHERE id = $2",
+      [nuevaRespuesta, id]
+    );
+
+    res.json({ mensaje: "✅ Corrección guardada con éxito." });
+  } catch (error) {
+    console.error("❌ Error al guardar corrección:", error);
+    res.status(500).json({ error: "No se pudo guardar la corrección." });
+  }
+});
+
 // ----------------- SERVIDOR -----------------
 app.listen(PORT, () => {
   console.log(`Servidor ejecutándose en el puerto ${PORT}`);
@@ -807,3 +842,4 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
