@@ -682,52 +682,103 @@ async function logIALog({ session_id = "", pregunta = null, respuesta = null, co
   return pool.query(q, params);
 }
 
+// ================================================
+// 🤖 Endpoint principal de la IA
+// ================================================
 app.post("/api/ia", async (req, res) => {
-  let { pregunta, sessionId } = req.body;
+  const { pregunta, sessionId } = req.body;
 
-  try {
-    if (!pregunta) return res.status(400).json({ error: "Falta la pregunta." });
-
-    // Asegurar sessionId como texto
-    sessionId = String(sessionId || "");
-
-    // ------------------------------
-    // 0) Buscar corrección previa
-    // ------------------------------
-    try {
-     // 🔍 Buscar si ya hubo una corrección previa para una pregunta similar
-const { rows: correcciones } = await pool.query(
-  `SELECT pregunta, correccion FROM ia_logs 
-   WHERE correccion IS NOT NULL 
-   AND similarity(pregunta, $1) > 0.6 
-   ORDER BY fecha DESC LIMIT 1`,
-  [pregunta]
-);
-
-if (correcciones.length > 0) {
-  let aplicarCorreccion = true;
-  let respuesta;
-  const correccion = correcciones[0].correccion.trim();
-
-  // 🧩 Detectar si hay número de área en la pregunta actual
-  const areaMatchActual = pregunta.match(/área\s*(\d+)/i);
-  const areaActual = areaMatchActual ? areaMatchActual[1] : null;
-
-  // 🧩 Detectar si hay número de área en la corrección guardada
-  const areaMatchCorreccion = correcciones[0].pregunta.match(/área\s*(\d+)/i);
-  const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] : null;
-
-  // 🚫 Si ambas tienen número de área y son distintas, no aplicar la corrección
-  if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
-    aplicarCorreccion = false;
-    console.log(`⚠️ Corrección descartada: pregunta refiere al Área ${areaActual}, pero la corrección era del Área ${areaCorreccion}`);
+  if (!pregunta || !sessionId) {
+    return res.status(400).json({ error: "Faltan datos: pregunta o sessionId." });
   }
 
-  if (aplicarCorreccion) {
-    // 🧠 Si la corrección empieza con "SELECT", ejecutarla como SQL
-    if (/^select/i.test(correccion)) {
+  try {
+    // ------------------------------------------------
+    // 🔍 Buscar correcciones previas similares
+    // ------------------------------------------------
+    const { rows: correcciones } = await pool.query(
+      `SELECT pregunta, correccion FROM ia_logs 
+       WHERE correccion IS NOT NULL 
+       AND similarity(pregunta, $1) > 0.6 
+       ORDER BY fecha DESC LIMIT 1`,
+      [pregunta]
+    );
+
+    if (correcciones.length > 0) {
+      let aplicarCorreccion = true;
+      let respuesta;
+      const correccion = correcciones[0].correccion.trim();
+
+      // 🧩 Detectar número de área en la pregunta actual
+      const areaMatchActual = pregunta.match(/área\s*(\d+)/i);
+      const areaActual = areaMatchActual ? areaMatchActual[1] : null;
+
+      // 🧩 Detectar número de área en la corrección previa
+      const areaMatchCorreccion = correcciones[0].pregunta.match(/área\s*(\d+)/i);
+      const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] : null;
+
+      // 🚫 Si las áreas son distintas, no aplicar la corrección
+      if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
+        aplicarCorreccion = false;
+        console.log(
+          `⚠️ Corrección descartada: pregunta refiere al Área ${areaActual}, pero la corrección era del Área ${areaCorreccion}`
+        );
+      }
+
+      if (aplicarCorreccion) {
+        // 🧠 Si la corrección es SQL (comienza con SELECT)
+        if (/^select/i.test(correccion)) {
+          try {
+            const { rows } = await pool.query(correccion);
+            if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+              const valor = Object.values(rows[0])[0];
+              respuesta = `El resultado es ${valor}.`;
+            } else {
+              respuesta = JSON.stringify(rows, null, 2);
+            }
+          } catch (err) {
+            console.error("❌ Error al ejecutar SQL de corrección:", err);
+            respuesta = "La corrección contiene una consulta SQL no válida.";
+          }
+        } else {
+          // 🗣 Si no es SQL, usar el texto directamente
+          respuesta = correccion;
+        }
+
+        // Guardar log
+        await pool.query(
+          "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+          [sessionId, pregunta, respuesta]
+        );
+
+        return res.json({ respuesta });
+      }
+    }
+
+    // ------------------------------------------------
+    // 🧠 Si no hay corrección aplicable, generar respuesta con IA
+    // ------------------------------------------------
+    const prompt = `
+      Eres un asistente que responde preguntas sobre tareas en una base de datos PostgreSQL.
+      Si la pregunta implica contar, sumar o filtrar datos, responde solo con la consulta SQL que lo haría.
+      No inventes datos. Usa nombres de columnas: id, area, fin, solucion, fecha, fecha_comp, fecha_fin, etc.
+      Usa lenguaje técnico y profesional.
+      Pregunta: "${pregunta}"
+    `;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0,
+    });
+
+    let respuestaIA = completion.choices[0].message.content.trim();
+
+    // Si la respuesta es una consulta SQL, intentar ejecutarla
+    let respuesta;
+    if (/^select/i.test(respuestaIA)) {
       try {
-        const { rows } = await pool.query(correccion);
+        const { rows } = await pool.query(respuestaIA);
         if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
           const valor = Object.values(rows[0])[0];
           respuesta = `El resultado es ${valor}.`;
@@ -735,152 +786,25 @@ if (correcciones.length > 0) {
           respuesta = JSON.stringify(rows, null, 2);
         }
       } catch (err) {
-        console.error("❌ Error al ejecutar SQL de corrección:", err);
-        respuesta = "La corrección contiene una consulta SQL no válida.";
+        console.error("❌ Error ejecutando consulta SQL:", err);
+        respuesta = respuestaIA; // Devolver el SQL como referencia
       }
     } else {
-      // 🗣 Si no es SQL, usar el texto directamente
-      respuesta = correccion;
+      respuesta = respuestaIA;
     }
 
+    // Guardar log
     await pool.query(
       "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
       [sessionId, pregunta, respuesta]
     );
 
-    return res.json({ respuesta });
-  }
-}
-  catch (errFind) {
-      console.error("❌ Error buscando correcciones previas:", errFind);
-      // seguimos adelante (no abortamos) — la búsqueda de correcciones no es crítica
-    }
-
-    const q = pregunta.toLowerCase();
-
-    // -----------------------------------
-    // 1) Respuestas SQL directas (patrones)
-    // -----------------------------------
-    if (/cu[aá]ntas.*tareas|total.*tareas/i.test(q)) {
-      const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01");
-      const respuesta = `Actualmente hay ${rows[0].total} tareas registradas en el sistema.`;
-      await logIALog({ session_id: sessionId, pregunta, respuesta });
-      return res.json({ respuesta });
-    }
-
-    if (/finalizadas|terminadas|completadas/i.test(q)) {
-      const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = true");
-      const respuesta = `Hay ${rows[0].total} tareas finalizadas.`;
-      await logIALog({ session_id: sessionId, pregunta, respuesta });
-      return res.json({ respuesta });
-    }
-
-    if (/pendientes|sin finalizar|no finalizadas/i.test(q)) {
-      const { rows } = await pool.query("SELECT COUNT(*) AS total FROM ric01 WHERE fin = false");
-      const respuesta = `Hay ${rows[0].total} tareas pendientes.`;
-      await logIALog({ session_id: sessionId, pregunta, respuesta });
-      return res.json({ respuesta });
-    }
-
-    if (/tipo.*com[uú]n|tareas m[aá]s comunes|tipos frecuentes/i.test(q)) {
-      const { rows } = await pool.query(`
-        SELECT tarea, COUNT(*) AS cantidad
-        FROM ric01
-        GROUP BY tarea
-        ORDER BY cantidad DESC
-        LIMIT 3
-      `);
-      const resumen = rows.map(r => `${r.tarea} (${r.cantidad})`).join(", ");
-      const respuesta = `Los tipos de tareas más comunes son: ${resumen}.`;
-      await logIALog({ session_id: sessionId, pregunta, respuesta });
-      return res.json({ respuesta });
-    }
-
-    // -----------------------------------
-    // 2) Contexto + llamada al modelo (OpenRouter)
-    // -----------------------------------
-    const { rows: historial } = await pool.query(
-      `SELECT pregunta, respuesta FROM ia_logs WHERE session_id = $1 ORDER BY fecha DESC LIMIT 5`,
-      [sessionId]
-    );
-
-    const { rows: tareas } = await pool.query(`
-      SELECT id, area, tarea, usuario, solucion, fin, fecha, fecha_comp, fecha_fin, servicio, subservicio, asignado, reasignado_a, reasignado_por
-      FROM ric01
-      ORDER BY id DESC
-      LIMIT 100
-    `);
-
-    const contexto = JSON.stringify(tareas, null, 2);
-    const historialTexto = historial.map(h => `Usuario: ${h.pregunta}\nIA: ${h.respuesta}`).join("\n\n");
-
-    const prompt = `
-Eres el asistente del Servicio de Ingeniería Clínica.
-Solo puedes responder basándote en los datos disponibles.
-No inventes información. Si no sabes algo, di "No tengo esa información en el sistema".
-Usa lenguaje técnico y profesional.
-
-Historial reciente:
-${historialTexto || "(sin historial previo)"}
-
-Datos actuales del sistema (ric01):
-${contexto}
-
-Pregunta actual:
-${pregunta}
-`;
-
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENROUTER_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "mistralai/mistral-7b-instruct:free",
-        messages: [
-          { role: "system", content: "Eres un analista experto en mantenimiento hospitalario y gestión de tareas técnicas." },
-          { role: "user", content: prompt },
-        ],
-        max_tokens: 400,
-        temperature: 0.2,
-      }),
-    });
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      console.error("❌ OpenRouter responded with non-ok:", response.status, text);
-      throw new Error(`Error en OpenRouter: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const respuesta = (data.choices?.[0]?.message?.content || "No se pudo generar respuesta.").trim();
-
-    // Guardar interacción en ia_logs (segura)
-    try {
-      await logIALog({ session_id: sessionId, pregunta, respuesta });
-    } catch (errSave) {
-      console.error("❌ Error guardando ia_logs (después de OpenRouter):", {
-        error: errSave && errSave.message,
-        params: { sessionId, pregunta, respuestaSnippet: respuesta?.slice(0, 200) },
-      });
-    }
-
-    return res.json({ respuesta });
-
+    res.json({ respuesta });
   } catch (error) {
-    // Logging muy detallado para depuración (mostrar en logs)
-    console.error("❌ Error general en /api/ia:", {
-      message: error && error.message,
-      stack: error && error.stack,
-      input: { pregunta: req.body?.pregunta, sessionId: req.body?.sessionId },
-    });
-
-    // Devolver mensaje al cliente (no exponemos stack completo en la respuesta)
-    return res.status(500).json({ error: "Error al procesar la solicitud del asistente IA.", details: error && error.message });
+    console.error("❌ Error en /api/ia:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
   }
 });
-
 
 // POST /api/ia/corregir  (guardar corrección manual; ahora acepta SQL dinámico)
 app.post("/api/ia/corregir", async (req, res) => {
@@ -949,6 +873,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
