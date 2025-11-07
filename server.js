@@ -690,6 +690,45 @@ async function logIALog({ session_id = "", pregunta = null, respuesta = null, co
   return pool.query(q, params);
 }
 
+// 🧠 Formatea resultados SQL en texto natural
+function formatearRespuestaSQL(sql, rows) {
+  // Si la consulta devuelve solo una celda numérica (como un COUNT)
+  if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+    const valor = Object.values(rows[0])[0];
+
+    // Detección semántica simple por tipo de consulta
+    if (/count/i.test(sql)) {
+      return `Hay ${valor} ${valor == 1 ? "tarea" : "tareas"} que cumplen esa condición.`;
+    }
+    if (/sum/i.test(sql)) {
+      return `La suma total es ${valor}.`;
+    }
+    if (/avg|average/i.test(sql)) {
+      return `El promedio calculado es ${valor}.`;
+    }
+
+    // Respuesta genérica si no detecta un tipo específico
+    return `El resultado es ${valor}.`;
+  }
+
+  // Si hay varias filas, devolver un resumen claro
+  if (rows.length > 0) {
+    const columnas = Object.keys(rows[0]);
+    const limite = Math.min(rows.length, 5); // máximo 5 filas mostradas
+    const preview = rows
+      .slice(0, limite)
+      .map((r) => columnas.map((c) => `${c}: ${r[c]}`).join(", "))
+      .join("\n- ");
+
+    let resumen = `Se encontraron ${rows.length} registros. Ejemplos:\n- ${preview}`;
+    if (rows.length > limite) resumen += `\n...y ${rows.length - limite} más.`;
+    return resumen;
+  }
+
+  // Si no hay filas
+  return "No se encontraron registros que cumplan esa condición.";
+}
+
 // ================================================
 // 🤖 Endpoint principal de la IA
 // ================================================
@@ -717,26 +756,24 @@ app.post("/api/ia", async (req, res) => {
       let respuesta;
       let correccion = correcciones[0].correccion.trim();
 
-      // 🧩 Detectar número de área (robusto, con o sin acento)
+      // 🧩 Detectar número de área (con o sin acento)
       const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
-
       const areaMatchActual = pregunta.match(regexArea);
       const areaActual = areaMatchActual ? areaMatchActual[1] || areaMatchActual[2] : null;
 
       const areaMatchCorreccion = correcciones[0].pregunta.match(regexArea);
       const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] || areaMatchCorreccion[2] : null;
 
-      // 🚫 Si las áreas son distintas, no aplicar directamente la corrección
+      // 🚫 Si las áreas son distintas, adaptar el SQL
       if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
-        console.log(`⚠️ Corrección previa era del Área ${areaCorreccion}, pero la nueva pregunta es del Área ${areaActual}`);
-        
-        // Si la corrección es SQL, adaptar el área automáticamente
+        console.log(`⚠️ Corrección previa era del Área ${areaCorreccion}, nueva pregunta es del Área ${areaActual}`);
+
         if (/^select/i.test(correccion)) {
           const regexReemplazo = new RegExp(`'Area ${areaCorreccion}'`, "i");
           correccion = correccion.replace(regexReemplazo, `'Area ${areaActual}'`);
           console.log(`🔁 Adaptada la corrección para el Área ${areaActual}`);
         } else {
-          aplicarCorreccion = false; // Si no es SQL, mejor no aplicar
+          aplicarCorreccion = false;
         }
       }
 
@@ -745,21 +782,26 @@ app.post("/api/ia", async (req, res) => {
         if (/^select/i.test(correccion)) {
           try {
             const { rows } = await pool.query(correccion);
-            if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
-              const valor = Object.values(rows[0])[0];
-              respuesta = `El resultado es ${valor}.`;
+            if (rows.length > 0) {
+              if (rows.length === 1 && Object.keys(rows[0]).length === 1) {
+                const valor = Object.values(rows[0])[0];
+                respuesta = areaActual
+                  ? `El área ${areaActual} tiene ${valor} tareas pendientes.`
+                  : `El resultado es ${valor}.`;
+              } else {
+                respuesta = "Resultados obtenidos:\n" + JSON.stringify(rows, null, 2);
+              }
             } else {
-              respuesta = JSON.stringify(rows, null, 2);
+              respuesta = "No se encontraron resultados.";
             }
           } catch (err) {
             console.error("❌ Error al ejecutar SQL de corrección:", err);
             respuesta = "La corrección contiene una consulta SQL no válida.";
           }
         } else {
-          respuesta = correccion; // No es SQL, usar texto
+          respuesta = correccion; // texto libre
         }
 
-        // Guardar log
         await pool.query(
           "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
           [sessionId, pregunta, respuesta]
@@ -770,13 +812,13 @@ app.post("/api/ia", async (req, res) => {
     }
 
     // ------------------------------------------------
-    // 🧠 Si no hay corrección aplicable, generar respuesta con IA
+    // 🧠 Sin corrección aplicable → generar con IA
     // ------------------------------------------------
     const prompt = `
-      Eres un asistente que responde preguntas sobre tareas en una base de datos PostgreSQL.
-      Si la pregunta implica contar, sumar o filtrar datos, responde solo con la consulta SQL que lo haría.
-      No inventes datos. Usa nombres de columnas: id, area, fin, solucion, fecha, fecha_comp, fecha_fin, etc.
-      Usa lenguaje técnico y profesional.
+      Eres un asistente experto en PostgreSQL que responde preguntas sobre tareas.
+      Si la pregunta implica contar, sumar o filtrar datos, responde SOLO con la consulta SQL correspondiente.
+      Usa columnas reales: id, area, fin, solucion, fecha, fecha_comp, fecha_fin, etc.
+      No inventes datos, no expliques el SQL, solo genera la consulta correcta.
       Pregunta: "${pregunta}"
     `;
 
@@ -788,20 +830,31 @@ app.post("/api/ia", async (req, res) => {
 
     let respuestaIA = completion.choices[0].message.content.trim();
 
-    // Si la respuesta es una consulta SQL, intentar ejecutarla
+    // ------------------------------------------------
+    // 🚀 Ejecutar SQL si corresponde
+    // ------------------------------------------------
     let respuesta;
     if (/^select/i.test(respuestaIA)) {
       try {
         const { rows } = await pool.query(respuestaIA);
-        if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
-          const valor = Object.values(rows[0])[0];
-          respuesta = `El resultado es ${valor}.`;
+        if (rows.length > 0) {
+          if (rows.length === 1 && Object.keys(rows[0]).length === 1) {
+            const valor = Object.values(rows[0])[0];
+            const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
+            const areaMatch = pregunta.match(regexArea);
+            const area = areaMatch ? areaMatch[1] || areaMatch[2] : null;
+            respuesta = area
+              ? `El área ${area} tiene ${valor} tareas pendientes.`
+              : `El resultado es ${valor}.`;
+          } else {
+            respuesta = "Resultados obtenidos:\n" + JSON.stringify(rows, null, 2);
+          }
         } else {
-          respuesta = JSON.stringify(rows, null, 2);
+          respuesta = "No se encontraron resultados.";
         }
       } catch (err) {
-        console.error("❌ Error ejecutando consulta SQL:", err);
-        respuesta = respuestaIA; // Devolver el SQL como referencia
+        console.error("❌ Error ejecutando SQL:", err);
+        respuesta = respuestaIA; // devolver el SQL si no se puede ejecutar
       }
     } else {
       respuesta = respuestaIA;
@@ -921,6 +974,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
