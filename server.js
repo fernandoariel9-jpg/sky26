@@ -707,7 +707,7 @@ app.post("/api/ia", async (req, res) => {
     const { rows: correcciones } = await pool.query(
       `SELECT pregunta, correccion FROM ia_logs 
        WHERE correccion IS NOT NULL 
-       AND similarity(pregunta, $1) > 0.6 
+       AND similarity(pregunta, $1) > 0.7
        ORDER BY fecha DESC LIMIT 1`,
       [pregunta]
     );
@@ -715,26 +715,33 @@ app.post("/api/ia", async (req, res) => {
     if (correcciones.length > 0) {
       let aplicarCorreccion = true;
       let respuesta;
-      const correccion = correcciones[0].correccion.trim();
+      let correccion = correcciones[0].correccion.trim();
 
-      // 🧩 Detectar número de área en la pregunta actual
-      const areaMatchActual = pregunta.match(/área\s*(\d+)/i);
-      const areaActual = areaMatchActual ? areaMatchActual[1] : null;
+      // 🧩 Detectar número de área (robusto, con o sin acento)
+      const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
 
-      // 🧩 Detectar número de área en la corrección previa
-      const areaMatchCorreccion = correcciones[0].pregunta.match(/área\s*(\d+)/i);
-      const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] : null;
+      const areaMatchActual = pregunta.match(regexArea);
+      const areaActual = areaMatchActual ? areaMatchActual[1] || areaMatchActual[2] : null;
 
-      // 🚫 Si las áreas son distintas, no aplicar la corrección
+      const areaMatchCorreccion = correcciones[0].pregunta.match(regexArea);
+      const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] || areaMatchCorreccion[2] : null;
+
+      // 🚫 Si las áreas son distintas, no aplicar directamente la corrección
       if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
-        aplicarCorreccion = false;
-        console.log(
-          `⚠️ Corrección descartada: pregunta refiere al Área ${areaActual}, pero la corrección era del Área ${areaCorreccion}`
-        );
+        console.log(`⚠️ Corrección previa era del Área ${areaCorreccion}, pero la nueva pregunta es del Área ${areaActual}`);
+        
+        // Si la corrección es SQL, adaptar el área automáticamente
+        if (/^select/i.test(correccion)) {
+          const regexReemplazo = new RegExp(`'Area ${areaCorreccion}'`, "i");
+          correccion = correccion.replace(regexReemplazo, `'Area ${areaActual}'`);
+          console.log(`🔁 Adaptada la corrección para el Área ${areaActual}`);
+        } else {
+          aplicarCorreccion = false; // Si no es SQL, mejor no aplicar
+        }
       }
 
       if (aplicarCorreccion) {
-        // 🧠 Si la corrección es SQL (comienza con SELECT)
+        // 🧠 Ejecutar si es SQL
         if (/^select/i.test(correccion)) {
           try {
             const { rows } = await pool.query(correccion);
@@ -749,8 +756,7 @@ app.post("/api/ia", async (req, res) => {
             respuesta = "La corrección contiene una consulta SQL no válida.";
           }
         } else {
-          // 🗣 Si no es SQL, usar el texto directamente
-          respuesta = correccion;
+          respuesta = correccion; // No es SQL, usar texto
         }
 
         // Guardar log
@@ -814,7 +820,9 @@ app.post("/api/ia", async (req, res) => {
   }
 });
 
-// POST /api/ia/corregir  (guardar corrección manual; ahora acepta SQL dinámico)
+// ================================================
+// 💾 Guardar o actualizar corrección manual (POST)
+// ================================================
 app.post("/api/ia/corregir", async (req, res) => {
   const { pregunta_original, correccion, sessionId } = req.body;
 
@@ -823,23 +831,55 @@ app.post("/api/ia/corregir", async (req, res) => {
   }
 
   try {
-    // Asegurar sessionId texto
     const sid = String(sessionId || "");
 
-    // Guardar corrección de forma segura
+    // 🧩 Verificar si existe una corrección similar ya guardada
+    const { rows: existentes } = await pool.query(
+      `SELECT id, pregunta FROM ia_logs 
+       WHERE correccion IS NOT NULL 
+       AND similarity(pregunta, $1) > 0.8
+       ORDER BY fecha DESC LIMIT 1`,
+      [pregunta_original]
+    );
+
+    if (existentes.length > 0) {
+      // ⚙️ Si ya existe una similar, la actualizamos
+      const existente = existentes[0];
+      const result = await pool.query(
+        "UPDATE ia_logs SET correccion = $1::text WHERE id = $2 RETURNING id",
+        [correccion, existente.id]
+      );
+
+      console.log(`🔁 Corrección actualizada para pregunta similar (id ${existente.id})`);
+
+      return res.json({
+        mensaje: "✅ Corrección actualizada (ya existía una similar).",
+        id: result.rows[0].id,
+      });
+    }
+
+    // 🆕 Si no existe una similar, crear una nueva
     const result = await pool.query(
-      `INSERT INTO ia_logs (session_id, pregunta, correccion) VALUES ($1::text, $2::text, $3::text) RETURNING id`,
+      `INSERT INTO ia_logs (session_id, pregunta, correccion) 
+       VALUES ($1::text, $2::text, $3::text) RETURNING id`,
       [sid, pregunta_original, correccion]
     );
 
-    return res.json({ mensaje: "✅ Corrección guardada exitosamente.", id: result.rows[0].id });
+    console.log(`🆕 Nueva corrección guardada (id ${result.rows[0].id})`);
+
+    return res.json({
+      mensaje: "✅ Nueva corrección guardada exitosamente.",
+      id: result.rows[0].id,
+    });
   } catch (error) {
     console.error("❌ Error al guardar corrección:", {
-      message: error && error.message,
-      stack: error && error.stack,
+      message: error?.message,
+      stack: error?.stack,
       params: { pregunta_original, correccion, sessionId },
     });
-    return res.status(500).json({ error: "No se pudo guardar la corrección.", details: error && error.message });
+    return res
+      .status(500)
+      .json({ error: "No se pudo guardar la corrección.", details: error?.message });
   }
 });
 
@@ -881,6 +921,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
