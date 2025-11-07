@@ -113,7 +113,7 @@ app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
   try {
     const result = await pool.query(`
-      SELECT r.*, u.movil AS telefono
+      SELECT r.*, u.movil AS movil
       FROM ric01 r
       LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
       WHERE (r.area = $1 AND r.reasignado_a IS NULL)
@@ -138,7 +138,7 @@ app.get("/tareas/:area", async (req, res) => {
 app.get("/tareas", async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT r.*, u.movil AS telefono
+      SELECT r.*, u.movil AS movil
       FROM ric01 r
       LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
       ORDER BY r.fecha DESC
@@ -881,6 +881,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
