@@ -731,9 +731,9 @@ function formatearRespuestaSQL(sql, rows) {
   return "No se encontraron registros que cumplan esa condición.";
 }
 
-// ================================================
-// 🤖 Endpoint principal de la IA
-// ================================================
+// ======================================================
+// 🤖 Endpoint de IA — con razonamiento SQL + modo explicación
+// ======================================================
 app.post("/api/ia", async (req, res) => {
   const { pregunta, sessionId } = req.body;
 
@@ -758,31 +758,25 @@ app.post("/api/ia", async (req, res) => {
       let respuesta;
       let correccion = correcciones[0].correccion.trim();
 
-      // 🧩 Detectar número de área
+      // Detectar número de área
       const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
-
       const areaMatchActual = pregunta.match(regexArea);
       const areaActual = areaMatchActual ? areaMatchActual[1] || areaMatchActual[2] : null;
 
       const areaMatchCorreccion = correcciones[0].pregunta.match(regexArea);
       const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] || areaMatchCorreccion[2] : null;
 
-      // 🚫 Evitar mezclar áreas distintas
       if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
-        console.log(`⚠️ Corrección previa era del Área ${areaCorreccion}, pero la nueva pregunta es del Área ${areaActual}`);
-        
-        // Si la corrección es SQL, adaptar el área automáticamente
         if (/^select/i.test(correccion)) {
-          const regexReemplazo = new RegExp(`'Area ${areaCorreccion}'`, "i");
-          correccion = correccion.replace(regexReemplazo, `'Area ${areaActual}'`);
+          correccion = correccion.replace(
+            new RegExp(`'Area ${areaCorreccion}'`, "i"),
+            `'Area ${areaActual}'`
+          );
           console.log(`🔁 Adaptada la corrección para el Área ${areaActual}`);
-        } else {
-          aplicarCorreccion = false;
-        }
+        } else aplicarCorreccion = false;
       }
 
       if (aplicarCorreccion) {
-        // 🧠 Ejecutar SQL si aplica
         if (/^select/i.test(correccion)) {
           try {
             const { rows } = await pool.query(correccion);
@@ -810,57 +804,97 @@ app.post("/api/ia", async (req, res) => {
     }
 
     // ------------------------------------------------
-    // 🧠 Si no hay corrección aplicable → usar OpenRouter
+    // 🧠 Generar SQL automáticamente con OpenRouter
     // ------------------------------------------------
     const prompt = `
-      Eres un asistente experto en SQL y gestión de tareas (PostgreSQL).
-      Si la pregunta implica contar, filtrar o consultar tareas, responde solo con la consulta SQL que lo haría.
-      No inventes datos. Usa nombres de columnas reales: id, area, fin, solucion, fecha, fecha_comp, fecha_fin.
-      Ejemplo: "SELECT COUNT(*) FROM ric01 WHERE (solucion IS NULL OR solucion = '') AND (fin = false OR fin IS NULL) AND area = 'Area 2';"
-      Pregunta: "${pregunta}"
-    `;
+Eres un asistente experto en PostgreSQL y gestión de tareas.
+Tu base de datos se llama "ric01" y tiene columnas: 
+id, area, tarea, solucion, fin, fecha, fecha_comp, fecha_fin, reasignado_a, reasignado_por.
 
-    // 🚀 Petición a OpenRouter
+Objetivo:
+- Si la pregunta requiere información (por ejemplo "¿cuál es la tarea más común?" o "qué área tiene más tareas?"),
+  genera una consulta SQL válida que lo responda.
+- No inventes datos. Usa solo SQL real sobre la tabla ric01.
+- Devuelve SOLO la consulta SQL, nada más.
+
+Ejemplo:
+Pregunta: "¿Cuál es la tarea más común?"
+Respuesta:
+SELECT tarea, COUNT(*) AS cantidad FROM ric01 GROUP BY tarea ORDER BY cantidad DESC LIMIT 1;
+
+Pregunta: "${pregunta}"
+`;
+
+    // 🧩 Llamada a OpenRouter
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "gpt-4o-mini",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.2,
+        temperature: 0.1,
       }),
     });
 
     const data = await response.json();
-    let respuestaIA = data?.choices?.[0]?.message?.content?.trim();
+    let sql = data?.choices?.[0]?.message?.content?.trim();
 
-    let respuesta;
-    if (/^select/i.test(respuestaIA)) {
-      try {
-        const { rows } = await pool.query(respuestaIA);
-        if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
-          const valor = Object.values(rows[0])[0];
-          respuesta = `El resultado es ${valor}.`;
-        } else {
-          respuesta = JSON.stringify(rows, null, 2);
-        }
-      } catch (err) {
-        console.error("❌ Error ejecutando consulta SQL:", err);
-        respuesta = respuestaIA; // Devolver SQL para revisar
-      }
-    } else {
-      respuesta = respuestaIA;
+    if (!sql) {
+      throw new Error("No se recibió SQL válido del modelo.");
     }
+
+    console.log("🧮 SQL generado por IA:", sql);
+
+    // ------------------------------------------------
+    // Ejecutar el SQL generado
+    // ------------------------------------------------
+    let respuestaFinal = "";
+    try {
+      const { rows } = await pool.query(sql);
+
+      if (rows.length === 0) {
+        respuestaFinal = "No se encontraron resultados.";
+      } else if (rows.length === 1) {
+        const registro = rows[0];
+        const columnas = Object.keys(registro);
+
+        // 💬 Respuesta más natural
+        if (columnas.includes("tarea") && columnas.includes("cantidad")) {
+          respuestaFinal = `La tarea más común es "${registro.tarea}" con ${registro.cantidad} registros.`;
+        } else if (columnas.includes("area") && columnas.includes("cantidad")) {
+          respuestaFinal = `El área con más tareas es "${registro.area}" con ${registro.cantidad} tareas.`;
+        } else {
+          respuestaFinal = JSON.stringify(rows, null, 2);
+        }
+      } else {
+        respuestaFinal = JSON.stringify(rows, null, 2);
+      }
+    } catch (err) {
+      console.error("❌ Error al ejecutar SQL:", err);
+      respuestaFinal = `No pude ejecutar correctamente la consulta. SQL generado:\n${sql}`;
+    }
+
+    // ------------------------------------------------
+    // 🧩 Modo de explicación
+    // ------------------------------------------------
+    let explicacion = "";
+    if (/explicame|cómo lo calculaste|muéstrame la consulta/i.test(pregunta)) {
+      explicacion = `🔍 La consulta SQL utilizada fue:\n\n\`\`\`sql\n${sql}\n\`\`\``;
+    }
+
+    const respuestaCompleta = explicacion
+      ? `${respuestaFinal}\n\n${explicacion}`
+      : respuestaFinal;
 
     await pool.query(
       "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
-      [sessionId, pregunta, respuesta]
+      [sessionId, pregunta, respuestaCompleta]
     );
 
-    res.json({ respuesta });
+    res.json({ respuesta: respuestaCompleta });
   } catch (error) {
     console.error("❌ Error en /api/ia:", error);
     res.status(500).json({ error: "Error interno del servidor." });
@@ -968,6 +1002,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
