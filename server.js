@@ -112,13 +112,15 @@ async function enviarNotificacion(userId, payload) {
 app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
   try {
-    const result = await pool.query(
-      `SELECT * FROM ric01 
-       WHERE (area = $1 AND reasignado_a IS NULL)
-       OR reasignado_a = $1
-       ORDER BY fecha DESC`,
-      [area]
-    );
+    const result = await pool.query(`
+      SELECT r.*, u.movil AS telefono
+      FROM ric01 r
+      LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
+      WHERE (r.area = $1 AND r.reasignado_a IS NULL)
+         OR r.reasignado_a = $1
+      ORDER BY r.fecha DESC
+    `, [area]);
+    
     res.json(
       result.rows.map((t) => ({
         ...t,
@@ -135,7 +137,13 @@ app.get("/tareas/:area", async (req, res) => {
 
 app.get("/tareas", async (req, res) => {
   try {
-    const result = await pool.query("SELECT * FROM ric01 ORDER BY fecha DESC");
+    const result = await pool.query(`
+      SELECT r.*, u.movil AS telefono
+      FROM ric01 r
+      LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
+      ORDER BY r.fecha DESC
+    `);
+
     res.json(
       result.rows.map((t) => ({
         ...t,
@@ -873,6 +881,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
