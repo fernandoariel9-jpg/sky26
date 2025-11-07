@@ -82,6 +82,8 @@ const pool = new Pool({
   password: process.env.PGPASSWORD,
   port: process.env.PGPORT,
   ssl: { rejectUnauthorized: false },
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 // ----------------- WEB PUSH -----------------
@@ -756,18 +758,20 @@ app.post("/api/ia", async (req, res) => {
       let respuesta;
       let correccion = correcciones[0].correccion.trim();
 
-      // 🧩 Detectar número de área (con o sin acento)
+      // 🧩 Detectar número de área
       const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
+
       const areaMatchActual = pregunta.match(regexArea);
       const areaActual = areaMatchActual ? areaMatchActual[1] || areaMatchActual[2] : null;
 
       const areaMatchCorreccion = correcciones[0].pregunta.match(regexArea);
       const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] || areaMatchCorreccion[2] : null;
 
-      // 🚫 Si las áreas son distintas, adaptar el SQL
+      // 🚫 Evitar mezclar áreas distintas
       if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
-        console.log(`⚠️ Corrección previa era del Área ${areaCorreccion}, nueva pregunta es del Área ${areaActual}`);
-
+        console.log(`⚠️ Corrección previa era del Área ${areaCorreccion}, pero la nueva pregunta es del Área ${areaActual}`);
+        
+        // Si la corrección es SQL, adaptar el área automáticamente
         if (/^select/i.test(correccion)) {
           const regexReemplazo = new RegExp(`'Area ${areaCorreccion}'`, "i");
           correccion = correccion.replace(regexReemplazo, `'Area ${areaActual}'`);
@@ -778,28 +782,22 @@ app.post("/api/ia", async (req, res) => {
       }
 
       if (aplicarCorreccion) {
-        // 🧠 Ejecutar si es SQL
+        // 🧠 Ejecutar SQL si aplica
         if (/^select/i.test(correccion)) {
           try {
             const { rows } = await pool.query(correccion);
-            if (rows.length > 0) {
-              if (rows.length === 1 && Object.keys(rows[0]).length === 1) {
-                const valor = Object.values(rows[0])[0];
-                respuesta = areaActual
-                  ? `El área ${areaActual} tiene ${valor} tareas pendientes.`
-                  : `El resultado es ${valor}.`;
-              } else {
-                respuesta = "Resultados obtenidos:\n" + JSON.stringify(rows, null, 2);
-              }
+            if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+              const valor = Object.values(rows[0])[0];
+              respuesta = `El resultado es ${valor}.`;
             } else {
-              respuesta = "No se encontraron resultados.";
+              respuesta = JSON.stringify(rows, null, 2);
             }
           } catch (err) {
             console.error("❌ Error al ejecutar SQL de corrección:", err);
             respuesta = "La corrección contiene una consulta SQL no válida.";
           }
         } else {
-          respuesta = correccion; // texto libre
+          respuesta = correccion;
         }
 
         await pool.query(
@@ -812,55 +810,51 @@ app.post("/api/ia", async (req, res) => {
     }
 
     // ------------------------------------------------
-    // 🧠 Sin corrección aplicable → generar con IA
+    // 🧠 Si no hay corrección aplicable → usar OpenRouter
     // ------------------------------------------------
     const prompt = `
-      Eres un asistente experto en PostgreSQL que responde preguntas sobre tareas.
-      Si la pregunta implica contar, sumar o filtrar datos, responde SOLO con la consulta SQL correspondiente.
-      Usa columnas reales: id, area, fin, solucion, fecha, fecha_comp, fecha_fin, etc.
-      No inventes datos, no expliques el SQL, solo genera la consulta correcta.
+      Eres un asistente experto en SQL y gestión de tareas (PostgreSQL).
+      Si la pregunta implica contar, filtrar o consultar tareas, responde solo con la consulta SQL que lo haría.
+      No inventes datos. Usa nombres de columnas reales: id, area, fin, solucion, fecha, fecha_comp, fecha_fin.
+      Ejemplo: "SELECT COUNT(*) FROM ric01 WHERE (solucion IS NULL OR solucion = '') AND (fin = false OR fin IS NULL) AND area = 'Area 2';"
       Pregunta: "${pregunta}"
     `;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0,
+    // 🚀 Petición a OpenRouter
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+      }),
     });
 
-    let respuestaIA = completion.choices[0].message.content.trim();
+    const data = await response.json();
+    let respuestaIA = data?.choices?.[0]?.message?.content?.trim();
 
-    // ------------------------------------------------
-    // 🚀 Ejecutar SQL si corresponde
-    // ------------------------------------------------
     let respuesta;
     if (/^select/i.test(respuestaIA)) {
       try {
         const { rows } = await pool.query(respuestaIA);
-        if (rows.length > 0) {
-          if (rows.length === 1 && Object.keys(rows[0]).length === 1) {
-            const valor = Object.values(rows[0])[0];
-            const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
-            const areaMatch = pregunta.match(regexArea);
-            const area = areaMatch ? areaMatch[1] || areaMatch[2] : null;
-            respuesta = area
-              ? `El área ${area} tiene ${valor} tareas pendientes.`
-              : `El resultado es ${valor}.`;
-          } else {
-            respuesta = "Resultados obtenidos:\n" + JSON.stringify(rows, null, 2);
-          }
+        if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+          const valor = Object.values(rows[0])[0];
+          respuesta = `El resultado es ${valor}.`;
         } else {
-          respuesta = "No se encontraron resultados.";
+          respuesta = JSON.stringify(rows, null, 2);
         }
       } catch (err) {
-        console.error("❌ Error ejecutando SQL:", err);
-        respuesta = respuestaIA; // devolver el SQL si no se puede ejecutar
+        console.error("❌ Error ejecutando consulta SQL:", err);
+        respuesta = respuestaIA; // Devolver SQL para revisar
       }
     } else {
       respuesta = respuestaIA;
     }
 
-    // Guardar log
     await pool.query(
       "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
       [sessionId, pregunta, respuesta]
@@ -974,6 +968,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
