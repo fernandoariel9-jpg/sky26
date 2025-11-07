@@ -780,12 +780,34 @@ app.post("/api/ia", async (req, res) => {
         if (/^select/i.test(correccion)) {
           try {
             const { rows } = await pool.query(correccion);
-            if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
-              const valor = Object.values(rows[0])[0];
-              respuesta = `El resultado es ${valor}.`;
-            } else {
-              respuesta = JSON.stringify(rows, null, 2);
-            }
+            if (rows.length > 0) {
+  const firstRow = rows[0];
+  const keys = Object.keys(firstRow);
+
+  // 🧠 Caso 1: un solo valor (por ejemplo COUNT)
+  if (keys.length === 1) {
+    const valor = firstRow[keys[0]];
+    respuesta = `El resultado es ${valor}.`;
+  }
+  // 🧠 Caso 2: columna 'personal' o 'area'
+  else if (keys.includes("personal") && keys.includes("cantidad")) {
+    respuesta = `El personal con más tareas es ${firstRow.personal} con ${firstRow.cantidad} tareas.`;
+  } else if (keys.includes("area") && keys.includes("cantidad")) {
+    respuesta = `El área con más tareas es ${firstRow.area} con ${firstRow.cantidad} tareas.`;
+  }
+  // 🧠 Caso 3: cualquier otro conjunto de columnas
+  else {
+    respuesta = rows
+      .map((r) =>
+        Object.entries(r)
+          .map(([k, v]) => `${k}: ${v}`)
+          .join(", ")
+      )
+      .join(" | ");
+  }
+} else {
+  respuesta = "No se encontraron resultados.";
+}
           } catch (err) {
             console.error("❌ Error al ejecutar SQL de corrección:", err);
             respuesta = "La corrección contiene una consulta SQL no válida.";
@@ -1002,6 +1024,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
