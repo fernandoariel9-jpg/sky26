@@ -748,7 +748,7 @@ app.post("/api/ia", async (req, res) => {
     const { rows: correcciones } = await pool.query(
       `SELECT pregunta, correccion FROM ia_logs 
        WHERE correccion IS NOT NULL 
-       AND similarity(pregunta, $1) > 0.7
+       AND similarity(pregunta, $1) > 0.85
        ORDER BY fecha DESC LIMIT 1`,
       [pregunta]
     );
@@ -1002,6 +1002,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
