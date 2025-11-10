@@ -780,41 +780,41 @@ app.post("/api/ia", async (req, res) => {
         if (/^select/i.test(correccion)) {
           try {
             const { rows } = await pool.query(correccion);
-            if (rows.length > 0) {
+           if (rows && rows.length > 0) {
   const firstRow = rows[0];
-  const keys = Object.keys(firstRow);
+  const keys = Object.keys(firstRow).map(k => k.toLowerCase());
 
-  // 🧠 Caso 1: un solo valor (por ejemplo COUNT)
+  // 🧠 Caso 1: un solo valor simple (ej. COUNT)
   if (rows.length === 1 && keys.length === 1) {
-    const valor = firstRow[keys[0]];
+    const valor = Object.values(firstRow)[0];
     respuesta = `El resultado es ${valor}.`;
   }
 
-  // 🧠 Caso 2: varias áreas o personales
+  // 🧠 Caso 2: resultados por área
   else if (keys.includes("area") && keys.includes("cantidad")) {
     respuesta =
       "📊 Tareas pendientes por área:\n" +
-      rows
-        .map((r) => `- ${r.area}: ${r.cantidad} tareas pendientes`)
-        .join("\n");
-  } else if (keys.includes("personal") && keys.includes("cantidad")) {
-    respuesta =
-      "👤 Tareas realizadas por personal:\n" +
-      rows.map((r) => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+      rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
   }
 
-  // 🧠 Caso 3: cualquier otro conjunto de columnas
+  // 🧠 Caso 3: resultados por personal
+  else if (keys.includes("personal") && keys.includes("cantidad")) {
+    respuesta =
+      "👤 Tareas realizadas por personal:\n" +
+      rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+  }
+
+  // 🧠 Caso 4: resultados genéricos
   else {
-    respuesta = rows
-      .map((r) =>
+    respuesta =
+      rows.map(r =>
         Object.entries(r)
           .map(([k, v]) => `${k}: ${v}`)
           .join(", ")
-      )
-      .join(" | ");
+      ).join(" | ");
   }
 } else {
-  respuesta = "No se encontraron resultados.";
+  respuesta = "⚠️ No se encontraron tareas que cumplan esas condiciones.";
 }
           } catch (err) {
             console.error("❌ Error al ejecutar SQL de corrección:", err);
@@ -1032,6 +1032,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
