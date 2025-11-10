@@ -859,13 +859,14 @@ app.post("/api/ia", async (req, res) => {
     const prompt = `
 Eres un asistente experto en PostgreSQL y gestión de tareas.
 Tu base de datos se llama "ric01" y tiene columnas: 
-id, area, tarea, solucion, fin, fecha, fecha_comp, fecha_fin, reasignado_a, reasignado_por.
+id, area, usuario, tarea, solucion, fin, fecha, fecha_comp, fecha_fin, asignado, reasignado_a, reasignado_por.
 
 Objetivo:
 - Si la pregunta requiere información (por ejemplo "¿cuál es la tarea más común?" o "qué área tiene más tareas?"),
   genera una consulta SQL válida que lo responda.
 - No inventes datos. Usa solo SQL real sobre la tabla ric01.
 - Devuelve SOLO la consulta SQL, nada más.
+- Toma tu tiempo para penser bien las respuestas.
 
 Ejemplo:
 Pregunta: "¿Cuál es la tarea más común?"
@@ -969,6 +970,7 @@ Pregunta: "${pregunta}"
   }
 });
 
+
 // PUT /api/ia/corregir/:id (actualizar corrección existente)
 app.put("/api/ia/corregir/:id", async (req, res) => {
   const { id } = req.params;
@@ -1007,6 +1009,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
