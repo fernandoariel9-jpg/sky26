@@ -785,16 +785,24 @@ app.post("/api/ia", async (req, res) => {
   const keys = Object.keys(firstRow);
 
   // 🧠 Caso 1: un solo valor (por ejemplo COUNT)
-  if (keys.length === 1) {
+  if (rows.length === 1 && keys.length === 1) {
     const valor = firstRow[keys[0]];
     respuesta = `El resultado es ${valor}.`;
   }
-  // 🧠 Caso 2: columna 'personal' o 'area'
-  else if (keys.includes("personal") && keys.includes("cantidad")) {
-    respuesta = `El personal con más tareas es ${firstRow.personal} con ${firstRow.cantidad} tareas.`;
-  } else if (keys.includes("area") && keys.includes("cantidad")) {
-    respuesta = `El área con más tareas es ${firstRow.area} con ${firstRow.cantidad} tareas.`;
+
+  // 🧠 Caso 2: varias áreas o personales
+  else if (keys.includes("area") && keys.includes("cantidad")) {
+    respuesta =
+      "📊 Tareas pendientes por área:\n" +
+      rows
+        .map((r) => `- ${r.area}: ${r.cantidad} tareas pendientes`)
+        .join("\n");
+  } else if (keys.includes("personal") && keys.includes("cantidad")) {
+    respuesta =
+      "👤 Tareas realizadas por personal:\n" +
+      rows.map((r) => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
   }
+
   // 🧠 Caso 3: cualquier otro conjunto de columnas
   else {
     respuesta = rows
@@ -1024,6 +1032,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
