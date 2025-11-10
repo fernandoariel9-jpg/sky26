@@ -741,6 +741,18 @@ app.post("/api/ia", async (req, res) => {
     return res.status(400).json({ error: "Faltan datos: pregunta o sessionId." });
   }
 
+  // 🔍 Función auxiliar: detectar entidad principal
+  function detectarEntidad(texto) {
+    texto = texto.toLowerCase();
+    if (texto.includes("personal") || texto.includes("empleado") || texto.includes("usuario"))
+      return "personal";
+    if (texto.includes("área") || texto.includes("area"))
+      return "area";
+    if (texto.includes("tarea") || texto.includes("trabajo"))
+      return "tarea";
+    return "general";
+  }
+
   try {
     // ------------------------------------------------
     // 🔍 Buscar correcciones previas similares
@@ -757,6 +769,14 @@ app.post("/api/ia", async (req, res) => {
       let aplicarCorreccion = true;
       let respuesta;
       let correccion = correcciones[0].correccion.trim();
+
+      // 🧠 Nuevo filtro por tipo de entidad
+      const entidadActual = detectarEntidad(pregunta);
+      const entidadCorreccion = detectarEntidad(correcciones[0].pregunta);
+      if (entidadActual !== entidadCorreccion) {
+        console.log(`⚠️ No se aplica corrección (entidades distintas): ${entidadActual} ≠ ${entidadCorreccion}`);
+        aplicarCorreccion = false;
+      }
 
       // Detectar número de área
       const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
@@ -780,42 +800,42 @@ app.post("/api/ia", async (req, res) => {
         if (/^select/i.test(correccion)) {
           try {
             const { rows } = await pool.query(correccion);
-           if (rows && rows.length > 0) {
-  const firstRow = rows[0];
-  const keys = Object.keys(firstRow).map(k => k.toLowerCase());
+            if (rows && rows.length > 0) {
+              const firstRow = rows[0];
+              const keys = Object.keys(firstRow).map(k => k.toLowerCase());
 
-  // 🧠 Caso 1: un solo valor simple (ej. COUNT)
-  if (rows.length === 1 && keys.length === 1) {
-    const valor = Object.values(firstRow)[0];
-    respuesta = `El resultado es ${valor}.`;
-  }
+              // 🧠 Caso 1: un solo valor simple
+              if (rows.length === 1 && keys.length === 1) {
+                const valor = Object.values(firstRow)[0];
+                respuesta = `El resultado es ${valor}.`;
+              }
 
-  // 🧠 Caso 2: resultados por área
-  else if (keys.includes("area") && keys.includes("cantidad")) {
-    respuesta =
-      "📊 Tareas pendientes por área:\n" +
-      rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
-  }
+              // 🧠 Caso 2: resultados por área
+              else if (keys.includes("area") && keys.includes("cantidad")) {
+                respuesta =
+                  "📊 Tareas pendientes por área:\n" +
+                  rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
+              }
 
-  // 🧠 Caso 3: resultados por personal
-  else if (keys.includes("personal") && keys.includes("cantidad")) {
-    respuesta =
-      "👤 Tareas realizadas por personal:\n" +
-      rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
-  }
+              // 🧠 Caso 3: resultados por personal
+              else if (keys.includes("personal") && keys.includes("cantidad")) {
+                respuesta =
+                  "👤 Tareas realizadas por personal:\n" +
+                  rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+              }
 
-  // 🧠 Caso 4: resultados genéricos
-  else {
-    respuesta =
-      rows.map(r =>
-        Object.entries(r)
-          .map(([k, v]) => `${k}: ${v}`)
-          .join(", ")
-      ).join(" | ");
-  }
-} else {
-  respuesta = "⚠️ No se encontraron tareas que cumplan esas condiciones.";
-}
+              // 🧠 Caso 4: resultados genéricos
+              else {
+                respuesta =
+                  rows.map(r =>
+                    Object.entries(r)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(", ")
+                  ).join(" | ");
+              }
+            } else {
+              respuesta = "⚠️ No se encontraron tareas que cumplan esas condiciones.";
+            }
           } catch (err) {
             console.error("❌ Error al ejecutar SQL de corrección:", err);
             respuesta = "La corrección contiene una consulta SQL no válida.";
@@ -891,16 +911,34 @@ Pregunta: "${pregunta}"
         const registro = rows[0];
         const columnas = Object.keys(registro);
 
-        // 💬 Respuesta más natural
-        if (columnas.includes("tarea") && columnas.includes("cantidad")) {
-          respuestaFinal = `La tarea más común es "${registro.tarea}" con ${registro.cantidad} registros.`;
+        // 💬 Respuestas más naturales
+        if (columnas.includes("personal") && columnas.includes("cantidad")) {
+          respuestaFinal = `👤 ${registro.personal} ha realizado ${registro.cantidad} tareas.`;
+        } else if (columnas.includes("tarea") && columnas.includes("cantidad")) {
+          respuestaFinal = `🧩 La tarea más común es "${registro.tarea}" con ${registro.cantidad} registros.`;
         } else if (columnas.includes("area") && columnas.includes("cantidad")) {
-          respuestaFinal = `El área con más tareas es "${registro.area}" con ${registro.cantidad} tareas.`;
+          respuestaFinal = `🏢 El área con más tareas es "${registro.area}" con ${registro.cantidad} tareas.`;
         } else {
-          respuestaFinal = JSON.stringify(rows, null, 2);
+          respuestaFinal = Object.entries(registro)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
         }
       } else {
-        respuestaFinal = JSON.stringify(rows, null, 2);
+        // Varias filas → generar texto legible
+        const claves = Object.keys(rows[0]).map(k => k.toLowerCase());
+        if (claves.includes("area") && claves.includes("cantidad")) {
+          respuestaFinal = "📊 Tareas por área:\n" +
+            rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
+        } else if (claves.includes("personal") && claves.includes("cantidad")) {
+          respuestaFinal = "👥 Tareas por personal:\n" +
+            rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+        } else {
+          respuestaFinal = rows.map(r =>
+            Object.entries(r)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(", ")
+          ).join(" | ");
+        }
       }
     } catch (err) {
       console.error("❌ Error al ejecutar SQL:", err);
@@ -928,69 +966,6 @@ Pregunta: "${pregunta}"
   } catch (error) {
     console.error("❌ Error en /api/ia:", error);
     res.status(500).json({ error: "Error interno del servidor." });
-  }
-});
-
-// ================================================
-// 💾 Guardar o actualizar corrección manual (POST)
-// ================================================
-app.post("/api/ia/corregir", async (req, res) => {
-  const { pregunta_original, correccion, sessionId } = req.body;
-
-  if (!pregunta_original || !correccion) {
-    return res.status(400).json({ error: "Faltan datos: pregunta_original o correccion." });
-  }
-
-  try {
-    const sid = String(sessionId || "");
-
-    // 🧩 Verificar si existe una corrección similar ya guardada
-    const { rows: existentes } = await pool.query(
-      `SELECT id, pregunta FROM ia_logs 
-       WHERE correccion IS NOT NULL 
-       AND similarity(pregunta, $1) > 0.8
-       ORDER BY fecha DESC LIMIT 1`,
-      [pregunta_original]
-    );
-
-    if (existentes.length > 0) {
-      // ⚙️ Si ya existe una similar, la actualizamos
-      const existente = existentes[0];
-      const result = await pool.query(
-        "UPDATE ia_logs SET correccion = $1::text WHERE id = $2 RETURNING id",
-        [correccion, existente.id]
-      );
-
-      console.log(`🔁 Corrección actualizada para pregunta similar (id ${existente.id})`);
-
-      return res.json({
-        mensaje: "✅ Corrección actualizada (ya existía una similar).",
-        id: result.rows[0].id,
-      });
-    }
-
-    // 🆕 Si no existe una similar, crear una nueva
-    const result = await pool.query(
-      `INSERT INTO ia_logs (session_id, pregunta, correccion) 
-       VALUES ($1::text, $2::text, $3::text) RETURNING id`,
-      [sid, pregunta_original, correccion]
-    );
-
-    console.log(`🆕 Nueva corrección guardada (id ${result.rows[0].id})`);
-
-    return res.json({
-      mensaje: "✅ Nueva corrección guardada exitosamente.",
-      id: result.rows[0].id,
-    });
-  } catch (error) {
-    console.error("❌ Error al guardar corrección:", {
-      message: error?.message,
-      stack: error?.stack,
-      params: { pregunta_original, correccion, sessionId },
-    });
-    return res
-      .status(500)
-      .json({ error: "No se pudo guardar la corrección.", details: error?.message });
   }
 });
 
@@ -1032,6 +1007,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
