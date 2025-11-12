@@ -87,6 +87,39 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+async function guardarResumenDiario() {
+  try {
+    // 📊 Contar totales actuales
+    const { rows } = await pool.query(`
+      SELECT
+        SUM(CASE WHEN solucion = false AND fin = false THEN 1 ELSE 0 END) AS pendientes,
+        SUM(CASE WHEN solucion = true AND fin = false THEN 1 ELSE 0 END) AS en_proceso
+      FROM ric01
+    `);
+
+    const pendientes = rows[0].pendientes || 0;
+    const en_proceso = rows[0].en_proceso || 0;
+
+    // 🗓️ Guardar o actualizar el registro del día
+    await pool.query(
+      `INSERT INTO resumen_tareas (fecha, pendientes, en_proceso)
+       VALUES (CURRENT_DATE, $1, $2)
+       ON CONFLICT (fecha)
+       DO UPDATE SET pendientes = EXCLUDED.pendientes, en_proceso = EXCLUDED.en_proceso`,
+      [pendientes, en_proceso]
+    );
+
+    console.log(`✅ Resumen diario guardado: ${pendientes} pendientes, ${en_proceso} en proceso`);
+  } catch (error) {
+    console.error("❌ Error al guardar resumen diario:", error);
+  }
+}
+
+// 🕒 Ejecutar automáticamente todos los días a las 14:00 (hora Argentina)
+cron.schedule("0 14 * * *", guardarResumenDiario, {
+  timezone: "America/Argentina/Buenos_Aires",
+});
+
 cron.schedule("0 14 * * *", async () => {
   console.log("⏰ Ejecutando resumen diario de tareas a las 14:00...");
 
@@ -197,20 +230,18 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
+// ----------------- ENDPOINT PARA EL FRONT -----------------
 app.get("/api/resumen_tareas", async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT 
-         to_char(fecha, 'YYYY-MM-DD HH24:MI:SS') AS fecha,
-         pendientes,
-         en_proceso
-       FROM resumen_tareas
-       ORDER BY fecha ASC`
-    );
-    res.json(result.rows);
+    const { rows } = await pool.query(`
+      SELECT fecha, pendientes, en_proceso
+      FROM resumen_tareas
+      ORDER BY fecha ASC
+    `);
+    res.json(rows);
   } catch (error) {
-    console.error("Error al obtener resumen_tareas:", error);
-    res.status(500).json({ error: "Error al obtener los datos de resumen_tareas" });
+    console.error("❌ Error al obtener resumen de tareas:", error);
+    res.status(500).json({ error: "Error al obtener resumen de tareas" });
   }
 });
 
@@ -1063,6 +1094,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
