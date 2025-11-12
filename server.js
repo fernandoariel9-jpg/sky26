@@ -197,6 +197,23 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
+app.get("/api/resumen_tareas", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT 
+         to_char(fecha, 'YYYY-MM-DD HH24:MI:SS') AS fecha,
+         pendientes,
+         en_proceso
+       FROM resumen_tareas
+       ORDER BY fecha ASC`
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error al obtener resumen_tareas:", error);
+    res.status(500).json({ error: "Error al obtener los datos de resumen_tareas" });
+  }
+});
+
 app.post("/tareas", async (req, res) => {
   // Aceptamos payload tanto con { usuario, tarea, area, servicio, subservicio, ... }
   // como con campos faltantes — en ese caso intentamos completar desde la tabla usuarios
@@ -1046,6 +1063,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
