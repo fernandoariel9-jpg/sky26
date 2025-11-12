@@ -7,6 +7,7 @@ const { Pool, types } = pkg;
 import bcrypt from "bcryptjs";
 import webpush from "web-push";
 import fetch from "node-fetch";
+import cron from "node-cron";
 
 // Evitar conversión automática de timestamptz WITHOUT TZ a Date
 types.setTypeParser(1114, (val) => val);
@@ -84,6 +85,42 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false },
+});
+
+cron.schedule("0 14 * * *", async () => {
+  console.log("⏰ Ejecutando resumen diario de tareas a las 14:00...");
+
+  try {
+    // 🟠 pendientes: sin solucion ni fin
+    const pendientes = await pool.query(
+      "SELECT COUNT(*) FROM ric01 WHERE solucion IS NULL AND fin = false"
+    );
+
+    // 🟡 en proceso: con solucion pero sin fin
+    const enProceso = await pool.query(
+      "SELECT COUNT(*) FROM ric01 WHERE solucion IS NOT NULL AND fin = false"
+    );
+
+    // 🟢 finalizadas: fin = true
+    const finalizadas = await pool.query(
+      "SELECT COUNT(*) FROM ric01 WHERE fin = true"
+    );
+
+    // guardar en resumen_tareas
+    await pool.query(
+      `INSERT INTO resumen_tareas (fecha, pendientes, en_proceso, finalizadas)
+       VALUES (CURRENT_DATE, $1, $2, $3)`,
+      [
+        pendientes.rows[0].count,
+        enProceso.rows[0].count,
+        finalizadas.rows[0].count,
+      ]
+    );
+
+    console.log("✅ Resumen diario guardado correctamente.");
+  } catch (err) {
+    console.error("❌ Error al guardar resumen diario:", err.message);
+  }
 });
 
 // ----------------- WEB PUSH -----------------
@@ -1009,6 +1046,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
