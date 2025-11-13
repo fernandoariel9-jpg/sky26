@@ -87,74 +87,50 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+// 🕒 Función principal que guarda el resumen diario
 async function guardarResumenDiario() {
   try {
+    console.log("⏰ Ejecutando resumen diario de tareas a las 14:00...");
+
     // 📊 Contar totales actuales
     const { rows } = await pool.query(`
       SELECT
-        SUM(CASE WHEN solucion = false AND fin = false THEN 1 ELSE 0 END) AS pendientes,
-        SUM(CASE WHEN solucion = true AND fin = false THEN 1 ELSE 0 END) AS en_proceso
+        COUNT(*) FILTER (WHERE solucion IS NULL AND fin = false) AS pendientes,
+        COUNT(*) FILTER (WHERE solucion IS NOT NULL AND fin = false) AS en_proceso,
+        COUNT(*) FILTER (WHERE fin = true) AS finalizadas
       FROM ric01
     `);
 
-    const pendientes = rows[0].pendientes || 0;
-    const en_proceso = rows[0].en_proceso || 0;
+    const pendientes = Number(rows[0].pendientes) || 0;
+    const en_proceso = Number(rows[0].en_proceso) || 0;
+    const finalizadas = Number(rows[0].finalizadas) || 0;
 
-    // 🗓️ Guardar o actualizar el registro del día
+    // 💾 Guardar o actualizar el registro del día
     await pool.query(
-      `INSERT INTO resumen_tareas (fecha, pendientes, en_proceso)
-       VALUES (CURRENT_DATE, $1, $2)
+      `INSERT INTO resumen_tareas (fecha, pendientes, en_proceso, finalizadas)
+       VALUES (CURRENT_DATE, $1, $2, $3)
        ON CONFLICT (fecha)
-       DO UPDATE SET pendientes = EXCLUDED.pendientes, en_proceso = EXCLUDED.en_proceso`,
-      [pendientes, en_proceso]
+       DO UPDATE SET
+         pendientes = EXCLUDED.pendientes,
+         en_proceso = EXCLUDED.en_proceso,
+         finalizadas = EXCLUDED.finalizadas`,
+      [pendientes, en_proceso, finalizadas]
     );
 
-    console.log(`✅ Resumen diario guardado: ${pendientes} pendientes, ${en_proceso} en proceso`);
+    console.log(
+      `✅ Resumen diario guardado: ${pendientes} pendientes, ${en_proceso} en proceso, ${finalizadas} finalizadas`
+    );
   } catch (error) {
     console.error("❌ Error al guardar resumen diario:", error);
   }
 }
 
-// 🕒 Ejecutar automáticamente todos los días a las 14:00 (hora Argentina)
+// 🗓️ Programar tarea automáticamente todos los días a las 14:00 (hora Argentina)
 cron.schedule("0 14 * * *", guardarResumenDiario, {
   timezone: "America/Argentina/Buenos_Aires",
 });
 
-cron.schedule("0 10 * * *", async () => {
-  console.log("⏰ Ejecutando resumen diario de tareas a las 14:00...");
-
-  try {
-    // 🟠 pendientes: sin solucion ni fin
-    const pendientes = await pool.query(
-      "SELECT COUNT(*) FROM ric01 WHERE solucion IS NULL AND fin = false"
-    );
-
-    // 🟡 en proceso: con solucion pero sin fin
-    const enProceso = await pool.query(
-      "SELECT COUNT(*) FROM ric01 WHERE solucion IS NOT NULL AND fin = false"
-    );
-
-    // 🟢 finalizadas: fin = true
-    const finalizadas = await pool.query(
-      "SELECT COUNT(*) FROM ric01 WHERE fin = true"
-    );
-
-    // guardar en resumen_tareas
-    await pool.query(
-      `INSERT INTO resumen_tareas (fecha, pendientes, en_proceso, finalizadas)
-       VALUES (CURRENT_DATE, $1, $2, $3)`,
-      [
-        pendientes.rows[0].count,
-        enProceso.rows[0].count,
-        finalizadas.rows[0].count,
-      ]
-    );
-
-    console.log("✅ Resumen diario guardado correctamente.");
-  } catch (err) {
-    console.error("❌ Error al guardar resumen diario:", err.message);
-  }
-});
+console.log("🕓 Cron de resumen_tareas configurado para ejecutarse todos los días a las 14:00 (hora Argentina).");
 
 // ----------------- WEB PUSH -----------------
 webpush.setVapidDetails(
@@ -1094,6 +1070,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
