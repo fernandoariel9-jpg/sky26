@@ -120,7 +120,7 @@ cron.schedule("0 14 * * *", guardarResumenDiario, {
   timezone: "America/Argentina/Buenos_Aires",
 });
 
-cron.schedule("0 14 * * *", async () => {
+cron.schedule("0 10 * * *", async () => {
   console.log("⏰ Ejecutando resumen diario de tareas a las 14:00...");
 
   try {
@@ -1094,6 +1094,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
