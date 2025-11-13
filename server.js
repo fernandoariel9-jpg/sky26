@@ -126,7 +126,7 @@ async function guardarResumenDiario() {
 }
 
 // 🗓️ Programar tarea automáticamente todos los días a las 14:00 (hora Argentina)
-cron.schedule("0 14 * * *", guardarResumenDiario, {
+cron.schedule("*/1 * * * *", guardarResumenDiario, {
   timezone: "America/Argentina/Buenos_Aires",
 });
 
@@ -1070,6 +1070,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
