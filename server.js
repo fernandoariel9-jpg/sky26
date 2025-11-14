@@ -268,6 +268,37 @@ app.get("/api/resumen_tareas", async (req, res) => {
   }
 });
 
+app.get("/api/resumen_tiempos", async (req, res) => {
+  try {
+    const query = `
+      SELECT
+        a.nombre AS area,
+        COUNT(*) AS total,
+        AVG(EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha)) / 60) AS promedio_solucion,
+        AVG(EXTRACT(EPOCH FROM (r.fecha_fin - r.fecha_comp)) / 60) AS promedio_finalizacion
+      FROM ric01 r
+      JOIN areas a ON r.area = a.id
+      GROUP BY a.nombre
+      ORDER BY a.nombre;
+    `;
+
+    const { rows } = await pool.query(query);
+
+    // Convertir null → 0 si no hay datos
+    const datos = rows.map(r => ({
+      area: r.area,
+      total: Number(r.total),
+      promedio_solucion: r.promedio_solucion ? Number(r.promedio_solucion.toFixed(2)) : 0,
+      promedio_finalizacion: r.promedio_finalizacion ? Number(r.promedio_finalizacion.toFixed(2)) : 0,
+    }));
+
+    res.json(datos);
+  } catch (error) {
+    console.error("Error en /api/resumen_tiempos:", error);
+    res.status(500).json({ error: "Error obteniendo resumen de tiempos" });
+  }
+});
+
 app.post("/tareas", async (req, res) => {
   // Aceptamos payload tanto con { usuario, tarea, area, servicio, subservicio, ... }
   // como con campos faltantes — en ese caso intentamos completar desde la tabla usuarios
@@ -1117,6 +1148,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
