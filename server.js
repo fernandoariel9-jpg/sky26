@@ -87,6 +87,53 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
+async function guardarResumenTiempos() {
+  try {
+    console.log("⏳ Calculando promedios diarios...");
+
+    // 📌 Promedio tiempo de SOLUCIÓN (en horas)
+    const promedioSolucionQuery = await pool.query(`
+      SELECT AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha)) / 3600) AS horas
+      FROM ric01
+      WHERE fecha_comp IS NOT NULL
+    `);
+
+    const promedio_solucion = Number(promedioSolucionQuery.rows[0].horas) || 0;
+
+    // 📌 Promedio tiempo de FINALIZACIÓN (en horas)
+    const promedioFinQuery = await pool.query(`
+      SELECT AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_comp)) / 3600) AS horas
+      FROM ric01
+      WHERE fecha_fin IS NOT NULL
+    `);
+
+    const promedio_finalizacion = Number(promedioFinQuery.rows[0].horas) || 0;
+
+    // 📌 Guardar en la tabla resumen_tiempos
+    await pool.query(
+      `INSERT INTO resumen_tiempos (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES (CURRENT_DATE, $1, $2)
+       ON CONFLICT (fecha)
+       DO UPDATE SET 
+          promedio_solucion = EXCLUDED.promedio_solucion,
+          promedio_finalizacion = EXCLUDED.promedio_finalizacion`,
+      [promedio_solucion, promedio_finalizacion]
+    );
+
+    console.log(
+      `✅ Resumen de tiempos guardado: Solución=${promedio_solucion.toFixed(
+        2
+      )}h, Finalización=${promedio_finalizacion.toFixed(2)}h`
+    );
+  } catch (err) {
+    console.error("❌ Error al guardar resumen de tiempos:", err.message);
+  }
+}
+
+cron.schedule("* * * * *", guardarResumenTiempos, {
+  timezone: "America/Argentina/Buenos_Aires",
+});
+
 // 🕒 Función principal que guarda el resumen diario
 async function guardarResumenDiario() {
   try {
@@ -1070,6 +1117,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
