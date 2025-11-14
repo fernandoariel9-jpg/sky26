@@ -130,7 +130,7 @@ async function guardarResumenTiempos() {
   }
 }
 
-cron.schedule("* * * * *", guardarResumenTiempos, {
+cron.schedule("0 14 * * *", guardarResumenTiempos, {
   timezone: "America/Argentina/Buenos_Aires",
 });
 
@@ -1148,6 +1148,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
