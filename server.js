@@ -272,33 +272,35 @@ app.get("/api/resumen_tiempos", async (req, res) => {
   try {
     const query = `
       SELECT
-        r.area,
+        a.area AS area,
         COUNT(*) AS total,
-        
+
+        -- promedio en horas de solución (fecha_comp - fecha)
         AVG(
           CASE 
             WHEN r.fecha_comp IS NOT NULL 
-            THEN EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha_registro)) / 3600
+            THEN EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha)) / 3600
           END
         ) AS promedio_solucion,
 
+        -- promedio en horas de finalización (fecha_fin - fecha_comp)
         AVG(
           CASE 
-            WHEN r.fecha_fin IS NOT NULL AND r.fecha_comp IS NOT NULL
+            WHEN r.fecha_fin IS NOT NULL
             THEN EXTRACT(EPOCH FROM (r.fecha_fin - r.fecha_comp)) / 3600
           END
         ) AS promedio_finalizacion
 
       FROM ric01 r
-      
       LEFT JOIN areas a
-        ON r.area = a.nombre   --  ✅ EL JOIN CORRECTO
+        ON r.area = a.area
 
-      GROUP BY r.area
-      ORDER BY r.area;
+      GROUP BY a.area
+      ORDER BY a.area;
     `;
 
     const { rows } = await pool.query(query);
+
     res.json(rows);
 
   } catch (error) {
@@ -1156,6 +1158,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
