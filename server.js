@@ -270,42 +270,17 @@ app.get("/api/resumen_tareas", async (req, res) => {
 
 app.get("/api/resumen_tiempos", async (req, res) => {
   try {
-    const query = `
-      SELECT
-        a.area AS area,
-        COUNT(*) AS total,
-
-        -- promedio en horas de solución (fecha_comp - fecha)
-        AVG(
-          CASE 
-            WHEN r.fecha_comp IS NOT NULL 
-            THEN EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha)) / 3600
-          END
-        ) AS promedio_solucion,
-
-        -- promedio en horas de finalización (fecha_fin - fecha_comp)
-        AVG(
-          CASE 
-            WHEN r.fecha_fin IS NOT NULL
-            THEN EXTRACT(EPOCH FROM (r.fecha_fin - r.fecha_comp)) / 3600
-          END
-        ) AS promedio_finalizacion
-
-      FROM ric01 r
-      LEFT JOIN areas a
-        ON r.area = a.area
-
-      GROUP BY a.area
-      ORDER BY a.area;
-    `;
-
-    const { rows } = await pool.query(query);
+    const { rows } = await pool.query(`
+      SELECT fecha, promedio_solucion, promedio_finalizacion
+      FROM resumen_tiempos
+      ORDER BY fecha ASC
+    `);
 
     res.json(rows);
 
   } catch (error) {
-    console.error("Error en /api/resumen_tiempos:", error);
-    res.status(500).json({ error: "Error obteniendo resumen de tiempos" });
+    console.error("❌ Error al obtener resumen de tiempos:", error);
+    res.status(500).json({ error: "Error al obtener resumen de tiempos" });
   }
 });
 
@@ -1158,6 +1133,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
