@@ -284,6 +284,22 @@ app.get("/api/resumen_tiempos", async (req, res) => {
   }
 });
 
+// 📌 Obtener lista de usuarios registrados
+app.get("/usuarios", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, mail, area, fecha_registro 
+       FROM usuarios 
+       ORDER BY nombre ASC`
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener usuarios:", err);
+    res.status(500).json({ error: "Error al obtener usuarios" });
+  }
+});
+
 app.post("/tareas", async (req, res) => {
   // Aceptamos payload tanto con { usuario, tarea, area, servicio, subservicio, ... }
   // como con campos faltantes — en ese caso intentamos completar desde la tabla usuarios
@@ -1133,6 +1149,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
