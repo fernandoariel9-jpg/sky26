@@ -525,6 +525,67 @@ app.put("/tareas/:id/reasignar", async (req, res) => {
   }
 });
 
+// 🔧 Actualizar datos de un usuario
+app.put("/usuarios/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nombre, mail, area } = req.body;
+
+  if (!nombre || !mail) {
+    return res.status(400).json({ error: "Faltan datos obligatorios" });
+  }
+
+  try {
+    const query = `
+      UPDATE usuarios
+      SET nombre = $1, mail = $2, area = $3
+      WHERE id = $4
+      RETURNING id, nombre, mail, area
+    `;
+
+    const result = await pool.query(query, [nombre, mail, area || "", id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error al actualizar usuario:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔐 Cambiar contraseña de un usuario
+app.put("/usuarios/:id/password", async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  if (!password || password.length < 4) {
+    return res.status(400).json({ error: "La contraseña es demasiado corta" });
+  }
+
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+
+    const query = `
+      UPDATE usuarios
+      SET password = $1
+      WHERE id = $2
+    `;
+
+    const result = await pool.query(query, [hashed, id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({ message: "Contraseña actualizada correctamente" });
+  } catch (err) {
+    console.error("Error al cambiar contraseña:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
@@ -1149,6 +1210,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
