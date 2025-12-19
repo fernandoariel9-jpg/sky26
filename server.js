@@ -653,6 +653,60 @@ app.post("/personal/login", async (req, res) => {
   }
 });
 
+app.put("/personal/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nombre, usuario, area, password } = req.body;
+
+  // Validación mínima
+  if (!nombre || !usuario || !area) {
+    return res.status(400).json({
+      error: "Faltan datos obligatorios (nombre, usuario o área)",
+    });
+  }
+
+  try {
+    // 1️⃣ Actualizar datos básicos
+    await pool.query(
+      `UPDATE personal
+       SET nombre = $1,
+           usuario = $2,
+           area = $3
+       WHERE id = $4`,
+      [nombre, usuario, area, id]
+    );
+
+    // 2️⃣ Actualizar contraseña SOLO si viene
+    if (password && password.trim() !== "") {
+      const hash = await bcrypt.hash(password, 10);
+
+      await pool.query(
+        `UPDATE personal
+         SET password = $1
+         WHERE id = $2`,
+        [hash, id]
+      );
+    }
+
+    res.json({
+      ok: true,
+      message: "Personal actualizado correctamente",
+    });
+  } catch (err) {
+    console.error("Error actualizando personal:", err);
+
+    // Error de usuario duplicado (si usuario es UNIQUE)
+    if (err.code === "23505") {
+      return res.status(409).json({
+        error: "El usuario ya existe",
+      });
+    }
+
+    res.status(500).json({
+      error: "Error interno del servidor",
+    });
+  }
+});
+
 // ---------- SERVICIOS ----------
 app.get("/servicios", async (req, res) => {
   try {
@@ -1210,6 +1264,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
