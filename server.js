@@ -653,6 +653,18 @@ app.post("/personal/login", async (req, res) => {
   }
 });
 
+app.get("/personal", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, nombre, usuario, area FROM personal ORDER BY nombre"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error obteniendo personal" });
+  }
+});
+
 app.put("/personal/:id", async (req, res) => {
   const { id } = req.params;
   const { nombre, usuario, area, password } = req.body;
@@ -1264,6 +1276,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
