@@ -656,7 +656,7 @@ app.post("/personal/login", async (req, res) => {
 app.get("/personal", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, nombre, usuario, area FROM personal ORDER BY nombre"
+      "SELECT id, nombre, movil, area FROM personal ORDER BY nombre"
     );
     res.json(result.rows);
   } catch (err) {
@@ -667,7 +667,7 @@ app.get("/personal", async (req, res) => {
 
 app.put("/personal/:id", async (req, res) => {
   const { id } = req.params;
-  const { nombre, usuario, area, password } = req.body;
+  const { nombre, movil, area, password } = req.body;
 
   // Validación mínima
   if (!nombre || !usuario || !area) {
@@ -681,7 +681,7 @@ app.put("/personal/:id", async (req, res) => {
     await pool.query(
       `UPDATE personal
        SET nombre = $1,
-           usuario = $2,
+           movil = $2,
            area = $3
        WHERE id = $4`,
       [nombre, usuario, area, id]
@@ -709,7 +709,7 @@ app.put("/personal/:id", async (req, res) => {
     // Error de usuario duplicado (si usuario es UNIQUE)
     if (err.code === "23505") {
       return res.status(409).json({
-        error: "El usuario ya existe",
+        error: "El personal ya existe",
       });
     }
 
@@ -1276,6 +1276,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
