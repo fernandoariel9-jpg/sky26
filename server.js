@@ -223,6 +223,29 @@ app.get("/api/resumen_tiempos_por_area", async (req, res) => {
   }
 });
 
+app.get("/api/tiempos_analitica", async (req, res) => {
+  const { desde, hasta } = req.query;
+
+  try {
+    const result = await pool.query(`
+      SELECT
+        r.area,
+        p.nombre AS personal,
+        EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha)) AS t_sol,
+        EXTRACT(EPOCH FROM (r.fecha_fin - r.fecha_comp)) AS t_fin
+      FROM ric01 r
+      LEFT JOIN personal p ON p.id = r.personal_id
+      WHERE
+        r.fecha_registro BETWEEN $1 AND $2
+    `, [desde, hasta]);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error analítica tiempos" });
+  }
+});
+
 // ---------- TAREAS ----------
 app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
@@ -1296,6 +1319,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
