@@ -231,39 +231,41 @@ app.get("/api/tiempos_analitica", async (req, res) => {
     const valores = [];
 
     if (desde && hasta) {
-      filtroFecha = "AND r.fecha_registro::date BETWEEN $1 AND $2";
+      filtroFecha = "AND r.fecha::date BETWEEN $1 AND $2";
       valores.push(desde, hasta);
     }
 
     const query = `
       SELECT
-        r.area,
+        COALESCE(r.reasignado_a, r.area) AS area,
         COUNT(*) AS total_tareas,
+
         AVG(
           CASE 
             WHEN r.fecha_comp IS NOT NULL
             THEN EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha)) / 3600
           END
         ) AS promedio_solucion,
+
         AVG(
           CASE 
             WHEN r.fecha_fin IS NOT NULL
             THEN EXTRACT(EPOCH FROM (r.fecha_fin - r.fecha_comp)) / 3600
           END
         ) AS promedio_finalizacion
+
       FROM ric01 r
       WHERE 1=1
       ${filtroFecha}
-      GROUP BY r.area
-      ORDER BY r.area;
+
+      GROUP BY COALESCE(r.reasignado_a, r.area)
+      ORDER BY area;
     `;
 
     const result = await pool.query(query, valores);
-
-    // 🔴 CLAVE: SIEMPRE DEVOLVER ARRAY
     res.json(result.rows || []);
-  } catch (error) {
-    console.error("Error tiempos analítica:", error);
+  } catch (err) {
+    console.error("Error analítica:", err);
     res.status(500).json([]);
   }
 });
@@ -1341,6 +1343,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
