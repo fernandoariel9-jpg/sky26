@@ -203,6 +203,26 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
+app.get("/api/resumen_tiempos_por_area", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        area,
+        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha))) AS prom_solucion_seg,
+        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_comp))) AS prom_finalizacion_seg
+      FROM ric01
+      WHERE fecha_registro IS NOT NULL
+      GROUP BY area
+      ORDER BY area
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error resumen por área:", err);
+    res.status(500).json({ error: "Error obteniendo resumen por área" });
+  }
+});
+
 // ---------- TAREAS ----------
 app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
@@ -1276,6 +1296,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
