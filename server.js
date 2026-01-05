@@ -653,6 +653,26 @@ app.put("/usuarios/:id/password", async (req, res) => {
   }
 });
 
+app.put("/tareas/:id/observacion", async (req, res) => {
+  const { id } = req.params;
+  const { observacion } = req.body;
+
+  try {
+    const result = await pool.query(
+      `UPDATE ric01 
+       SET observacion = $1 
+       WHERE id = $2 
+       RETURNING *`,
+      [observacion, id]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error guardando observación:", error);
+    res.status(500).json({ error: "Error al guardar observación" });
+  }
+});
+
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
   const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
@@ -1343,6 +1363,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
