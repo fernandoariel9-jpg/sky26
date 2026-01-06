@@ -658,6 +658,8 @@ app.put("/tareas/:id/observacion", async (req, res) => {
   const { observacion } = req.body;
 
   try {
+    const fechaAdm = fechaLocalArgentina();
+
     await pool.query(
       `
       UPDATE ric01
@@ -665,12 +667,12 @@ app.put("/tareas/:id/observacion", async (req, res) => {
         observacion = $1,
         fecha_adm = CASE
           WHEN fecha_adm IS NULL AND COALESCE(observacion, '') = ''
-          THEN NOW()
+          THEN $2
           ELSE fecha_adm
         END
-      WHERE id = $2
+      WHERE id = $3
       `,
-      [observacion, id]
+      [observacion, fechaAdm, id]
     );
 
     res.json({ ok: true });
@@ -1370,6 +1372,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
