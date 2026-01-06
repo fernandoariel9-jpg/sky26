@@ -658,17 +658,24 @@ app.put("/tareas/:id/observacion", async (req, res) => {
   const { observacion } = req.body;
 
   try {
-    const result = await pool.query(
-      `UPDATE ric01 
-       SET observacion = $1 
-       WHERE id = $2 
-       RETURNING *`,
+    await pool.query(
+      `
+      UPDATE ric01
+      SET
+        observacion = $1,
+        fecha_adm = CASE
+          WHEN fecha_adm IS NULL AND COALESCE(observacion, '') = ''
+          THEN NOW()
+          ELSE fecha_adm
+        END
+      WHERE id = $2
+      `,
       [observacion, id]
     );
 
-    res.json(result.rows[0]);
+    res.json({ ok: true });
   } catch (error) {
-    console.error("Error guardando observación:", error);
+    console.error(error);
     res.status(500).json({ error: "Error al guardar observación" });
   }
 });
@@ -1363,6 +1370,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
