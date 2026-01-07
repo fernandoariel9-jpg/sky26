@@ -109,22 +109,38 @@ async function guardarResumenTiempos() {
 
     const promedio_finalizacion = Number(promedioFinQuery.rows[0].horas) || 0;
 
+    // 📌 Promedio tiempo ADMINISTRATIVO (fecha_adm → fecha_fin) en horas
+const promedioAdmQuery = await pool.query(`
+  SELECT AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_adm)) / 3600) AS horas
+  FROM ric01
+  WHERE fecha_adm IS NOT NULL
+    AND fecha_fin IS NOT NULL
+`);
+
+const promedio_adm = Number(promedioAdmQuery.rows[0].horas) || 0;
+
     // 📌 Guardar en la tabla resumen_tiempos
     await pool.query(
-      `INSERT INTO resumen_tiempos (fecha, promedio_solucion, promedio_finalizacion)
-       VALUES (CURRENT_DATE, $1, $2)
-       ON CONFLICT (fecha)
-       DO UPDATE SET 
-          promedio_solucion = EXCLUDED.promedio_solucion,
-          promedio_finalizacion = EXCLUDED.promedio_finalizacion`,
-      [promedio_solucion, promedio_finalizacion]
-    );
+  `INSERT INTO resumen_tiempos (
+     fecha,
+     promedio_solucion,
+     promedio_finalizacion,
+     promedio_adm
+   )
+   VALUES (CURRENT_DATE, $1, $2, $3)
+   ON CONFLICT (fecha)
+   DO UPDATE SET 
+      promedio_solucion = EXCLUDED.promedio_solucion,
+      promedio_finalizacion = EXCLUDED.promedio_finalizacion,
+      promedio_adm = EXCLUDED.promedio_adm`,
+  [promedio_solucion, promedio_finalizacion, promedio_adm]
+);
 
     console.log(
-      `✅ Resumen de tiempos guardado: Solución=${promedio_solucion.toFixed(
-        2
-      )}h, Finalización=${promedio_finalizacion.toFixed(2)}h`
-    );
+  `✅ Resumen guardado: Sol=${promedio_solucion.toFixed(2)}h | ` +
+  `Fin=${promedio_finalizacion.toFixed(2)}h | ` +
+  `Adm=${promedio_adm.toFixed(2)}h`
+);
   } catch (err) {
     console.error("❌ Error al guardar resumen de tiempos:", err.message);
   }
@@ -1372,6 +1388,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
