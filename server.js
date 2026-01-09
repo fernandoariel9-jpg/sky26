@@ -316,12 +316,32 @@ app.get("/tareas/:area", async (req, res) => {
 
 app.get("/tareas", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const { mail, nombre, tipo, servicio } = req.query;
+
+    let query = `
       SELECT r.*, u.movil AS movil
       FROM ric01 r
-      LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
-      ORDER BY r.fecha DESC
-    `);
+      LEFT JOIN usuarios u 
+        ON r.usuario = u.mail OR r.usuario = u.nombre
+    `;
+
+    const params = [];
+
+    // 👤 USUARIO COMÚN
+    if (tipo !== "supervisor") {
+      query += ` WHERE r.usuario = $1 OR r.usuario = $2 `;
+      params.push(mail, nombre);
+    }
+
+    // 👑 SUPERVISOR
+    if (tipo === "supervisor") {
+      query += ` WHERE r.servicio = $1 `;
+      params.push(servicio);
+    }
+
+    query += ` ORDER BY r.fecha DESC`;
+
+    const result = await pool.query(query, params);
 
     res.json(
       result.rows.map((t) => ({
@@ -332,7 +352,7 @@ app.get("/tareas", async (req, res) => {
       }))
     );
   } catch (err) {
-    console.error("Error al obtener todas las tareas", err);
+    console.error("Error al obtener tareas", err);
     res.status(500).json({ error: "Error al obtener tareas" });
   }
 });
@@ -1392,6 +1412,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
