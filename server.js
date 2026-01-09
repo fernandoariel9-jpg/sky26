@@ -704,13 +704,13 @@ app.put("/tareas/:id/observacion", async (req, res) => {
 
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
-  const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
+  const { nombre, servicio, subservicio, area, movil, mail, password, tipo } = req.body;
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [nombre, servicio, subservicio, area, movil, mail, hashedPassword]
+      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password, tipo)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [nombre, servicio, subservicio, area, movil, mail, hashedPassword, tipo]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1392,6 +1392,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
