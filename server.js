@@ -97,6 +97,7 @@ async function guardarResumenTiempos() {
       FROM ric01
       WHERE fecha_comp IS NOT NULL
     `);
+
     const promedio_solucion = Number(promedioSolucionQuery.rows[0].horas) || 0;
 
     // 📌 Promedio tiempo de FINALIZACIÓN (en horas)
@@ -104,43 +105,25 @@ async function guardarResumenTiempos() {
       SELECT AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_comp)) / 3600) AS horas
       FROM ric01
       WHERE fecha_fin IS NOT NULL
-        AND fecha_comp IS NOT NULL
     `);
+
     const promedio_finalizacion = Number(promedioFinQuery.rows[0].horas) || 0;
 
-    // 📌 Promedio tiempo ADMINISTRACIÓN (fecha_adm → fecha_fin)
-    const promedioAdmQuery = await pool.query(`
-      SELECT AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_adm)) / 3600) AS horas
-      FROM ric01
-      WHERE fecha_adm IS NOT NULL
-        AND fecha_fin IS NOT NULL
-    `);
-    const promedio_adm = Number(promedioAdmQuery.rows[0].horas) || 0;
-
-    // 📌 Guardar en resumen_tiempos
+    // 📌 Guardar en la tabla resumen_tiempos
     await pool.query(
-      `
-      INSERT INTO resumen_tiempos (
-        fecha,
-        promedio_solucion,
-        promedio_finalizacion,
-        promedio_adm
-      )
-      VALUES (CURRENT_DATE, $1, $2, $3)
-      ON CONFLICT (fecha)
-      DO UPDATE SET
-        promedio_solucion     = EXCLUDED.promedio_solucion,
-        promedio_finalizacion = EXCLUDED.promedio_finalizacion,
-        promedio_adm          = EXCLUDED.promedio_adm
-      `,
-      [promedio_solucion, promedio_finalizacion, promedio_adm]
+      `INSERT INTO resumen_tiempos (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES (CURRENT_DATE, $1, $2)
+       ON CONFLICT (fecha)
+       DO UPDATE SET 
+          promedio_solucion = EXCLUDED.promedio_solucion,
+          promedio_finalizacion = EXCLUDED.promedio_finalizacion`,
+      [promedio_solucion, promedio_finalizacion]
     );
 
     console.log(
-      `✅ Resumen guardado:
-       Solución=${promedio_solucion.toFixed(2)}h |
-       Finalización=${promedio_finalizacion.toFixed(2)}h |
-       Administración=${promedio_adm.toFixed(2)}h`
+      `✅ Resumen de tiempos guardado: Solución=${promedio_solucion.toFixed(
+        2
+      )}h, Finalización=${promedio_finalizacion.toFixed(2)}h`
     );
   } catch (err) {
     console.error("❌ Error al guardar resumen de tiempos:", err.message);
@@ -316,32 +299,12 @@ app.get("/tareas/:area", async (req, res) => {
 
 app.get("/tareas", async (req, res) => {
   try {
-    const { mail, nombre, tipo, servicio } = req.query;
-
-    let query = `
+    const result = await pool.query(`
       SELECT r.*, u.movil AS movil
       FROM ric01 r
-      LEFT JOIN usuarios u 
-        ON r.usuario = u.mail OR r.usuario = u.nombre
-    `;
-
-    const params = [];
-
-    // 👤 USUARIO COMÚN
-    if (tipo !== "supervisor") {
-      query += ` WHERE r.usuario = $1 OR r.usuario = $2 `;
-      params.push(mail, nombre);
-    }
-
-    // 👑 SUPERVISOR
-    if (tipo === "supervisor") {
-      query += ` WHERE r.servicio = $1 `;
-      params.push(servicio);
-    }
-
-    query += ` ORDER BY r.fecha DESC`;
-
-    const result = await pool.query(query, params);
+      LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
+      ORDER BY r.fecha DESC
+    `);
 
     res.json(
       result.rows.map((t) => ({
@@ -352,7 +315,7 @@ app.get("/tareas", async (req, res) => {
       }))
     );
   } catch (err) {
-    console.error("Error al obtener tareas", err);
+    console.error("Error al obtener todas las tareas", err);
     res.status(500).json({ error: "Error al obtener tareas" });
   }
 });
@@ -375,16 +338,13 @@ app.get("/api/resumen_tareas", async (req, res) => {
 app.get("/api/resumen_tiempos", async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT
-        fecha,
-        promedio_solucion,
-        promedio_finalizacion,
-        promedio_adm
+      SELECT fecha, promedio_solucion, promedio_finalizacion
       FROM resumen_tiempos
       ORDER BY fecha ASC
     `);
 
     res.json(rows);
+
   } catch (error) {
     console.error("❌ Error al obtener resumen de tiempos:", error);
     res.status(500).json({ error: "Error al obtener resumen de tiempos" });
@@ -724,13 +684,13 @@ app.put("/tareas/:id/observacion", async (req, res) => {
 
 // ---------- USUARIOS ----------
 app.post("/usuarios", async (req, res) => {
-  const { nombre, servicio, subservicio, area, movil, mail, password, tipo } = req.body;
+  const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password, tipo)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [nombre, servicio, subservicio, area, movil, mail, hashedPassword, tipo]
+      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [nombre, servicio, subservicio, area, movil, mail, hashedPassword]
     );
     res.json(result.rows[0]);
   } catch (err) {
@@ -1412,59 +1372,3 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
