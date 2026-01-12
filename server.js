@@ -316,26 +316,7 @@ app.get("/tareas/:area", async (req, res) => {
 
 app.get("/tareas", async (req, res) => {
   try {
-    const { usuario } = req.query; // mail o nombre
-
-    if (!usuario) {
-      return res.status(400).json({ error: "Usuario no especificado" });
-    }
-
-    // 1️⃣ Obtener tipo y servicio del usuario
-    const userResult = await pool.query(
-      `SELECT tipo, servicio
-       FROM usuarios
-       WHERE mail = $1 OR nombre = $1
-       LIMIT 1`,
-      [usuario]
-    );
-
-    if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
-    }
-
-    const { tipo, servicio } = userResult.rows[0];
+    const { usuario, panel } = req.query;
 
     let query = `
       SELECT r.*, u.movil AS movil
@@ -344,15 +325,38 @@ app.get("/tareas", async (req, res) => {
     `;
     let params = [];
 
-    // 2️⃣ FILTRO SEGÚN TIPO
-    if (tipo === "supervisor") {
-      // 👔 Supervisor: todas las tareas del mismo servicio
-      query += ` WHERE r.servicio = $1 `;
-      params.push(servicio);
+    // 🧭 PANEL DE SUPERVISIÓN → VE TODO
+    if (panel === "true") {
+      // no se aplica filtro
+    }
+    // 👤 USUARIO COMÚN / SUPERVISOR
+    else if (usuario) {
+      const userResult = await pool.query(
+        `SELECT tipo, servicio
+         FROM usuarios
+         WHERE mail = $1 OR nombre = $1
+         LIMIT 1`,
+        [usuario]
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      }
+
+      const { tipo, servicio } = userResult.rows[0];
+
+      if (tipo === "supervisor") {
+        // 👔 Supervisor → tareas de su servicio
+        query += ` WHERE r.servicio = $1 `;
+        params.push(servicio);
+      } else {
+        // 👤 Común → solo sus tareas
+        query += ` WHERE r.usuario = $1 `;
+        params.push(usuario);
+      }
     } else {
-      // 👤 Usuario común
-      query += ` WHERE r.usuario = $1 `;
-      params.push(usuario);
+      // ❌ ni usuario ni panel
+      return res.status(400).json({ error: "Parámetros insuficientes" });
     }
 
     query += ` ORDER BY r.fecha DESC`;
@@ -1429,6 +1433,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
