@@ -299,12 +299,48 @@ app.get("/tareas/:area", async (req, res) => {
 
 app.get("/tareas", async (req, res) => {
   try {
-    const result = await pool.query(`
+    const { usuario } = req.query; // mail o nombre
+
+    if (!usuario) {
+      return res.status(400).json({ error: "Usuario no especificado" });
+    }
+
+    // 1️⃣ Obtener tipo y servicio del usuario
+    const userResult = await pool.query(
+      `SELECT tipo, servicio
+       FROM usuarios
+       WHERE mail = $1 OR nombre = $1
+       LIMIT 1`,
+      [usuario]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    const { tipo, servicio } = userResult.rows[0];
+
+    let query = `
       SELECT r.*, u.movil AS movil
       FROM ric01 r
       LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
-      ORDER BY r.fecha DESC
-    `);
+    `;
+    let params = [];
+
+    // 2️⃣ FILTRO SEGÚN TIPO
+    if (tipo === "supervisor") {
+      // 👔 Supervisor: todas las tareas del mismo servicio
+      query += ` WHERE r.servicio = $1 `;
+      params.push(servicio);
+    } else {
+      // 👤 Usuario común
+      query += ` WHERE r.usuario = $1 `;
+      params.push(usuario);
+    }
+
+    query += ` ORDER BY r.fecha DESC`;
+
+    const result = await pool.query(query, params);
 
     res.json(
       result.rows.map((t) => ({
@@ -315,7 +351,7 @@ app.get("/tareas", async (req, res) => {
       }))
     );
   } catch (err) {
-    console.error("Error al obtener todas las tareas", err);
+    console.error("❌ Error al obtener tareas:", err);
     res.status(500).json({ error: "Error al obtener tareas" });
   }
 });
@@ -1372,3 +1408,4 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
