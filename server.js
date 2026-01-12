@@ -391,7 +391,11 @@ app.get("/api/resumen_tareas", async (req, res) => {
 app.get("/api/resumen_tiempos", async (req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT fecha, promedio_solucion, promedio_finalizacion
+      SELECT
+        fecha,
+        promedio_solucion,
+        promedio_finalizacion,
+        promedio_adm
       FROM resumen_tiempos
       ORDER BY fecha ASC
     `);
@@ -408,13 +412,9 @@ app.get("/api/resumen_tiempos", async (req, res) => {
 app.get("/usuarios", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT
-        fecha,
-        promedio_solucion,
-        promedio_finalizacion,
-        promedio_adm
-      FROM resumen_tiempos
-      ORDER BY fecha ASC`
+      `SELECT id, nombre, mail, area, fecha_registro 
+       FROM usuarios 
+       ORDER BY nombre ASC`
     );
 
     res.json(result.rows);
@@ -1429,5 +1429,6 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
