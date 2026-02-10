@@ -429,14 +429,24 @@ app.get("/usuarios", async (req, res) => {
 });
 
 app.post("/api/guardias", async (req, res) => {
-  const { personal_id, servicio, fecha_hora, observaciones } = req.body;
+  try {
+    const { personal_id, servicio, fecha_hora, observaciones } = req.body;
 
-  await db.query(
-    "INSERT INTO guardias (personal_id, servicio, fecha_hora, observaciones) VALUES (?, ?, ?, ?)",
-    [personal_id, servicio, fecha_hora, observaciones]
-  );
+    if (!personal_id || !servicio || !fecha_hora) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
 
-  res.json({ ok: true });
+    await pool.query(
+      `INSERT INTO guardias (personal_id, servicio, fecha_hora, observaciones)
+       VALUES ($1, $2, $3, $4)`,
+      [personal_id, servicio, fecha_hora, observaciones]
+    );
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("❌ Error en /api/guardias:", error);
+    res.status(500).json({ error: "Error guardando guardia" });
+  }
 });
 
 app.post("/tareas", async (req, res) => {
@@ -1444,6 +1454,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
