@@ -428,6 +428,17 @@ app.get("/usuarios", async (req, res) => {
   }
 });
 
+app.post("/api/guardias", async (req, res) => {
+  const { personal_id, servicio, fecha_hora, observaciones } = req.body;
+
+  await db.query(
+    "INSERT INTO guardias (personal_id, servicio, fecha_hora, observaciones) VALUES (?, ?, ?, ?)",
+    [personal_id, servicio, fecha_hora, observaciones]
+  );
+
+  res.json({ ok: true });
+});
+
 app.post("/tareas", async (req, res) => {
   // Aceptamos payload tanto con { usuario, tarea, area, servicio, subservicio, ... }
   // como con campos faltantes — en ese caso intentamos completar desde la tabla usuarios
@@ -1433,6 +1444,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
