@@ -379,13 +379,13 @@ app.get("/tareas", async (req, res) => {
 
 app.post("/api/ric01", async (req, res) => {
   try {
-    const { descripcion, area, origen, solicitado_por } = req.body;
+    const { tarea, area, origen, solicitado_por } = req.body;
 
     await pool.query(
       `INSERT INTO ric01 
        (tarea, area, origen, usuario, fecha)
        VALUES ($1, $2, $3, $4, NOW())`,
-      [descripcion, area, origen, solicitado_por]
+      [tarea, area, origen, solicitado_por]
     );
 
     res.status(201).json({ message: "Creado" });
@@ -1485,6 +1485,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
