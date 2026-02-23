@@ -377,6 +377,25 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
+app.post("/api/ric01", async (req, res) => {
+  try {
+    const { descripcion, area, prioridad, origen, solicitado_por } = req.body;
+
+    await pool.query(
+      `INSERT INTO ric01 
+       (tarea, area, prioridad, origen, solicitado_por, estado, fecha_creacion)
+       VALUES ($1, $2, $3, $4, $5, 'pendiente', NOW())`,
+      [tarea, area, prioridad, origen, solicitado_por]
+    );
+
+    res.status(201).json({ message: "Creado" });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al crear tarea" });
+  }
+});
+
 // ----------------- ENDPOINT PARA EL FRONT -----------------
 app.get("/api/resumen_tareas", async (req, res) => {
   try {
@@ -1466,6 +1485,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
