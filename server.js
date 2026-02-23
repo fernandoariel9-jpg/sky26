@@ -384,7 +384,7 @@ app.post("/api/ric01", async (req, res) => {
     await pool.query(
       `INSERT INTO ric01 
        (tarea, area, origen, usuario, fecha)
-       VALUES ($1, $2, $3, $4, NOW())`,
+       VALUES ($1, $2, $3, $4, NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')`,
       [tarea, area, origen, solicitado_por]
     );
 
@@ -1485,6 +1485,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
