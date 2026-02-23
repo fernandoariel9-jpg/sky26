@@ -449,6 +449,18 @@ app.post("/api/guardias", async (req, res) => {
   }
 });
 
+app.get("/api/areas", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, area FROM areas ORDER BY area ASC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error obteniendo áreas" });
+  }
+});
+
 app.post("/tareas", async (req, res) => {
   // Aceptamos payload tanto con { usuario, tarea, area, servicio, subservicio, ... }
   // como con campos faltantes — en ese caso intentamos completar desde la tabla usuarios
@@ -1454,6 +1466,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
