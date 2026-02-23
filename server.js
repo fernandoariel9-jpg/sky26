@@ -378,6 +378,7 @@ app.get("/tareas", async (req, res) => {
 });
 
 app.post("/api/ric01", async (req, res) => {
+  console.log("POST /api/ric01 ejecutado");
   try {
     const { descripcion, area, origen, solicitado_por } = req.body;
 
@@ -1485,6 +1486,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
