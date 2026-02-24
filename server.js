@@ -400,7 +400,7 @@ app.put("/tareas/finalizar/:id", async (req, res) => {
   try {
     await pool.query(
       `UPDATE ric01
-       SET finalizado = true,
+       SET fin = true,
            fecha_fin = NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires'
        WHERE id = $1`,
       [id]
@@ -1502,6 +1502,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
