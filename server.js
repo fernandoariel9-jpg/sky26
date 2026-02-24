@@ -394,6 +394,25 @@ app.post("/api/ric01", async (req, res) => {
   }
 });
 
+app.put("/tareas/finalizar/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query(
+      `UPDATE ric01
+       SET finalizado = true,
+           fecha_fin = NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires'
+       WHERE id = $1`,
+      [id]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al finalizar tarea" });
+  }
+});
+
 // ----------------- ENDPOINT PARA EL FRONT -----------------
 app.get("/api/resumen_tareas", async (req, res) => {
   try {
@@ -1483,6 +1502,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
