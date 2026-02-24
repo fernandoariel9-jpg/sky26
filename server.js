@@ -290,24 +290,22 @@ app.get("/api/tiempos_analitica", async (req, res) => {
 // ---------- TAREAS ----------
 app.get("/tareas/:area", async (req, res) => {
   const { area } = req.params;
+  const { personal } = req.query; // 👈 agregamos esto
+
   try {
     const result = await pool.query(`
       SELECT r.*, u.movil AS movil
       FROM ric01 r
       LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
-      WHERE (r.area = $1 AND r.reasignado_a IS NULL)
-         OR r.reasignado_a = $1
+      WHERE (
+        (r.area = $1 AND r.reasignado_a IS NULL)
+        OR r.reasignado_a = $1
+        OR (r.origen = 'interno' AND r.usuario = $2)
+      )
       ORDER BY r.fecha DESC
-    `, [area]);
-    
-    res.json(
-      result.rows.map((t) => ({
-        ...t,
-        fecha: t.fecha || null,
-        fecha_comp: t.fecha_comp || null,
-        fecha_fin: t.fecha_fin || null,
-      }))
-    );
+    `, [area, personal]);
+
+    res.json(result.rows);
   } catch (err) {
     console.error("Error al obtener tareas:", err.message);
     res.status(500).json({ error: "Error al obtener tareas" });
@@ -1485,6 +1483,7 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
 
