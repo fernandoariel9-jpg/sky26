@@ -386,19 +386,49 @@ app.get("/api/equipos", async (req, res) => {
 });
 
 app.post("/api/equipos", async (req, res) => {
-  const { numero_serie, descripcion, marca, modelo, area } = req.body;
+  const {
+    numero_serie,
+    descripcion,
+    marca_modelo,
+    servicio,
+    sub_servicio,
+    encargado,
+    area,
+    periodo,
+    ultimo_mant,
+    fecha_alta,
+    fecha_baja,
+    estado
+  } = req.body;
 
   try {
     const result = await pool.query(
-      `INSERT INTO equipos (numero_serie, descripcion, marca, modelo, area)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [numero_serie, descripcion, marca, modelo, area]
+      `INSERT INTO equipos (
+        numero_serie, descripcion, marca_modelo,
+        servicio, sub_servicio, encargado, area,
+        periodo, ultimo_mant, fecha_alta, fecha_baja, estado
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      RETURNING *`,
+      [
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta || new Date(),
+        fecha_baja,
+        estado || "En Servicio"
+      ]
     );
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error("Error creando equipo:", error);
+    console.error(error);
     res.status(500).json({ error: "Error creando equipo" });
   }
 });
