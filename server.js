@@ -375,6 +375,53 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
+app.get("/api/equipos", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM equipos ORDER BY id DESC");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error obteniendo equipos:", error);
+    res.status(500).json({ error: "Error obteniendo equipos" });
+  }
+});
+
+app.post("/api/equipos", async (req, res) => {
+  const { numero_serie, descripcion, marca, modelo, area } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO equipos (numero_serie, descripcion, marca, modelo, area)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [numero_serie, descripcion, marca, modelo, area]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error creando equipo:", error);
+    res.status(500).json({ error: "Error creando equipo" });
+  }
+});
+
+app.put("/api/equipos/:id", async (req, res) => {
+  const { id } = req.params;
+  const { numero_serie, descripcion, marca, modelo, area } = req.body;
+
+  try {
+    await pool.query(
+      `UPDATE equipos 
+       SET numero_serie=$1, descripcion=$2, marca=$3, modelo=$4, area=$5
+       WHERE id=$6`,
+      [numero_serie, descripcion, marca, modelo, area, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error actualizando equipo:", error);
+    res.status(500).json({ error: "Error actualizando equipo" });
+  }
+});
+
 app.post("/api/ric01", async (req, res) => {
   try {
     const { tarea, area, origen, solicitado_por } = req.body;
@@ -410,6 +457,40 @@ app.put("/tareas/finalizar/:id", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al finalizar tarea" });
+  }
+});
+
+app.get("/api/mantenimientos", async (req, res) => {
+  const { tipo, equipo_id } = req.query;
+
+  try {
+    let query = `
+      SELECT r.*, e.numero_serie, e.descripcion AS equipo
+      FROM ric01 r
+      LEFT JOIN equipos e ON r.equipo_id = e.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+
+    if (tipo) {
+      params.push(tipo);
+      query += ` AND r.tipo_mantenimiento = $${params.length}`;
+    }
+
+    if (equipo_id) {
+      params.push(equipo_id);
+      query += ` AND r.equipo_id = $${params.length}`;
+    }
+
+    query += " ORDER BY r.id DESC";
+
+    const result = await pool.query(query, params);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error obteniendo mantenimientos" });
   }
 });
 
