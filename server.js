@@ -496,6 +496,29 @@ app.post("/api/ric01", async (req, res) => {
   }
 });
 
+app.post("/ric01", async (req, res) => {
+  const {
+    numero_serie,
+    descripcion,
+    personal,
+    fecha
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO ric01 (numero_serie, descripcion, personal, fecha)
+       VALUES ($1, $2, $3, $4)
+       RETURNING *`,
+      [numero_serie, descripcion, personal, fecha]
+    );
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error("Error guardando mantenimiento:", error);
+    res.status(500).json({ error: "Error al guardar mantenimiento" });
+  }
+});
+
 app.put("/tareas/finalizar/:id", async (req, res) => {
   const { id } = req.params;
 
