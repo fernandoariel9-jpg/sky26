@@ -220,7 +220,7 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
-router.get("/equipos/serie/:serie", async (req, res) => {
+app.get("/equipos/serie/:serie", async (req, res) => {
   const { serie } = req.params;
 
   try {
@@ -235,7 +235,7 @@ router.get("/equipos/serie/:serie", async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (error) {
-    console.error(error);
+    console.error("Error buscando equipo:", error);
     res.status(500).json({ error: "Error en servidor" });
   }
 });
