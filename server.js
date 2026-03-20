@@ -224,9 +224,13 @@ app.get("/equipos/serie/:serie", async (req, res) => {
   const { serie } = req.params;
 
   try {
+    // 🔹 limpiar input
+    const serieLimpia = serie.trim().toLowerCase();
+
+    // 🔹 query robusta
     const result = await pool.query(
-      "SELECT * FROM equipos WHERE numero_serie = $1",
-      [serie]
+      "SELECT * FROM equipos WHERE LOWER(TRIM(numero_serie)) = $1",
+      [serieLimpia]
     );
 
     if (result.rows.length === 0) {
@@ -234,6 +238,7 @@ app.get("/equipos/serie/:serie", async (req, res) => {
     }
 
     res.json(result.rows[0]);
+
   } catch (error) {
     console.error("Error buscando equipo:", error);
     res.status(500).json({ error: "Error en servidor" });
