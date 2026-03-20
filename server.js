@@ -220,6 +220,26 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
+router.get("/equipos/serie/:serie", async (req, res) => {
+  const { serie } = req.params;
+
+  try {
+    const result = await pool.query(
+      "SELECT * FROM equipos WHERE numero_serie = $1",
+      [serie]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ mensaje: "No encontrado" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error en servidor" });
+  }
+});
+
 app.get("/api/resumen_tiempos_por_area", async (req, res) => {
   try {
     const result = await pool.query(`
