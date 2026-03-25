@@ -413,7 +413,7 @@ app.get("/api/equipos", async (req, res) => {
 app.get("/diagnosticos/ric02", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT diagnostico FROM diagnosticos WHERE ric = 'RIC02'"
+      "SELECT diagnostico FROM rics WHERE ric = 'RIC02'"
     );
 
     res.json(result.rows);
