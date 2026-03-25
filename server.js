@@ -524,7 +524,7 @@ app.post("/ric01", async (req, res) => {
   const {
     numero_serie,
     descripcion,
-    personal,
+    asignado,
     fecha
   } = req.body;
 
