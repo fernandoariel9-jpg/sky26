@@ -507,7 +507,7 @@ app.post("/api/ric01", async (req, res) => {
 
     await pool.query(
   `INSERT INTO ric01 
-  (usuario, fecha, tarea, diagnostico, tipo_mantenimiento, area, servicio, subservicio, asignado)
+  (usuario, fecha, tarea, diagnostico, tipo_mantenimiento, area, servicio, subservicio, asignado, solicitado_por, origen)
   VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
   [usuario, fecha, tarea, diagnostico, tipo_mantenimiento, area, servicio, subservicio, asignado, solicitado_por, origen]
 );
