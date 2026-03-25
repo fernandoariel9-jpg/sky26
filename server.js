@@ -410,6 +410,18 @@ app.get("/api/equipos", async (req, res) => {
   }
 });
 
+app.get("/diagnosticos/ric02", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT diagnostico FROM diagnosticos WHERE ric = 'RIC02'"
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: "Error al obtener diagnósticos" });
+  }
+});
+
 app.post("/api/equipos", async (req, res) => {
   const {
     numero_serie,
