@@ -530,10 +530,10 @@ app.post("/ric01", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO ric01 (numero_serie, descripcion, personal, fecha)
+      `INSERT INTO ric01 (numero_serie, descripcion, asignado, fecha)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [numero_serie, descripcion, personal, fecha]
+      [numero_serie, descripcion, asignado, fecha]
     );
 
     res.json(result.rows[0]);
