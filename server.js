@@ -522,8 +522,6 @@ app.post("/api/ric01", async (req, res) => {
 });
 
 app.post("/ric01", async (req, res) => {
-  const client = await pool.connect();
-
   try {
     const {
       usuario,
@@ -541,10 +539,7 @@ app.post("/ric01", async (req, res) => {
       origen
     } = req.body;
 
-    await client.query("BEGIN");
-
-    // 🟢 1. Insertar mantenimiento
-    const result = await client.query(
+    const result = await pool.query(
       `INSERT INTO ric01 (
         usuario,
         fecha,
@@ -581,24 +576,11 @@ app.post("/ric01", async (req, res) => {
       ]
     );
 
-    // 🟡 2. Actualizar equipo
-    await client.query(
-      `UPDATE equipos
-       SET ultimo_mant = $1
-       WHERE numero_serie = $2`,
-      [fecha, numero_serie]
-    );
-
-    await client.query("COMMIT");
-
     res.json(result.rows[0]);
 
   } catch (error) {
-    await client.query("ROLLBACK");
     console.error("Error guardando mantenimiento:", error);
     res.status(500).json({ error: error.message });
-  } finally {
-    client.release();
   }
 });
 
