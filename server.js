@@ -583,8 +583,8 @@ app.post("/ric01", async (req, res) => {
 
     // 🟡 2. Actualizar equipo
     await client.query(
-      `UPDATE ric02
-       SET ultimo_mantenimiento = $1
+      `UPDATE equipos
+       SET ultimo_mant = $1
        WHERE numero_serie = $2`,
       [fecha, numero_serie]
     );
