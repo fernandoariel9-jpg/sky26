@@ -539,6 +539,20 @@ app.post("/ric01", async (req, res) => {
       origen
     } = req.body;
 
+    // 🔴 VALIDAR si ya hay mantenimiento abierto
+    const existeAbierto = await pool.query(
+      `SELECT id FROM ric01 
+       WHERE numero_serie = $1 AND fin = false`,
+      [numero_serie]
+    );
+
+    if (existeAbierto.rows.length > 0) {
+      return res.status(400).json({
+        error: "El equipo ya tiene un mantenimiento abierto"
+      });
+    }
+
+    // ✅ INSERT (tu lógica intacta)
     const result = await pool.query(
       `INSERT INTO ric01 (
         usuario,
