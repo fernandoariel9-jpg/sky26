@@ -522,25 +522,65 @@ app.post("/api/ric01", async (req, res) => {
 });
 
 app.post("/ric01", async (req, res) => {
-  const {
-    numero_serie,
-    descripcion,
-    asignado,
-    fecha
-  } = req.body;
-
   try {
+    const {
+      usuario,
+      fecha,
+      tarea,
+      diagnostico,
+      tipo_mantenimiento,
+      descripcion,
+      numero_serie,
+      area,
+      servicio,
+      subservicio,
+      asignado,
+      solicitado_por,
+      origen
+    } = req.body;
+
     const result = await pool.query(
-      `INSERT INTO ric01 (numero_serie, descripcion, asignado, fecha)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [numero_serie, descripcion, asignado, fecha]
+      `INSERT INTO ric01 (
+        usuario,
+        fecha,
+        tarea,
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        numero_serie,
+        area,
+        servicio,
+        subservicio,
+        asignado,
+        solicitado_por,
+        origen
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+      )
+      RETURNING *`,
+      [
+        usuario,
+        fecha,
+        tarea,
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        numero_serie,
+        area,
+        servicio,
+        subservicio,
+        asignado,
+        solicitado_por,
+        origen
+      ]
     );
 
     res.json(result.rows[0]);
+
   } catch (error) {
     console.error("Error guardando mantenimiento:", error);
-    res.status(500).json({ error: "Error al guardar mantenimiento" });
+    res.status(500).json({ error: error.message });
   }
 });
 
