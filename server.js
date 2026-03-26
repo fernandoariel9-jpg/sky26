@@ -553,10 +553,14 @@ app.post("/ric01", async (req, res) => {
         subservicio,
         asignado,
         solicitado_por,
-        origen
+        origen,
+        fin,
+        fecha_fin,
+        fecha_comp
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
+        false, NULL, NULL
       )
       RETURNING *`,
       [
@@ -579,8 +583,42 @@ app.post("/ric01", async (req, res) => {
     res.json(result.rows[0]);
 
   } catch (error) {
-    console.error("Error guardando mantenimiento:", error);
+    console.error("Error iniciando mantenimiento:", error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/ric01/cerrar/:id", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params;
+    const fechaCierre = new Date().toISOString();
+
+    await client.query("BEGIN");
+
+    // 🔹 cerrar mantenimiento
+    const result = await client.query(
+      `UPDATE ric01
+       SET 
+         fin = true,
+         fecha_fin = $1,
+         fecha_comp = $1
+       WHERE id = $2
+       RETURNING *`,
+      [fechaCierre, id]
+    );
+
+    await client.query("COMMIT");
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error cerrando mantenimiento:", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
   }
 });
 
