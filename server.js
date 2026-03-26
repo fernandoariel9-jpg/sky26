@@ -374,10 +374,10 @@ app.get("/tareas", async (req, res) => {
         query += ` WHERE r.servicio = $1 `;
         params.push(servicio);
       } else {
-        // 👤 Común → solo sus tareas
-        query += ` WHERE r.usuario = $1 `;
-        params.push(usuario);
-      }
+  // 👤 Común → ve lo que creó Y lo que solicitó
+  query += ` WHERE r.usuario = $1 OR r.solicitado_por = $1 `;
+  params.push(usuario);
+}
     } else {
       // ❌ ni usuario ni panel
       return res.status(400).json({ error: "Parámetros insuficientes" });
