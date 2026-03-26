@@ -536,7 +536,9 @@ app.post("/ric01", async (req, res) => {
       subservicio,
       asignado,
       solicitado_por,
-      origen
+      origen,
+      tarea_id,
+      solucion
     } = req.body;
 
     // 🔴 VALIDAR si ya hay mantenimiento abierto
@@ -570,11 +572,13 @@ app.post("/ric01", async (req, res) => {
         origen,
         fin,
         fecha_fin,
-        fecha_comp
+        fecha_comp,
+        tarea_id,
+        solucion
       )
       VALUES (
         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-        false, NULL, NULL
+        false, NULL, NULL, $14, $15
       )
       RETURNING *`,
       [
@@ -590,9 +594,17 @@ app.post("/ric01", async (req, res) => {
         subservicio,
         asignado,
         solicitado_por,
-        origen
+        origen,
+        tarea_id,
+        solucion
       ]
     );
+    if (tarea_id) {
+      await pool.query(
+        `UPDATE tareas SET estado = 'en_proceso' WHERE id = $1`,
+        [tarea_id]
+      );
+    }
 
     res.json(result.rows[0]);
 
@@ -611,7 +623,7 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
 
     await client.query("BEGIN");
 
-    // 🔹 cerrar mantenimiento
+    // 🔹 1. cerrar mantenimiento
     const result = await client.query(
       `UPDATE ric01
        SET 
@@ -623,9 +635,21 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
       [fechaCierre, id]
     );
 
+    const mantenimiento = result.rows[0];
+
+    // 🔴 2. cerrar tarea (SI EXISTE)
+    if (mantenimiento.tarea_id) {
+      await client.query(
+        `UPDATE tareas 
+         SET estado = 'completada' 
+         WHERE id = $1`,
+        [mantenimiento.tarea_id]
+      );
+    }
+
     await client.query("COMMIT");
 
-    res.json(result.rows[0]);
+    res.json(mantenimiento);
 
   } catch (error) {
     await client.query("ROLLBACK");
