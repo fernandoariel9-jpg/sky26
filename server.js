@@ -636,6 +636,37 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
   }
 });
 
+app.get("/buscar-equipo/:serie", async (req, res) => {
+  const { serie } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT 
+        e.*,
+        m.id AS mantenimiento_id,
+        m.tipo_mantenimiento,
+        m.diagnostico,
+        m.fecha AS fecha_inicio
+      FROM ric02 e
+      LEFT JOIN ric01 m 
+        ON e.numero_serie = m.numero_serie 
+        AND m.fin = false
+      WHERE e.numero_serie = $1`,
+      [serie]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Equipo no encontrado" });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error buscando equipo:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.put("/tareas/finalizar/:id", async (req, res) => {
   const { id } = req.params;
 
