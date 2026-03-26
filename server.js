@@ -599,12 +599,6 @@ app.post("/ric01", async (req, res) => {
         solucion
       ]
     );
-    if (tarea_id) {
-      await pool.query(
-        `UPDATE tareas SET estado = 'en_proceso' WHERE id = $1`,
-        [tarea_id]
-      );
-    }
 
     res.json(result.rows[0]);
 
@@ -640,8 +634,8 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
     // 🔴 2. cerrar tarea (SI EXISTE)
     if (mantenimiento.tarea_id) {
       await client.query(
-        `UPDATE tareas 
-         SET estado = 'completada' 
+        `UPDATE ric01 
+         SET fin = 'true' 
          WHERE id = $1`,
         [mantenimiento.tarea_id]
       );
