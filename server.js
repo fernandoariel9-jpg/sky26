@@ -697,6 +697,17 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
     area
   } = req.body;
 
+  const existe = await pool.query(
+  "SELECT numero_serie FROM ric01 WHERE id = $1",
+  [id]
+);
+
+if (existe.rows[0].numero_serie) {
+  return res.status(400).json({
+    error: "La tarea ya tiene un equipo asignado"
+  });
+}
+
   try {
     await pool.query(
       `UPDATE ric01
