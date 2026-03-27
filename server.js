@@ -691,48 +691,47 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
   const {
     descripcion,
     marca_modelo,
-    numero_serie,
-    servicio,
-    subservicio,
-    area
+    numero_serie
   } = req.body;
 
-  const existe = await pool.query(
-  "SELECT numero_serie FROM ric01 WHERE id = $1",
-  [id]
-);
-
-if (existe.rows[0].numero_serie) {
-  return res.status(400).json({
-    error: "La tarea ya tiene un equipo asignado"
-  });
-}
-
   try {
+    // 🔍 Verificar si ya tiene equipo asignado
+    const existe = await pool.query(
+      "SELECT numero_serie FROM ric01 WHERE id = $1",
+      [id]
+    );
+
+    if (existe.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    if (existe.rows[0].numero_serie) {
+      return res.status(400).json({
+        error: "La tarea ya tiene un equipo asignado"
+      });
+    }
+
+    // ✅ Actualizar SOLO datos del equipo
     await pool.query(
       `UPDATE ric01
        SET descripcion = $1,
            marca_modelo = $2,
-           numero_serie = $3,
-           servicio = $4,
-           subservicio = $5,
-           area = $6
-       WHERE id = $7`,
+           numero_serie = $3
+       WHERE id = $4`,
       [
         descripcion,
         marca_modelo,
         numero_serie,
-        servicio,
-        subservicio,
-        area,
         id
       ]
     );
 
-    res.json({ message: "Equipo asignado correctamente" });
+    res.json({ message: "Equipo asignado correctamente ✅" });
 
   } catch (error) {
-    console.error(error);
+    console.error("Error al asignar equipo:", error);
     res.status(500).json({ error: "Error al asignar equipo" });
   }
 });
