@@ -686,29 +686,28 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
 });
 
 app.put("/ric01/asignar-equipo/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    descripcion,
+    marca_modelo,
+    numero_serie,
+    servicio,
+    subservicio,
+    area
+  } = req.body;
+
   try {
-    const { id } = req.params;
-
-    const {
-      descripcion,
-      marca_modelo,
-      numero_serie,
-      servicio,
-      subservicio,
-      area
-    } = req.body;
-
-    const result = await pool.query(
+    await pool.query(
       `UPDATE ric01
-       SET 
-         descripcion = $1,
-         marca_modelo = $2,
-         numero_serie = $3,
-         servicio = $4,
-         subservicio = $5,
-         area = $6
-       WHERE id = $7
-       RETURNING *`,
+       SET descripcion = $1,
+           marca_modelo = $2,
+           numero_serie = $3,
+           servicio = $4,
+           subservicio = $5,
+           area = $6,
+           tipo_mantenimiento = 'correctivo'
+       WHERE id = $7`,
       [
         descripcion,
         marca_modelo,
@@ -720,11 +719,11 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
       ]
     );
 
-    res.json(result.rows[0]);
+    res.json({ message: "Equipo asignado correctamente" });
 
   } catch (error) {
-    console.error("Error asignando equipo:", error);
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: "Error al asignar equipo" });
   }
 });
 
