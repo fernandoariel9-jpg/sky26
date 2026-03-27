@@ -345,7 +345,7 @@ app.get("/tareas", async (req, res) => {
     let query = `
       SELECT r.*, u.movil AS movil
       FROM ric01 r
-      LEFT JOIN usuarios u ON r.usuario = u.mail OR r.usuario = u.nombre
+      LEFT JOIN usuarios u ON r.usuario = u.mail
     `;
     let params = [];
 
