@@ -705,8 +705,7 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
            numero_serie = $3,
            servicio = $4,
            subservicio = $5,
-           area = $6,
-           tipo_mantenimiento = 'correctivo'
+           area = $6
        WHERE id = $7`,
       [
         descripcion,
