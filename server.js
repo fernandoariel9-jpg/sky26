@@ -685,6 +685,49 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
   }
 });
 
+app.put("/ric01/asignar-equipo/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const {
+      descripcion,
+      marca_modelo,
+      numero_serie,
+      servicio,
+      subservicio,
+      area
+    } = req.body;
+
+    const result = await pool.query(
+      `UPDATE ric01
+       SET 
+         descripcion = $1,
+         marca_modelo = $2,
+         numero_serie = $3,
+         servicio = $4,
+         subservicio = $5,
+         area = $6
+       WHERE id = $7
+       RETURNING *`,
+      [
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        subservicio,
+        area,
+        id
+      ]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error asignando equipo:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.put("/tareas/finalizar/:id", async (req, res) => {
   const { id } = req.params;
 
