@@ -405,26 +405,25 @@ app.put("/tareas/:id/editar", async (req, res) => {
   const { id } = req.params;
   const { tarea } = req.body;
 
+  console.log("EDITANDO:", id, tarea);
+
   if (!tarea || tarea.trim() === "") {
-    return res.status(400).json({ error: "La tarea no puede estar vacía" });
+    return res.status(400).json({ error: "Tarea vacía" });
   }
 
   try {
     const result = await pool.query(
-      `UPDATE ric01 
-       SET tarea = $1 
-       WHERE id = $2 
-       RETURNING *`,
+      "UPDATE ric01 SET tarea = $1 WHERE id = $2 RETURNING *",
       [tarea, id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Tarea no encontrada" });
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "No existe la tarea" });
     }
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("Error al editar tarea:", err);
+    console.error("ERROR:", err);
     res.status(500).json({ error: "Error interno" });
   }
 });
