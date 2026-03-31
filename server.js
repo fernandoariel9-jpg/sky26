@@ -401,6 +401,34 @@ app.get("/tareas", async (req, res) => {
   }
 });
 
+app.put("/tareas/:id/editar", async (req, res) => {
+  const { id } = req.params;
+  const { tarea } = req.body;
+
+  if (!tarea || tarea.trim() === "") {
+    return res.status(400).json({ error: "La tarea no puede estar vacía" });
+  }
+
+  try {
+    const result = await pool.query(
+      `UPDATE ric01 
+       SET tarea = $1 
+       WHERE id = $2 
+       RETURNING *`,
+      [tarea, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Tarea no encontrada" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error al editar tarea:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
 app.get("/api/equipos", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM equipos ORDER BY id DESC");
