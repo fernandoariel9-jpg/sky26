@@ -221,8 +221,15 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
-app.get("/api/equipos/alertas", verificarToken, async (req, res) => {
+app.get("/api/equipos/alertas", async (req, res) => {
   try {
+    const authHeader = req.headers["authorization"];
+
+    // 🔐 validar token simple
+    if (!authHeader || authHeader !== "Bearer ingeclinHR") {
+      return res.status(401).json({ error: "No autorizado" });
+    }
+
     const result = await pool.query(`
       SELECT descripcion, numero_serie, estado
       FROM equipos
