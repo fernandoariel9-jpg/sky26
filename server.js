@@ -221,6 +221,25 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
+app.get("/api/equipos/resumen-tipos", verificarToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        UPPER(descripcion) as tipo,
+        COUNT(*) as total,
+        SUM(CASE WHEN estado = 'Activo' THEN 1 ELSE 0 END) as activos,
+        SUM(CASE WHEN estado <> 'Activo' THEN 1 ELSE 0 END) as no_activos
+      FROM equipos
+      GROUP BY UPPER(descripcion)
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error servidor" });
+  }
+});
+
 app.get("/api/equipos/alertas", async (req, res) => {
   try {
     const authHeader = req.headers["authorization"];
