@@ -231,17 +231,13 @@ app.get("/estados", async (req, res) => {
   }
 });
 
-app.put("/equipos/:id/estado", async (req, res) => {
+app.put("/api/equipos/:id/estado", async (req, res) => {
   const { id } = req.params;
   const { estado } = req.body;
 
-  if (!estado) {
-    return res.status(400).json({ error: "Estado requerido" });
-  }
-
   try {
     const result = await pool.query(
-      "UPDATE equipo SET estado = $1 WHERE id = $2 RETURNING *",
+      "UPDATE equipos SET estado = $1 WHERE id = $2 RETURNING *",
       [estado, id]
     );
 
@@ -250,9 +246,9 @@ app.put("/equipos/:id/estado", async (req, res) => {
     }
 
     res.json(result.rows[0]);
-  } catch (err) {
-    console.error("Error al actualizar estado:", err);
-    res.status(500).json({ error: "Error interno" });
+  } catch (error) {
+    console.error("Error actualizando estado:", error);
+    res.status(500).json({ error: "Error del servidor" });
   }
 });
 
