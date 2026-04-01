@@ -221,6 +221,22 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
+app.get("/api/equipos/estados/resumen", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT estado, COUNT(*) as cantidad
+      FROM equipos
+      GROUP BY estado
+      ORDER BY estado
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error obteniendo resumen:", error);
+    res.status(500).json({ error: "Error del servidor" });
+  }
+});
+
 app.get("/estados", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM estados ORDER BY id");
