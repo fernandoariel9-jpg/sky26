@@ -221,6 +221,29 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
+app.get("/api/equipos/alertas", verificarToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT descripcion, numero_serie, estado
+      FROM equipos
+      WHERE UPPER(descripcion) IN (
+        'TOMOGRAFO',
+        'RESONADOR',
+        'ANGIOGRAFO',
+        'MAMOGRAFO',
+        'ORTOPANTOMOGRAFO',
+        'SERIOGRAFO'
+      )
+      AND estado <> 'Activo'
+    `);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error servidor" });
+  }
+});
+
 app.get("/api/equipos/estados/resumen", async (req, res) => {
   try {
     const result = await pool.query(`
