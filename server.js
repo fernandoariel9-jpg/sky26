@@ -221,68 +221,78 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
-app.get("/api/equipos/resumen-tipos", verificarToken, async (req, res) => {
+app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   try {
-    const result = await pool.query(`
+    // 🔹 1. RESUMEN GENERAL
+    const [resumen] = await db.query(`
       SELECT 
-        UPPER(descripcion) as tipo,
         COUNT(*) as total,
-        SUM(CASE WHEN estado = 'Activo' THEN 1 ELSE 0 END) as activos,
-        SUM(CASE WHEN estado <> 'Activo' THEN 1 ELSE 0 END) as no_activos
+        SUM(CASE WHEN UPPER(estado) = 'ACTIVO' THEN 1 ELSE 0 END) as activos,
+        SUM(CASE WHEN UPPER(estado) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
       FROM equipos
-      GROUP BY UPPER(descripcion)
     `);
 
-    res.json(result.rows);
+    // 🔹 2. EQUIPOS CRÍTICOS (hardcodeados pero controlados)
+    const equiposCriticos = [
+      { descripcion: "RESONADOR", serie: "80611" },
+      { descripcion: "TOMOGRAFO", serie: "1CC1323560" },
+      { descripcion: "TOMOGRAFO", serie: "BCB1712384" },
+      { descripcion: "MAMOGRAFO", serie: "67121012" },
+      { descripcion: "ANGIOGRAFO", serie: "722026594" },
+      { descripcion: "CITOMETRO DE FLUJO", serie: "V33896202615" },
+      { descripcion: "PLESTIMOGRAFO", serie: "242000380" },
+      { descripcion: "MONITOR TESLA", serie: "TM3M0728" },
+      { descripcion: "EQUIPO DE HIPOTERMIA NEONATOLOGICO 020708", serie: "" },
+      { descripcion: "MALDITOF", serie: "860467301903" },
+      { descripcion: "LUMINEX", serie: "LX10014295404" },
+      { descripcion: "MINICAP", serie: "93771" },
+    ];
+
+    // 🔹 3. TRAER ESTADO REAL DESDE BD
+    const criticosDB = await Promise.all(
+      equiposCriticos.map(async (eq) => {
+        const [rows] = await db.query(
+          `
+          SELECT descripcion, numero_serie, estado
+          FROM equipos
+          WHERE UPPER(descripcion) = ?
+          ${eq.serie ? "AND numero_serie = ?" : ""}
+          LIMIT 1
+        `,
+          eq.serie
+            ? [eq.descripcion.toUpperCase(), eq.serie]
+            : [eq.descripcion.toUpperCase()]
+        );
+
+        if (rows.length > 0) {
+          const equipo = rows[0];
+
+          return {
+            descripcion: equipo.descripcion,
+            numero_serie: equipo.numero_serie,
+            estado: equipo.estado,
+            activo: equipo.estado?.toUpperCase() === "ACTIVO",
+          };
+        } else {
+          return {
+            descripcion: eq.descripcion,
+            numero_serie: eq.serie,
+            estado: "NO ENCONTRADO",
+            activo: false,
+          };
+        }
+      })
+    );
+
+    res.json({
+      total: resumen[0].total,
+      activos: resumen[0].activos,
+      no_activos: resumen[0].no_activos,
+      criticos: criticosDB,
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Error servidor" });
-  }
-});
-
-app.get("/api/equipos/alertas", async (req, res) => {
-  try {
-    const authHeader = req.headers["authorization"];
-
-    // 🔐 validar token simple
-    if (!authHeader || authHeader !== "Bearer ingeclinHR") {
-      return res.status(401).json({ error: "No autorizado" });
-    }
-
-    const result = await pool.query(`
-      SELECT descripcion, numero_serie, estado
-      FROM equipos
-      WHERE UPPER(descripcion) IN (
-        'TOMOGRAFO',
-        'RESONADOR',
-        'ANGIOGRAFO',
-        'MAMOGRAFO',
-        'ORTOPANTOMOGRAFO',
-        'SERIOGRAFO'
-      )
-      AND estado <> 'Activo'
-    `);
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error servidor" });
-  }
-});
-
-app.get("/api/equipos/estados/resumen", async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT estado, COUNT(*) as cantidad
-      FROM equipos
-      GROUP BY estado
-      ORDER BY estado
-    `);
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error obteniendo resumen:", error);
-    res.status(500).json({ error: "Error del servidor" });
+    res.status(500).json({ error: "Error en dashboard" });
   }
 });
 
