@@ -72,6 +72,21 @@ function formatToLocal(fecha) {
 }
 
 // ----------------- MIDDLEWARE -----------------
+
+const verificarToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+
+  if (!authHeader) {
+    return res.status(401).json({ error: "Token requerido" });
+  }
+
+  if (authHeader !== "Bearer ingeclinHR") {
+    return res.status(403).json({ error: "Token inválido" });
+  }
+
+  next();
+};
+
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.json());
