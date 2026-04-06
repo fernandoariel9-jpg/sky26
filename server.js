@@ -242,7 +242,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
       { descripcion: "CITOMETRO DE FLUJO", serie: "V33896202615" },
       { descripcion: "PLESTIMOGRAFO", serie: "242000380" },
       { descripcion: "MONITOR TESLA", serie: "TM3M0728" },
-      { descripcion: "EQUIPO DE HIPOTERMIA NEONATOLOGICO 020708", serie: "" },
+      { descripcion: "EQUIPO DE HIPOTERMIA NEONATOLOGICO", serie: "020708" },
       { descripcion: "MALDITOF", serie: "860467301903" },
       { descripcion: "LUMINEX", serie: "LX10014295404" },
       { descripcion: "MINICAP", serie: "93771" },
