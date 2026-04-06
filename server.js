@@ -239,7 +239,7 @@ async function enviarNotificacion(userId, payload) {
 app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   try {
     // 🔹 1. RESUMEN GENERAL
-    const [resumen] = await pool.query(`
+    const resumenResult = await pool.query(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN UPPER(estado) = 'ACTIVO' THEN 1 ELSE 0 END) as activos,
@@ -247,7 +247,9 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
       FROM equipos
     `);
 
-    // 🔹 2. EQUIPOS CRÍTICOS (hardcodeados pero controlados)
+    const resumen = resumenResult.rows[0];
+
+    // 🔹 2. EQUIPOS CRÍTICOS
     const equiposCriticos = [
       { descripcion: "RESONADOR", serie: "80611" },
       { descripcion: "TOMOGRAFO", serie: "1CC1323560" },
@@ -263,15 +265,15 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
       { descripcion: "ELECTROFORESIS CAPILAR", serie: "93771" },
     ];
 
-    // 🔹 3. TRAER ESTADO REAL DESDE BD
+    // 🔹 3. CONSULTA REAL (POSTGRES)
     const criticosDB = await Promise.all(
       equiposCriticos.map(async (eq) => {
-        const [rows] = await db.query(
+        const result = await pool.query(
           `
           SELECT descripcion, numero_serie, estado
           FROM equipos
-          WHERE UPPER(descripcion) = ?
-          ${eq.serie ? "AND numero_serie = ?" : ""}
+          WHERE UPPER(descripcion) = $1
+          ${eq.serie ? "AND numero_serie = $2" : ""}
           LIMIT 1
         `,
           eq.serie
@@ -279,8 +281,8 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
             : [eq.descripcion.toUpperCase()]
         );
 
-        if (rows.length > 0) {
-          const equipo = rows[0];
+        if (result.rows.length > 0) {
+          const equipo = result.rows[0];
 
           return {
             descripcion: equipo.descripcion,
@@ -300,13 +302,14 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
     );
 
     res.json({
-      total: resumen[0].total,
-      activos: resumen[0].activos,
-      no_activos: resumen[0].no_activos,
+      total: Number(resumen.total),
+      activos: Number(resumen.activos),
+      no_activos: Number(resumen.no_activos),
       criticos: criticosDB,
     });
+
   } catch (error) {
-    console.error(error);
+    console.error("🔥 ERROR REAL:", error);
     res.status(500).json({ error: "Error en dashboard" });
   }
 });
