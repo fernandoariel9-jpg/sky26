@@ -239,7 +239,7 @@ async function enviarNotificacion(userId, payload) {
 app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   try {
     // 🔹 1. RESUMEN GENERAL
-    const [resumen] = await db.query(`
+    const [resumen] = await pool.query(`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN UPPER(estado) = 'ACTIVO' THEN 1 ELSE 0 END) as activos,
