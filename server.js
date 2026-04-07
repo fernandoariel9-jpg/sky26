@@ -303,29 +303,40 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
 
     // 🔹 4. FUNCIÓN PARA EVALUAR GRUPOS (50%)
     const evaluarGrupo = async (descripciones) => {
-      const result = await pool.query(
-        `
-        SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN UPPER(estado) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
-        FROM equipos
-        WHERE UPPER(descripcion) = ANY($1)
-        `,
-        [descripciones.map(d => d.toUpperCase())]
-      );
+  const result = await pool.query(
+    `
+    SELECT 
+      COUNT(*) as total,
+      SUM(CASE WHEN UPPER(estado) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
+    FROM equipos
+    WHERE UPPER(descripcion) = ANY($1)
+    `,
+    [descripciones.map(d => d.toUpperCase())]
+  );
 
-      const total = Number(result.rows[0].total);
-      const noActivos = Number(result.rows[0].no_activos);
+  const detalle = await pool.query(
+    `
+    SELECT descripcion, numero_serie, estado
+    FROM equipos
+    WHERE UPPER(descripcion) = ANY($1)
+      AND UPPER(estado) <> 'ACTIVO'
+    ORDER BY descripcion
+    `,
+    [descripciones.map(d => d.toUpperCase())]
+  );
 
-      const porcentaje = total > 0 ? (noActivos / total) * 100 : 0;
+  const total = Number(result.rows[0].total);
+  const noActivos = Number(result.rows[0].no_activos);
+  const porcentaje = total > 0 ? (noActivos / total) * 100 : 0;
 
-      return {
-        total,
-        no_activos: noActivos,
-        porcentaje,
-        estado: porcentaje >= 50 ? "OFF" : "ON",
-      };
-    };
+  return {
+    total,
+    no_activos: noActivos,
+    porcentaje,
+    estado: porcentaje >= 50 ? "OFF" : "ON",
+    detalle: detalle.rows, // 🔥 CLAVE
+  };
+};
 
     // 🔹 5. GRUPOS
     const diagnosticoImagen = await evaluarGrupo([
