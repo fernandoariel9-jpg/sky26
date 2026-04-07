@@ -302,7 +302,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
     );
 
     // 🔹 4. FUNCIÓN PARA EVALUAR GRUPOS (50%)
-    const evaluarGrupo = async (descripciones) => {
+    const evaluarSubgrupo = async (descripciones) => {
   const result = await pool.query(
     `
     SELECT 
@@ -330,34 +330,53 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   const porcentaje = total > 0 ? (noActivos / total) * 100 : 0;
 
   return {
+    descripciones,
     total,
     no_activos: noActivos,
     porcentaje,
     estado: porcentaje >= 50 ? "OFF" : "ON",
-    detalle: detalle.rows, // 🔥 CLAVE
+    detalle: detalle.rows,
   };
 };
 
     // 🔹 5. GRUPOS
-    const diagnosticoImagen = await evaluarGrupo([
-      "FLAT PANEL",
-      "EQUIPO DE RX ARCO EN C",
-      "EQUIPO DE RAYO MOVIL",
-    ]);
+    const diag_subgrupos = await Promise.all([
+  evaluarSubgrupo(["FLAT PANEL"]),
+  evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
+  evaluarSubgrupo(["EQUIPO DE RAYO MOVIL"]),
+]);
 
-    const centroQuirurgico = await evaluarGrupo([
-      "BOMBA EXTRACORPOREA",
-      "CRANEOTOMO",
-      "FACOEMULSIFICADOR",
-      "BALON DE CONTRAPULSACIONES INTRAAORTICO",
-      "MICROSCOPIO DE NEURO",
-      "LITOTRIPTOR",
-      "HISTEROSCOPIO",
-    ]);
+const diagnosticoImagen = {
+  estado: diag_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: diag_subgrupos,
+  detalle: diag_subgrupos.flatMap(sg => sg.detalle)
+};
 
-    const gastro = await evaluarGrupo([
-      "VIDEOCOLONOSCOPIO",
-    ]);
+    const cq_subgrupos = await Promise.all([
+  evaluarSubgrupo(["BOMBA EXTRACORPOREA"]),
+  evaluarSubgrupo(["CRANEOTOMO"]),
+  evaluarSubgrupo(["FACOEMULSIFICADOR"]),
+  evaluarSubgrupo(["BALON DE CONTRAPULSACIONES INTRAAORTICO"]),
+  evaluarSubgrupo(["MICROSCOPIO DE NEURO"]),
+  evaluarSubgrupo(["LITOTRIPTOR"]),
+  evaluarSubgrupo(["HISTEROSCOPIO"]),
+]);
+
+const centroQuirurgico = {
+  estado: cq_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: cq_subgrupos,
+  detalle: cq_subgrupos.flatMap(sg => sg.detalle)
+};
+
+    const gastro_subgrupos = await Promise.all([
+  evaluarSubgrupo(["VIDEOCOLONOSCOPIO"]),
+]);
+
+const gastro = {
+  estado: gastro_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: gastro_subgrupos,
+  detalle: gastro_subgrupos.flatMap(sg => sg.detalle)
+};
 
     // 🔹 6. RESPUESTA FINAL
     res.json({
