@@ -263,7 +263,6 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
       { descripcion: "ESPECTROMETRO", serie: "860467301903" },
       { descripcion: "MULTIPLEX", serie: "LX10014295404" },
       { descripcion: "ELECTROFORESIS CAPILAR", serie: "93771" },
-      { descripcion: "FACOEMULSIFICADOR", serie: "1603408601X" },
     ];
 
     // 🔹 3. CONSULTA REAL (POSTGRES)
