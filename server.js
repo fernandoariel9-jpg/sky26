@@ -344,7 +344,6 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   evaluarSubgrupo(["FLAT PANEL"]),
   evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
   evaluarSubgrupo(["EQUIPO DE RAYO MOVIL"]),
-  evaluarSubgrupo(["TOMOGRAFO"]),
 ]);
 
 const diagnosticoImagen = {
