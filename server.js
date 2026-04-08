@@ -368,7 +368,7 @@ const centroQuirurgico = {
 };
 
     const gastro_subgrupos = await Promise.all([
-  evaluarSubgrupo(["VIDEOCOLONOSCOPIO"]),
+  evaluarSubgrupo(["COLONOSCOPIO"]),
 ]);
 
 const gastro = {
@@ -388,8 +388,7 @@ const gastro = {
         diagnostico_imagen: diagnosticoImagen,
         centro_quirurgico: centroQuirurgico,
         gastroenterologia: gastro,
-        tomografos: tomografos,
-      }
+       }
     });
 
   } catch (error) {
