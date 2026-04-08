@@ -378,6 +378,16 @@ const gastro = {
   detalle: gastro_subgrupos.flatMap(sg => sg.detalle)
 };
 
+    const tomo_subgrupos = await Promise.all([
+  evaluarSubgrupo(["TOMOGRAFO"]),
+]);
+
+const tomografos = {
+  estado: tomo_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: tomo_subgrupos,
+  detalle: tomo_subgrupos.flatMap(sg => sg.detalle)
+};
+
     // 🔹 6. RESPUESTA FINAL
     res.json({
       total: Number(resumen.total),
@@ -389,6 +399,7 @@ const gastro = {
         diagnostico_imagen: diagnosticoImagen,
         centro_quirurgico: centroQuirurgico,
         gastroenterologia: gastro,
+        tomografos: tomografos,
       }
     });
 
