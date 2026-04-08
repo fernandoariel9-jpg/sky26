@@ -252,8 +252,6 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
     // 🔹 2. EQUIPOS CRÍTICOS
     const equiposCriticos = [
       { descripcion: "RESONADOR", serie: "80611" },
-      { descripcion: "TOMOGRAFO", serie: "1CC1323560" },
-      { descripcion: "TOMOGRAFO", serie: "BCB1712384" },
       { descripcion: "MAMOGRAFO", serie: "67121012" },
       { descripcion: "ANGIOGRAFO", serie: "722026594" },
       { descripcion: "CITOMETRO DE FLUJO", serie: "V33896202615" },
