@@ -268,7 +268,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
       equiposCriticos.map(async (eq) => {
         const result = await pool.query(
           `
-          SELECT descripcion, numero_serie, estado
+          SELECT descripcion, numero_serie, estado, marca_modelo
           FROM equipos
           WHERE UPPER(descripcion) = $1
           ${eq.serie ? "AND numero_serie = $2" : ""}
@@ -283,6 +283,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
           const equipo = result.rows[0];
 
           return {
+            marca_modelo: equipo.marca_modelo,
             descripcion: equipo.descripcion,
             numero_serie: equipo.numero_serie,
             estado: equipo.estado,
@@ -290,6 +291,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
           };
         } else {
           return {
+            marca_modelo: eq.marca_modelo,
             descripcion: eq.descripcion,
             numero_serie: eq.serie,
             estado: "NO ENCONTRADO",
