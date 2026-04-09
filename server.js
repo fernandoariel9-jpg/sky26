@@ -316,7 +316,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
 
   const detalle = await pool.query(
     `
-    SELECT descripcion, numero_serie, estado, marca_modelo
+    SELECT descripcion, numero_serie, estado,
     FROM equipos
     WHERE UPPER(descripcion) = ANY($1)
       AND UPPER(estado) <> 'ACTIVO'
@@ -330,7 +330,6 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   const porcentaje = total > 0 ? (noActivos / total) * 100 : 0;
 
   return {
-    marca_modelo,
     descripciones,
     total,
     no_activos: noActivos,
