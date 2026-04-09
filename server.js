@@ -338,7 +338,15 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
 };
 
     // 🔹 5. GRUPOS
-    
+         const tomo_subgrupos = await Promise.all([
+  evaluarSubgrupo(["TOMOGRAFO"]),
+]);
+
+const tomografos = {
+  estado: tomo_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: tomo_subgrupos,
+  detalle: tomo_subgrupos.flatMap(sg => sg.detalle)
+};
     const diag_subgrupos = await Promise.all([
   evaluarSubgrupo(["FLAT PANEL"]),
   evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
@@ -388,6 +396,7 @@ const gastro = {
         diagnostico_imagen: diagnosticoImagen,
         centro_quirurgico: centroQuirurgico,
         gastroenterologia: gastro,
+        tomografos: tomografos,
        }
     });
 
