@@ -268,7 +268,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
       equiposCriticos.map(async (eq) => {
         const result = await pool.query(
           `
-          SELECT descripcion, numero_serie, estado, marca_modelo
+          SELECT descripcion, numero_serie, estado
           FROM equipos
           WHERE UPPER(descripcion) = $1
           ${eq.serie ? "AND numero_serie = $2" : ""}
@@ -283,7 +283,6 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
           const equipo = result.rows[0];
 
           return {
-            marca_modelo: equipo.marca_modelo,
             descripcion: equipo.descripcion,
             numero_serie: equipo.numero_serie,
             estado: equipo.estado,
@@ -291,7 +290,6 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
           };
         } else {
           return {
-            marca_modelo: eq.marca_modelo,
             descripcion: eq.descripcion,
             numero_serie: eq.serie,
             estado: "NO ENCONTRADO",
@@ -316,7 +314,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
 
   const detalle = await pool.query(
     `
-    SELECT descripcion, numero_serie, estado,
+    SELECT descripcion, numero_serie, estado
     FROM equipos
     WHERE UPPER(descripcion) = ANY($1)
       AND UPPER(estado) <> 'ACTIVO'
@@ -340,7 +338,7 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
 };
 
     // 🔹 5. GRUPOS
-         const tomo_subgrupos = await Promise.all([
+     const tomo_subgrupos = await Promise.all([
   evaluarSubgrupo(["TOMOGRAFO"]),
 ]);
 
@@ -349,6 +347,7 @@ const tomografos = {
   subgrupos: tomo_subgrupos,
   detalle: tomo_subgrupos.flatMap(sg => sg.detalle)
 };
+    
     const diag_subgrupos = await Promise.all([
   evaluarSubgrupo(["FLAT PANEL"]),
   evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
@@ -378,7 +377,7 @@ const centroQuirurgico = {
 };
 
     const gastro_subgrupos = await Promise.all([
-  evaluarSubgrupo(["COLONOSCOPIO"]),
+  evaluarSubgrupo(["VIDEOCOLONOSCOPIO"]),
 ]);
 
 const gastro = {
@@ -399,7 +398,7 @@ const gastro = {
         centro_quirurgico: centroQuirurgico,
         gastroenterologia: gastro,
         tomografos: tomografos,
-       }
+      }
     });
 
   } catch (error) {
@@ -2124,21 +2123,5 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
