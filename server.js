@@ -738,26 +738,14 @@ app.put("/api/equipos/:id", async (req, res) => {
 
 app.post("/api/ric01", async (req, res) => {
   try {
-    const {
-  usuario,
-  fecha,
-  tarea,
-  diagnostico,
-  tipo_mantenimiento,
-  area,
-  servicio,
-  subservicio,
-  asignado,
-  solicitado_por,
-  origen
-} = req.body;
+    const { tarea, area, origen, solicitado_por } = req.body;
 
     await pool.query(
-  `INSERT INTO ric01 
-  (usuario, fecha, tarea, diagnostico, tipo_mantenimiento, area, servicio, subservicio, asignado, solicitado_por, origen)
-  VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
-  [usuario, fecha, tarea, diagnostico, tipo_mantenimiento, area, servicio, subservicio, asignado, solicitado_por, origen]
-);
+      `INSERT INTO ric01 
+       (tarea, area, origen, usuario, fecha)
+       VALUES ($1, $2, $3, $4, NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')`,
+      [tarea, area, origen, solicitado_por]
+    );
 
     res.status(201).json({ message: "Creado" });
 
