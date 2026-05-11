@@ -249,6 +249,23 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
 
     const resumen = resumenResult.rows[0];
 
+    // 🔹 DETALLE DE ESTADOS
+const estadosResult = await pool.query(`
+  SELECT 
+    estado,
+    COUNT(*) as cantidad
+  FROM equipos
+  WHERE UPPER(estado) <> 'ACTIVO'
+  GROUP BY estado
+  ORDER BY cantidad DESC
+`);
+
+const detalleEstados = {};
+
+estadosResult.rows.forEach((row) => {
+  detalleEstados[row.estado] = Number(row.cantidad);
+});
+
     // 🔹 2. EQUIPOS CRÍTICOS
     const equiposCriticos = [
       { descripcion: "RESONADOR", serie: "80611" },
@@ -393,6 +410,7 @@ const gastro = {
       total: Number(resumen.total),
       activos: Number(resumen.activos),
       no_activos: Number(resumen.no_activos),
+      detalle_estados: detalleEstados,
       criticos: criticosDB,
 
       grupos: {
