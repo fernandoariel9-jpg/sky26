@@ -677,13 +677,22 @@ app.get("/api/equipos", async (req, res) => {
 
 app.get("/diagnosticos/ric02", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT diagnostico FROM rics WHERE ric = 'RIC02'"
-    );
+    const result = await pool.query(`
+      SELECT DISTINCT diagnostico
+      FROM rics
+      WHERE ric = 'RIC02'
+        AND diagnostico IS NOT NULL
+        AND TRIM(diagnostico) <> ''
+      ORDER BY diagnostico
+    `);
 
     res.json(result.rows);
+
   } catch (error) {
-    res.status(500).json({ error: "Error al obtener diagnósticos" });
+    console.error(error);
+    res.status(500).json({
+      error: "Error al obtener diagnósticos"
+    });
   }
 });
 
