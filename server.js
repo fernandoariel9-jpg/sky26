@@ -852,6 +852,16 @@ app.post("/ric01", async (req, res) => {
       ]
     );
 
+    // ✅ Cambiar estado del equipo a Ingresado
+if (numero_serie) {
+  await pool.query(
+    `UPDATE equipos
+     SET estado = 'Ingresado'
+     WHERE numero_serie = $1`,
+    [numero_serie]
+  );
+}
+
     res.json(result.rows[0]);
 
   } catch (error) {
