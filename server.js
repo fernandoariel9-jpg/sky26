@@ -791,6 +791,7 @@ app.post("/ric01", async (req, res) => {
       diagnostico,
       tipo_mantenimiento,
       descripcion,
+      marca_modelo,
       numero_serie,
       area,
       servicio,
@@ -845,6 +846,7 @@ if (estadoEquipo !== "ACTIVO") {
         diagnostico,
         tipo_mantenimiento,
         descripcion,
+        marca_modelo,
         numero_serie,
         area,
         servicio,
@@ -859,8 +861,8 @@ if (estadoEquipo !== "ACTIVO") {
         solucion
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,
-        false, NULL, NULL, $14, $15
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14
+        false, NULL, NULL, $15, $16
       )
       RETURNING *`,
       [
@@ -870,6 +872,7 @@ if (estadoEquipo !== "ACTIVO") {
         diagnostico,
         tipo_mantenimiento,
         descripcion,
+        marca_modelo,
         numero_serie,
         area,
         servicio,
