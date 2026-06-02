@@ -802,18 +802,39 @@ app.post("/ric01", async (req, res) => {
       solucion
     } = req.body;
 
-    // 🔴 VALIDAR si ya hay mantenimiento abierto
-    const existeAbierto = await pool.query(
-      `SELECT id FROM ric01 
-       WHERE numero_serie = $1 AND fin = false`,
-      [numero_serie]
-    );
+   // 🔴 VALIDAR ESTADO DEL EQUIPO
+const equipoResult = await pool.query(
+  `SELECT estado
+   FROM equipos
+   WHERE numero_serie = $1`,
+  [numero_serie]
+);
 
-    if (existeAbierto.rows.length > 0) {
-      return res.status(400).json({
-        error: "El equipo ya tiene un mantenimiento abierto"
-      });
-    }
+if (equipoResult.rows.length === 0) {
+  return res.status(404).json({
+    error: "Equipo no encontrado"
+  });
+}
+
+const estadoEquipo = (equipoResult.rows[0].estado || "").toUpperCase();
+
+if (estadoEquipo !== "ACTIVO") {
+  // Buscar mantenimiento abierto para continuarlo
+  const mantenimientoAbierto = await pool.query(
+    `SELECT id
+     FROM ric01
+     WHERE numero_serie = $1
+       AND fin = false
+     ORDER BY id DESC
+     LIMIT 1`,
+    [numero_serie]
+  );
+
+  return res.status(400).json({
+    error: "El equipo ya tiene un mantenimiento en curso",
+    mantenimiento_id: mantenimientoAbierto.rows[0]?.id || null
+  });
+}
 
     // ✅ INSERT (tu lógica intacta)
     const result = await pool.query(
