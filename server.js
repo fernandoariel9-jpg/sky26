@@ -903,6 +903,65 @@ if (numero_serie) {
   }
 });
 
+app.put("/ric01/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    diagnostico,
+    solucion,
+    descripcion
+  } = req.body;
+
+  try {
+    const actual = await pool.query(
+      `SELECT solucion
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (actual.rows.length === 0) {
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado"
+      });
+    }
+
+    const historialAnterior =
+      actual.rows[0].solucion || "";
+
+    const nuevaEntrada =
+      `${new Date().toLocaleString("es-AR")} - ${solucion}`;
+
+    const historialCompleto =
+      historialAnterior
+        ? historialAnterior + "\n" + nuevaEntrada
+        : nuevaEntrada;
+
+    const result = await pool.query(
+      `UPDATE ric01
+       SET diagnostico = COALESCE($1, diagnostico),
+           descripcion = COALESCE($2, descripcion),
+           solucion = $3
+       WHERE id = $4
+       RETURNING *`,
+      [
+        diagnostico,
+        descripcion,
+        historialCompleto,
+        id
+      ]
+    );
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
 app.put("/ric01/cerrar/:id", async (req, res) => {
   const client = await pool.connect();
 
