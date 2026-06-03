@@ -950,6 +950,7 @@ app.put("/ric01/:id", async (req, res) => {
         diagnostico,
         descripcion,
         historialCompleto,
+        fecha_comp,
         id
       ]
     );
