@@ -952,31 +952,38 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
 app.get("/buscar-equipo/:serie", async (req, res) => {
   const { serie } = req.params;
 
-  try {
+   try {
+    const { serie } = req.params;
+
     const result = await pool.query(
-      `SELECT 
+      `
+      SELECT
         e.*,
-        m.id AS mantenimiento_id,
-        m.tipo_mantenimiento,
-        m.diagnostico,
-        m.fecha AS fecha_inicio
-      FROM ric02 e
-      LEFT JOIN ric01 m 
-        ON e.numero_serie = m.numero_serie 
-        AND m.fin = false
-      WHERE e.numero_serie = $1`,
+        r.id AS mantenimiento_id
+      FROM equipos e
+      LEFT JOIN ric01 r
+        ON r.numero_serie = e.numero_serie
+       AND r.fin = false
+      WHERE e.numero_serie = $1
+      ORDER BY r.id DESC
+      LIMIT 1
+      `,
       [serie]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Equipo no encontrado" });
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
     }
 
     res.json(result.rows[0]);
 
   } catch (error) {
-    console.error("Error buscando equipo:", error);
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({
+      error: "Error buscando equipo"
+    });
   }
 });
 
