@@ -909,7 +909,8 @@ app.put("/ric01/:id", async (req, res) => {
   const {
     diagnostico,
     solucion,
-    descripcion
+    descripcion,
+    fecha_comp
   } = req.body;
 
   try {
@@ -941,8 +942,9 @@ app.put("/ric01/:id", async (req, res) => {
       `UPDATE ric01
        SET diagnostico = COALESCE($1, diagnostico),
            descripcion = COALESCE($2, descripcion),
-           solucion = $3
-       WHERE id = $4
+           solucion = $3,
+           fecha_comp = $4
+       WHERE id = $5
        RETURNING *`,
       [
         diagnostico,
