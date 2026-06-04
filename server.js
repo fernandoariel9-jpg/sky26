@@ -401,6 +401,7 @@ const centroQuirurgico = {
   evaluarSubgrupo(["ECOENDOSCOPIO"]),
   evaluarSubgrupo(["ENTEROSCOPIO"]),
   evaluarSubgrupo(["DUODENOSCOPIO"]),
+  evaluarSubgrupo(["COLONOSCOPIO"]),
 ]);
 
 const gastro = {
