@@ -397,6 +397,10 @@ const centroQuirurgico = {
 
     const gastro_subgrupos = await Promise.all([
   evaluarSubgrupo(["VIDEOCOLONOSCOPIO"]),
+  evaluarSubgrupo(["GASTROVIDEOENDOSCOPIO"]),
+  evaluarSubgrupo(["ECOENDOSCOPIO"]),
+  evaluarSubgrupo(["ENTEROSCOPIO"]),
+  evaluarSubgrupo(["DUODENOSCOPIO"]),
 ]);
 
 const gastro = {
