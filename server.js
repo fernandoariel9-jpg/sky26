@@ -370,8 +370,8 @@ const tomografos = {
     const diag_subgrupos = await Promise.all([
   evaluarSubgrupo(["FLAT PANEL"]),
   evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
-  evaluarSubgrupo(["EQUIPO DE RAYO MOVIL"]),
-  evaluarSubgrupo(["EQUIPO DE RAYO FIJO"]),
+  evaluarSubgrupo(["EQUIPO DE RX MOVIL"]),
+  evaluarSubgrupo(["EQUIPO DE RX FIJO"]),
 ]);
 
 const diagnosticoImagen = {
