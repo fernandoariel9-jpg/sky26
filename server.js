@@ -371,6 +371,7 @@ const tomografos = {
   evaluarSubgrupo(["FLAT PANEL"]),
   evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
   evaluarSubgrupo(["EQUIPO DE RAYO MOVIL"]),
+  evaluarSubgrupo(["EQUIPO DE RAYO FIJO"]),
 ]);
 
 const diagnosticoImagen = {
