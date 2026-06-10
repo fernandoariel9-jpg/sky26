@@ -445,22 +445,64 @@ app.get("/estados", async (req, res) => {
 
 app.put("/api/equipos/:id/estado", async (req, res) => {
   const { id } = req.params;
-  const { estado } = req.body;
+  const { estado, usuario } = req.body;
 
   try {
+
+    // Obtener datos actuales
+    const equipoActual = await pool.query(
+      `SELECT estado, numero_serie
+       FROM equipos
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (equipoActual.rowCount === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    const estadoAnterior = equipoActual.rows[0].estado;
+    const numeroSerie = equipoActual.rows[0].numero_serie;
+
+    // Actualizar estado
     const result = await pool.query(
-      "UPDATE equipos SET estado = $1 WHERE id = $2 RETURNING *",
+      `UPDATE equipos
+       SET estado = $1
+       WHERE id = $2
+       RETURNING *`,
       [estado, id]
     );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Equipo no encontrado" });
+    // Guardar historial solamente si cambió
+    if (estadoAnterior !== estado) {
+      await pool.query(
+        `INSERT INTO historial_estados (
+          equipo_id,
+          numero_serie,
+          estado_anterior,
+          estado_nuevo,
+          usuario
+        )
+        VALUES ($1,$2,$3,$4,$5)`,
+        [
+          id,
+          numeroSerie,
+          estadoAnterior,
+          estado,
+          usuario || "Sistema"
+        ]
+      );
     }
 
     res.json(result.rows[0]);
+
   } catch (error) {
     console.error("Error actualizando estado:", error);
-    res.status(500).json({ error: "Error del servidor" });
+    res.status(500).json({
+      error: "Error del servidor"
+    });
   }
 });
 
