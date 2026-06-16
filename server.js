@@ -1059,6 +1059,80 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
   }
 });
 
+app.put("/ric01/finalizar/:id", async (req, res) => {
+
+  const { id } = req.params;
+
+  const {
+    fecha_fin,
+    estado,
+    numero_serie,
+    usuario
+  } = req.body;
+
+  try {
+
+    await pool.query(
+      `UPDATE ric01
+       SET fin = true,
+           fecha_fin = $1
+       WHERE id = $2`,
+      [fecha_fin, id]
+    );
+
+    const equipoActual = await pool.query(
+      `SELECT id, estado
+       FROM equipos
+       WHERE numero_serie = $1`,
+      [numero_serie]
+    );
+
+    if (equipoActual.rows.length > 0) {
+
+      const estadoAnterior =
+        equipoActual.rows[0].estado;
+
+      const equipoId =
+        equipoActual.rows[0].id;
+
+      await pool.query(
+        `UPDATE equipos
+         SET estado = $1
+         WHERE numero_serie = $2`,
+        [estado, numero_serie]
+      );
+
+      await pool.query(
+        `INSERT INTO historial_estados(
+          equipo_id,
+          numero_serie,
+          estado_anterior,
+          estado_nuevo,
+          usuario
+        )
+        VALUES ($1,$2,$3,$4,$5)`,
+        [
+          equipoId,
+          numero_serie,
+          estadoAnterior,
+          estado,
+          usuario
+        ]
+      );
+    }
+
+    res.json({
+      ok: true
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
 app.get("/buscar-equipo/:serie", async (req, res) => {
   const { serie } = req.params;
 
