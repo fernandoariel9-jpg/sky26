@@ -987,21 +987,29 @@ app.put("/ric01/:id", async (req, res) => {
         : nuevaEntrada;
 
     const result = await pool.query(
-      `UPDATE ric01
-       SET diagnostico = COALESCE($1, diagnostico),
-           descripcion = COALESCE($2, descripcion),
-           solucion = $3,
-           fecha_comp = $4
-       WHERE id = $5
-       RETURNING *`,
-      [
-        diagnostico,
-        descripcion,
-        historialCompleto,
-        fecha_comp,
-        id
-      ]
-    );
+  `UPDATE ric01
+   SET diagnostico = CASE
+                        WHEN $1 IS NULL OR TRIM($1) = ''
+                        THEN diagnostico
+                        ELSE $1
+                      END,
+       descripcion = CASE
+                        WHEN $2 IS NULL OR TRIM($2) = ''
+                        THEN descripcion
+                        ELSE $2
+                      END,
+       solucion = $3,
+       fecha_comp = $4
+   WHERE id = $5
+   RETURNING *`,
+  [
+    diagnostico,
+    descripcion,
+    historialCompleto,
+    fecha_comp,
+    id
+  ]
+);
 
     res.json(result.rows[0]);
 
@@ -1134,21 +1142,30 @@ app.put("/ric01/finalizar/:id", async (req, res) => {
 });
 
 app.get("/buscar-equipo/:serie", async (req, res) => {
-  const { serie } = req.params;
-
-   try {
+  try {
     const { serie } = req.params;
 
     const result = await pool.query(
       `
       SELECT
         e.*,
-        r.id AS mantenimiento_id
+
+        r.id AS mantenimiento_id,
+        r.tipo_mantenimiento,
+        r.diagnostico,
+        r.descripcion AS mantenimiento_descripcion,
+        r.fecha AS fecha_inicio,
+        r.solucion,
+        r.fecha_comp
+
       FROM equipos e
+
       LEFT JOIN ric01 r
         ON r.numero_serie = e.numero_serie
        AND r.fin = false
+
       WHERE e.numero_serie = $1
+
       ORDER BY r.id DESC
       LIMIT 1
       `,
