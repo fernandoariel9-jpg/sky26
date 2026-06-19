@@ -1142,30 +1142,21 @@ app.put("/ric01/finalizar/:id", async (req, res) => {
 });
 
 app.get("/buscar-equipo/:serie", async (req, res) => {
-  try {
+  const { serie } = req.params;
+
+   try {
     const { serie } = req.params;
 
     const result = await pool.query(
       `
       SELECT
         e.*,
-
-        r.id AS mantenimiento_id,
-        r.tipo_mantenimiento,
-        r.diagnostico,
-        r.descripcion AS mantenimiento_descripcion,
-        r.fecha AS fecha_inicio,
-        r.solucion,
-        r.fecha_comp
-
+        r.id AS mantenimiento_id
       FROM equipos e
-
       LEFT JOIN ric01 r
         ON r.numero_serie = e.numero_serie
        AND r.fin = false
-
       WHERE e.numero_serie = $1
-
       ORDER BY r.id DESC
       LIMIT 1
       `,
