@@ -1511,25 +1511,60 @@ app.put("/tareas/:id/solucion", async (req, res) => {
 app.put("/tareas/:id", async (req, res) => {
   const { id } = req.params;
   const { fin } = req.body;
+
   try {
     const fecha_fin = fechaLocalArgentina();
+
+    // Obtener número de serie asociado
+    const tareaActual = await pool.query(
+      `SELECT numero_serie
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (tareaActual.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    const numeroSerie =
+      tareaActual.rows[0].numero_serie;
+
+    // Finalizar mantenimiento
     const result = await pool.query(
-      `UPDATE ric01 SET fin=$1, fecha_fin=$2 WHERE id=$3 RETURNING *`,
+      `UPDATE ric01
+       SET fin = $1,
+           fecha_fin = $2
+       WHERE id = $3
+       RETURNING *`,
       [fin, fecha_fin, id]
     );
 
-    if (result.rows.length === 0)
-      return res.status(404).json({ error: "Tarea no encontrada" });
+    // Activar equipo automáticamente
+    if (numeroSerie) {
+      await pool.query(
+        `UPDATE equipos
+         SET estado = 'Activo'
+         WHERE numero_serie = $1`,
+        [numeroSerie]
+      );
+    }
 
-    await calcularYGuardarPromediosGlobal(); // 🔁 recalcula después de finalizar tarea
+    await calcularYGuardarPromediosGlobal();
 
     res.json({
-      message: "✅ Tarea finalizada y promedios actualizados",
-      tarea: result.rows[0],
+      message: "✅ Tarea finalizada",
+      tarea: result.rows[0]
     });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error al finalizar tarea" });
+
+    res.status(500).json({
+      error: "Error al finalizar tarea"
+    });
   }
 });
 
