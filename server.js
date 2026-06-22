@@ -1222,7 +1222,7 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
       });
     }
 
-    // ✅ Actualizar SOLO datos del equipo
+    // ✅ Asignar equipo a la tarea
     await pool.query(
       `UPDATE ric01
        SET descripcion = $1,
@@ -1238,11 +1238,24 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
       ]
     );
 
-    res.json({ message: "Equipo asignado correctamente ✅" });
+    // ✅ Cambiar estado del equipo a Ingresado
+    await pool.query(
+      `UPDATE equipos
+       SET estado = 'Ingresado'
+       WHERE numero_serie = $1`,
+      [numero_serie]
+    );
+
+    res.json({
+      message: "Equipo asignado correctamente ✅"
+    });
 
   } catch (error) {
     console.error("Error al asignar equipo:", error);
-    res.status(500).json({ error: "Error al asignar equipo" });
+
+    res.status(500).json({
+      error: "Error al asignar equipo"
+    });
   }
 });
 
