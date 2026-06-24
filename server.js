@@ -1261,6 +1261,7 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
 
 app.put("/tareas/finalizar/:id", async (req, res) => {
   const { id } = req.params;
+  const { estado, numero_serie } = req.body;
 
   try {
     await pool.query(
@@ -1271,13 +1272,22 @@ app.put("/tareas/finalizar/:id", async (req, res) => {
       [id]
     );
 
+    // 🔥 actualizar estado del equipo si existe serie
+    if (numero_serie && estado) {
+      await pool.query(
+        `UPDATE equipos
+         SET estado = $1
+         WHERE numero_serie = $2`,
+        [estado, numero_serie]
+      );
+    }
+
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Error al finalizar tarea" });
   }
 });
-
 app.get("/api/mantenimientos", async (req, res) => {
   const { tipo, equipo_id } = req.query;
 
