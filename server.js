@@ -1260,9 +1260,23 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
 
 app.put("/tareas/finalizar/:id", async (req, res) => {
   const { id } = req.params;
-  const { estado, numero_serie } = req.body;
+  const { estado } = req.body;
 
   try {
+
+    const tarea = await pool.query(
+      `SELECT numero_serie
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (tarea.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
     await pool.query(
       `UPDATE ric01
        SET fin = true,
@@ -1271,20 +1285,25 @@ app.put("/tareas/finalizar/:id", async (req, res) => {
       [id]
     );
 
-    // 🔥 actualizar estado del equipo si existe serie
-    if (numero_serie && estado) {
+    const numeroSerie =
+      tarea.rows[0].numero_serie;
+
+    if (numeroSerie && estado) {
       await pool.query(
         `UPDATE equipos
          SET estado = $1
          WHERE numero_serie = $2`,
-        [estado, numero_serie]
+        [estado, numeroSerie]
       );
     }
 
     res.json({ ok: true });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error al finalizar tarea" });
+    res.status(500).json({
+      error: "Error al finalizar tarea"
+    });
   }
 });
 app.get("/api/mantenimientos", async (req, res) => {
