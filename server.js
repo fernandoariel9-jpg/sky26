@@ -627,9 +627,25 @@ app.get("/tareas", async (req, res) => {
     const { usuario, panel } = req.query;
 
     let query = `
-      SELECT r.*, u.movil AS movil
-      FROM ric01 r
-      LEFT JOIN usuarios u ON r.usuario = u.mail
+      SELECT
+  r.*,
+  u.movil AS movil,
+
+  CASE
+    WHEN r.diagnostico IS NOT NULL
+     AND TRIM(r.diagnostico) <> ''
+    THEN (
+      SELECT json_agg(DISTINCT solucion)
+      FROM rics
+      WHERE diagnostico = r.diagnostico
+        AND solucion IS NOT NULL
+        AND TRIM(solucion) <> ''
+    )
+    ELSE NULL
+  END AS soluciones_posibles
+
+FROM ric01 r
+LEFT JOIN usuarios u ON r.usuario = u.mail
     `;
     let params = [];
 
@@ -1019,6 +1035,43 @@ app.put("/ric01/:id", async (req, res) => {
     });
   }
 });
+
+app.put(
+  "/ric01/:id/solucion",
+  async (req, res) => {
+
+    const { id } = req.params;
+    const { solucion } = req.body;
+
+    try {
+
+      const result = await pool.query(
+        `
+        UPDATE ric01
+        SET solucion = $1
+        WHERE id = $2
+        RETURNING *
+        `,
+        [solucion, id]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({
+          error: "Mantenimiento no encontrado"
+        });
+      }
+
+      res.json(result.rows[0]);
+
+    } catch (error) {
+      console.error(error);
+
+      res.status(500).json({
+        error: error.message
+      });
+    }
+  }
+);
 
 app.put("/ric01/cerrar/:id", async (req, res) => {
   const client = await pool.connect();
