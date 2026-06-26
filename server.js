@@ -1069,6 +1069,7 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
 app.put("/ric01/finalizar/:id", async (req, res) => {
 
   const { id } = req.params;
+  const { estado, solucion } = req.body;
 
   const {
     fecha_fin,
@@ -1082,9 +1083,10 @@ app.put("/ric01/finalizar/:id", async (req, res) => {
     await pool.query(
       `UPDATE ric01
        SET fin = true,
-           fecha_fin = $1
+           fecha_fin = $1,
+           solucion = COALESCE($3, solucion)
        WHERE id = $2`,
-      [fecha_fin, id]
+      [fecha_fin, id, solucion]
     );
 
     const equipoActual = await pool.query(
@@ -1530,6 +1532,33 @@ async function calcularYGuardarPromediosGlobal() {   // ← renombrada
 }
 
 // ---------- ACTUALIZACIONES DE TAREAS ----------
+
+app.get("/soluciones/:diagnostico", async (req, res) => {
+  const { diagnostico } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT DISTINCT solucion
+      FROM rics
+      WHERE diagnostico = $1
+        AND solucion IS NOT NULL
+        AND TRIM(solucion) <> ''
+      ORDER BY solucion
+      `,
+      [diagnostico]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error obteniendo soluciones"
+    });
+  }
+});
+
 app.put("/tareas/:id/solucion", async (req, res) => {
   const { id } = req.params;
   const { solucion, asignado } = req.body;
