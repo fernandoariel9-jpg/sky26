@@ -1069,7 +1069,7 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
 app.put("/ric01/finalizar/:id", async (req, res) => {
 
   const { id } = req.params;
-  const { estado, solucion } = req.body;
+  const { solucion } = req.body;
 
   const {
     fecha_fin,
