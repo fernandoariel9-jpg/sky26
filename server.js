@@ -686,6 +686,7 @@ LEFT JOIN usuarios u ON r.usuario = u.mail
     query += ` ORDER BY r.fecha DESC`;
 
     const result = await pool.query(query, params);
+    console.log(result.rows[0]);
 
     res.json(
       result.rows.map((t) => ({
