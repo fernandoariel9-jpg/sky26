@@ -636,10 +636,10 @@ app.get("/tareas", async (req, res) => {
      AND TRIM(r.diagnostico) <> ''
     THEN (
       SELECT json_agg(DISTINCT solucion)
-      FROM rics
-      WHERE diagnostico = r.diagnostico
-        AND solucion IS NOT NULL
-        AND TRIM(solucion) <> ''
+FROM rics
+WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+  AND solucion IS NOT NULL
+  AND TRIM(solucion) <> ''
     )
     ELSE NULL
   END AS soluciones_posibles
