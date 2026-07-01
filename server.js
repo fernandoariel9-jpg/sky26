@@ -1143,6 +1143,68 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
   }
 });
 
+app.put("/ric01/:id/iniciar-mantenimiento", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    diagnostico,
+    tipo_mantenimiento,
+    descripcion,
+    marca_modelo,
+    numero_serie,
+    servicio,
+    subservicio,
+    asignado,
+    solucion
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE ric01
+      SET
+        diagnostico = $1,
+        tipo_mantenimiento = $2,
+        descripcion = $3,
+        marca_modelo = $4,
+        numero_serie = $5,
+        servicio = $6,
+        subservicio = $7,
+        asignado = $8,
+        solucion = $9
+      WHERE id = $10
+      RETURNING *;
+      `,
+      [
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        subservicio,
+        asignado,
+        solucion,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
 app.put("/ric01/finalizar/:id", async (req, res) => {
 
   const { id } = req.params;
