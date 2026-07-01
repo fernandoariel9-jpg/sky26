@@ -1366,6 +1366,7 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
        SET descripcion = $1,
            marca_modelo = $2,
            numero_serie = $3,
+           tipo_mantenimiento = 'correctivo'
            WHERE id = $4`,
       [
         descripcion,
