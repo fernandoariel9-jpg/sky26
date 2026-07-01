@@ -1314,14 +1314,6 @@ app.put("/ric01/asignar-equipo/:id", async (req, res) => {
       ]
     );
 
-    // ✅ Cambiar estado del equipo a Ingresado
-    await pool.query(
-      `UPDATE equipos
-       SET estado = 'Ingresado'
-       WHERE numero_serie = $1`,
-      [numero_serie]
-    );
-
     res.json({
       message: "Equipo asignado correctamente ✅"
     });
