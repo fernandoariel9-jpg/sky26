@@ -1144,6 +1144,7 @@ app.put("/ric01/cerrar/:id", async (req, res) => {
 });
 
 app.put("/ric01/:id/iniciar-mantenimiento", async (req, res) => {
+  console.log("ENTRÓ A INICIAR MANTENIMIENTO", req.params.id);
   const { id } = req.params;
 
   const {
