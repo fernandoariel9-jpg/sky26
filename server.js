@@ -1304,6 +1304,7 @@ app.get("/equipos/:numero_serie/historial", async (req, res) => {
         fecha,
         fecha_comp,
         fecha_fin,
+        fin,
         usuario,
         solicitado_por,
         asignado,
