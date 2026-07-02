@@ -1280,6 +1280,43 @@ app.put("/ric01/finalizar/:id", async (req, res) => {
   }
 });
 
+app.get("/equipos/:numero_serie/historial", async (req, res) => {
+  const { numero_serie } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        fecha,
+        fecha_comp,
+        fecha_fin,
+        usuario,
+        solicitado_por,
+        asignado,
+        tipo_mantenimiento,
+        diagnostico,
+        solucion,
+        observacion,
+        calificacion
+      FROM ric01
+      WHERE numero_serie = $1
+      ORDER BY fecha DESC
+      `,
+      [numero_serie]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
 app.get("/buscar-equipo/:serie", async (req, res) => {
   try {
     const { serie } = req.params;
