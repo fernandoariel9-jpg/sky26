@@ -984,6 +984,19 @@ if (numero_serie) {
   );
 }
 
+    // ✅ Si es un mantenimiento preventivo, actualizar último mantenimiento
+if (
+  tipo_mantenimiento &&
+  tipo_mantenimiento.toLowerCase() === "preventivo"
+) {
+  await pool.query(
+    `UPDATE equipos
+     SET ultimo_mant = $1
+     WHERE numero_serie = $2`,
+    [fecha, numero_serie]
+  );
+}
+
     res.json(result.rows[0]);
 
   } catch (error) {
