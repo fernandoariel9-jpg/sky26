@@ -1345,6 +1345,7 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
         e.servicio,
         e.area,
         e.sub_servicio,
+        e.ultimo_mant,
 
         -- Mantenimiento abierto (se mantiene igual)
         r.id AS mantenimiento_id,
