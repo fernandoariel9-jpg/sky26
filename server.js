@@ -1333,12 +1333,87 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
         e.area,
         e.sub_servicio,
 
+        -- Mantenimiento abierto (se mantiene igual)
         r.id AS mantenimiento_id,
         r.tipo_mantenimiento,
         r.diagnostico,
         r.fecha AS fecha_inicio,
         r.fecha_comp,
-        r.solucion
+        r.solucion,
+
+        -- Estadísticas
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+        ) AS total_intervenciones,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND LOWER(x.tipo_mantenimiento) = 'correctivo'
+        ) AS correctivos,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND LOWER(x.tipo_mantenimiento) = 'preventivo'
+        ) AS preventivos,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND (
+              LOWER(x.tipo_mantenimiento) = 'calibración'
+              OR LOWER(x.tipo_mantenimiento) = 'calibracion'
+            )
+        ) AS calibraciones,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND (
+              LOWER(x.tipo_mantenimiento) = 'instalación'
+              OR LOWER(x.tipo_mantenimiento) = 'instalacion'
+            )
+        ) AS instalaciones,
+
+        -- Última intervención
+        (
+          SELECT fecha
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultima_fecha,
+
+        (
+          SELECT asignado
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultimo_tecnico,
+
+        (
+          SELECT diagnostico
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultimo_diagnostico,
+
+        (
+          SELECT solucion
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultima_solucion
 
       FROM equipos e
 
