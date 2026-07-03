@@ -9,13 +9,13 @@ import bcrypt from "bcryptjs";
 import webpush from "web-push";
 import fetch from "node-fetch";
 import cron from "node-cron";
+import generarHistorialPDF from "./pdf/historialEquipo.js";
 
 // Evitar conversión automática de timestamptz WITHOUT TZ a Date
 types.setTypeParser(1114, (val) => val);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const generarHistorialPDF = require("./pdf/historialEquipo");
 
 // Memoria temporal de la IA
 const memoriaIA = {}; // { sessionId: [ { pregunta, respuesta } ] }
