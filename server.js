@@ -15,6 +15,7 @@ types.setTypeParser(1114, (val) => val);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+const generarHistorialPDF = require("./pdf/historialEquipo");
 
 // Memoria temporal de la IA
 const memoriaIA = {}; // { sessionId: [ { pregunta, respuesta } ] }
@@ -2188,6 +2189,11 @@ app.get("/areas", async (req, res) => {
     res.status(500).json({ error: "Error al obtener áreas" });
   }
 });
+
+app.get(
+    "/equipos/:serie/historial/pdf",
+    generarHistorialPDF
+);
 
 // ---------- SUSCRIPCIONES PUSH ----------
 
