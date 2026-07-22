@@ -303,18 +303,12 @@ async function generarPDF(req, res) {
     const html = await generarHTML(datos);
 
     // Lanzar Chromium
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--no-first-run",
-        "--no-zygote",
-        "--single-process"
-      ]
-    });
+browser = await puppeteer.launch({
+  executablePath: await chromium.executablePath(),
+  headless: chromium.headless,
+  args: chromium.args,
+  defaultViewport: chromium.defaultViewport
+});
 
     const page = await browser.newPage();
 
