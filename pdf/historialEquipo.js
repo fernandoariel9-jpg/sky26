@@ -5,7 +5,6 @@ import pool from "../db.js"; // <-- ajusta la ruta si tu pool está en otro arch
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
-
 async function obtenerDatosEquipo(numeroSerie) {
 
     //---------------------------------------
