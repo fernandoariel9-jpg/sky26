@@ -232,7 +232,7 @@ async function generarHTML(datos) {
 
   // ---------- Datos generales ----------
 
-  html = html.replace("{{HOSPITAL}}", "HOSPITAL XXXXX");
+  html = html.replace("{{HOSPITAL}}", "Hospital P. D. Dr. Guillermo Rawson");
 
   html = html.replace(
     "{{DESCRIPCION}}",
