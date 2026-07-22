@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>Historial del Equipo</title>
+
+<link rel="stylesheet" href="../public/css/pdf.css">
+
+</head>
+
+<body>
+
+<div class="contenedor">
+
+<header>
+
+<div class="logo">
+
+<img src="{{LOGO}}" />
+
+</div>
+
+<div class="titulo">
+
+<h1>{{HOSPITAL}}</h1>
+
+<h2>Sistema de Ingeniería Clínica</h2>
+
+<h3>Historial del Equipo</h3>
+
+</div>
+
+</header>
+
+<hr>
+
+<section class="datos">
+
+<div class="card">
+
+<h3>Información General</h3>
+
+<table>
+
+<tr>
+
+<td><b>Equipo</b></td>
+
+<td>{{DESCRIPCION}}</td>
+
+</tr>
+
+<tr>
+
+<td><b>Marca</b></td>
+
+<td>{{MARCA}}</td>
+
+</tr>
+
+<tr>
+
+<td><b>N° Serie</b></td>
+
+<td>{{SERIE}}</td>
+
+</tr>
+
+<tr>
+
+<td><b>Servicio</b></td>
+
+<td>{{SERVICIO}}</td>
+
+</tr>
+
+<tr>
+
+<td><b>Área</b></td>
+
+<td>{{AREA}}</td>
+
+</tr>
+
+<tr>
+
+<td><b>Estado</b></td>
+
+<td>{{ESTADO}}</td>
+
+</tr>
+
+<tr>
+
+<td><b>Último Preventivo</b></td>
+
+<td>{{ULTIMO}}</td>
+
+</tr>
+
+</table>
+
+</div>
+
+<div class="card">
+
+<h3>Resumen</h3>
+
+{{RESUMEN}}
+
+</div>
+
+</section>
+
+<h2 class="tituloHistorial">
+
+Historial de intervenciones
+
+</h2>
+
+{{HISTORIAL}}
+
+</div>
+
+</body>
+
+</html>
