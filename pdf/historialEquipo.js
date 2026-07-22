@@ -6,11 +6,6 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 
 async function obtenerDatosEquipo(numeroSerie) {
-
-    //---------------------------------------
-    // DATOS DEL EQUIPO
-    //---------------------------------------
-
     const equipoResult = await pool.query(
         `
         SELECT
@@ -28,17 +23,10 @@ async function obtenerDatosEquipo(numeroSerie) {
         `,
         [numeroSerie]
     );
-
     if (equipoResult.rows.length === 0) {
         throw new Error("Equipo no encontrado");
     }
-
     const equipo = equipoResult.rows[0];
-
-//------------------------------------------------------
-// Formatear fecha
-//------------------------------------------------------
-
 function formatearFecha(fecha) {
 
     if (!fecha) return "-";
@@ -50,280 +38,117 @@ function formatearFecha(fecha) {
         hour: "2-digit",
         minute: "2-digit"
     });
-
 }
-
-
-
-//------------------------------------------------------
-// Generar el HTML del historial
-//------------------------------------------------------
-
 function generarHistorial(historial) {
-
     return historial.map(item => {
-
         const clase = (item.tipo_mantenimiento || "")
             .toLowerCase()
             .normalize("NFD")
             .replace(/[\u0300-\u036f]/g, "");
-
         return `
-
 <div class="evento ${clase}">
-
 <h3>
-
 ${item.fin ? "✅" : "🟡"}
-
 ${item.tipo_mantenimiento || "-"}
-
 </h3>
-
-<p>
-
-<b>Fecha:</b>
-
-${formatearFecha(item.fecha)}
-
-</p>
-
-<p>
-
-<b>Solicitado por:</b>
-
-${item.solicitado_por || "-"}
-
-</p>
-
-<p>
-
-<b>Técnico:</b>
-
-${item.asignado || "-"}
-
-</p>
-
-<p>
-
-<b>Diagnóstico</b>
-
-</p>
-
-<p>
-
-${item.diagnostico || "-"}
-
-</p>
-
-<p>
-
-<b>Solución</b>
-
-</p>
-
-<p>
-
-${item.solucion || "-"}
-
-</p>
-
-${
-item.observacion
-?
-
-`<p>
-
-<b>Observaciones</b>
-
-</p>
-
-<p>
-
-${item.observacion}
-
-</p>`
-
+<p><b>Fecha:</b>${formatearFecha(item.fecha)}</p>
+<p><b>Solicitado por:</b>${item.solicitado_por || "-"}</p>
+<p><b>Técnico:</b>${item.asignado || "-"}</p>
+<p><b>Diagnóstico</b></p><p>${item.diagnostico || "-"}</p>
+<p><b>Solución</b></p><p>${item.solucion || "-"}</p>
+${item.observacion?`
+<p><b>Observaciones</b></p><p>${item.observacion}</p>`
 :
-
 ""
-
 }
-
 </div>
-
 `;
-
     }).join("");
-
 }
-
-  //------------------------------------------------------
-// Generar HTML completo
-//------------------------------------------------------
-
 async function generarHTML(datos) {
-
     const templatePath = path.join(
         __dirname,
         "../templates/historialEquipo.html"
     );
-
     let html = fs.readFileSync(
         templatePath,
         "utf8"
     );
 
-
-
-    //------------------------------------
-    // RESUMEN
-    //------------------------------------
-
     const resumen = `
 
 <table>
-
 <tr>
-
 <td>Total intervenciones</td>
-
 <td>${datos.resumen.total}</td>
-
 </tr>
-
 <tr>
-
 <td>Correctivos</td>
-
 <td>${datos.resumen.correctivos}</td>
-
 </tr>
-
 <tr>
-
 <td>Preventivos</td>
-
 <td>${datos.resumen.preventivos}</td>
-
 </tr>
-
 <tr>
-
 <td>Calibraciones</td>
-
 <td>${datos.resumen.calibraciones}</td>
-
 </tr>
-
 <tr>
-
 <td>Instalaciones</td>
-
 <td>${datos.resumen.instalaciones}</td>
-
 </tr>
-
 </table>
-
 `;
 
-
-
-    //------------------------------------
-    // Reemplazos
-    //------------------------------------
-
     const logoPath = path.resolve(__dirname, "../public/logo.png");
-
     html = html.replace("{{LOGO}}",`file://${logoPath}`);
-
     html = html.replace("{{HOSPITAL}}","HOSPITAL XXXXX");
-
     html = html.replace("{{DESCRIPCION}}",datos.equipo.descripcion || "-");
-
     html = html.replace("{{MARCA}}",datos.equipo.marca_modelo || "-");
-
     html = html.replace("{{SERIE}}",datos.equipo.numero_serie || "-");
-
     html = html.replace("{{SERVICIO}}",datos.equipo.servicio || "-");
-
     html = html.replace("{{AREA}}",datos.equipo.area || "-");
-
     html = html.replace("{{ESTADO}}",datos.equipo.estado || "-");
-
     html = html.replace(
         "{{ULTIMO}}",
         formatearFecha(datos.equipo.ultimo_mant)
     );
-
     html = html.replace(
         "{{RESUMEN}}",
         resumen
     );
-
     html = html.replace(
         "{{HISTORIAL}}",
         generarHistorial(datos.historial)
     );
-
     return html;
-
 }
-
-    //---------------------------------------
-    // HISTORIAL
-    //---------------------------------------
-
     const historialResult = await pool.query(
         `
         SELECT
-
             id,
-
             fecha,
-
             fecha_comp,
-
             fecha_fin,
-
             tipo_mantenimiento,
-
             diagnostico,
-
             solucion,
-
             observacion,
-
             usuario,
-
             asignado,
-
-            solicitado_por,
-
+            solicitado_por
             fin
-
         FROM ric01
-
         WHERE numero_serie = $1
-
         ORDER BY fecha DESC
         `,
         [numeroSerie]
     );
-
-
-
-    //---------------------------------------
-    // RESUMEN
-    //---------------------------------------
-
     const resumenResult = await pool.query(
         `
         SELECT
-
             COUNT(*) total,
-
             SUM(
                 CASE
                 WHEN tipo_mantenimiento='Correctivo'
@@ -331,7 +156,6 @@ async function generarHTML(datos) {
                 ELSE 0
                 END
             ) correctivos,
-
             SUM(
                 CASE
                 WHEN tipo_mantenimiento='Preventivo'
@@ -339,7 +163,6 @@ async function generarHTML(datos) {
                 ELSE 0
                 END
             ) preventivos,
-
             SUM(
                 CASE
                 WHEN tipo_mantenimiento='Calibración'
@@ -347,7 +170,6 @@ async function generarHTML(datos) {
                 ELSE 0
                 END
             ) calibraciones,
-
             SUM(
                 CASE
                 WHEN tipo_mantenimiento='Instalación'
@@ -355,110 +177,60 @@ async function generarHTML(datos) {
                 ELSE 0
                 END
             ) instalaciones
-
         FROM ric01
-
         WHERE numero_serie=$1
         `,
         [numeroSerie]
     );
-
-
     return {
-
         equipo,
-
         historial: historialResult.rows,
-
         resumen: resumenResult.rows[0]
-
     };
-
 }
-
-//------------------------------------------------------
-// Generar PDF
-//------------------------------------------------------
-
 async function generarPDF(req, res) {
-
     try {
-
         const { serie } = req.params;
-
         const datos = await obtenerDatosEquipo(serie);
-
         const html = await generarHTML(datos);
-
         const browser = await puppeteer.launch({
-
             headless: true,
-
             args: [
                 "--no-sandbox",
                 "--disable-setuid-sandbox"
             ]
-
         });
-
         const page = await browser.newPage();
-
         await page.setContent(html, {
-
             waitUntil: "networkidle0"
-
         });
-
         await page.emulateMediaType("screen");
-
         const pdf = await page.pdf({
-
             format: "A4",
-
             printBackground: true,
-
             margin: {
-
                 top: "20mm",
-
                 bottom: "20mm",
-
                 left: "15mm",
-
                 right: "15mm"
-
             }
-
         });
-
         await browser.close();
-
         res.setHeader(
             "Content-Type",
             "application/pdf"
         );
-
         res.setHeader(
             "Content-Disposition",
             `inline; filename=Historial_${serie}.pdf`
         );
-
         res.send(pdf);
-
     }
-
     catch (error) {
-
         console.error("Error generando PDF:", error);
-
         res.status(500).json({
-
             error: error.message
-
         });
-
     }
-
 }
-
 export default generarPDF;
