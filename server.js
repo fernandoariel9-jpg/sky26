@@ -3,16 +3,12 @@
 import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
-import pkg from "pg";
-const { Pool, types } = pkg;
+import pool from "./db.js";
 import bcrypt from "bcryptjs";
 import webpush from "web-push";
 import fetch from "node-fetch";
 import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
-
-// Evitar conversión automática de timestamptz WITHOUT TZ a Date
-types.setTypeParser(1114, (val) => val);
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -91,17 +87,6 @@ const verificarToken = (req, res, next) => {
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.json());
-
-// ----------------- POSTGRES -----------------
-const pool = new Pool({
-  user: process.env.PGUSER,
-  host: process.env.PGHOST,
-  database: process.env.PGDATABASE,
-  password: process.env.PGPASSWORD,
-  port: process.env.PGPORT,
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
-});
 
 async function guardarResumenTiempos() {
   try {
