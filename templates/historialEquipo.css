@@ -1,50 +1,72 @@
 /* ==========================================================
-   HISTORIAL DE MANTENIMIENTO - SKY26
-   Ingeniería Clínica
-========================================================== */
+   HISTORIAL DE MANTENIMIENTO
+   Sky26 - Ingeniería Clínica
+   ========================================================== */
 
 @page {
-   :root{
-
-    --logo-width:90px;
-
-    --logo-box-width:130px;
-
-}
     size: A4;
-    margin: 18mm 15mm 18mm 15mm;
+    margin: 15mm;
+}
+
+/* ========================================================== */
+/* CONFIGURACIÓN GENERAL */
+/* ========================================================== */
+
+:root{
+
+    --logo-width: 95px;      /* ← Cambia este valor cuando quieras */
+
+    --gris:#666;
+
+    --grisClaro:#ececec;
+
+    --grisFondo:#f7f7f7;
+
+    --borde:#cfcfcf;
+
+    --rojo:#d32f2f;
+
+    --verde:#2e7d32;
+
+    --azul:#1565c0;
+
+    --naranja:#ef6c00;
+
 }
 
 *{
-    margin:0;
-    padding:0;
+
     box-sizing:border-box;
-    font-family:Arial, Helvetica, sans-serif;
+
 }
 
 body{
 
-    color:#222;
+    font-family:Arial, Helvetica, sans-serif;
 
     font-size:10pt;
 
-    background:white;
+    color:#222;
+
+    margin:0;
+
+    padding:0;
 
 }
 
-/*==========================================================
-                        ENCABEZADO
-==========================================================*/
+/* ========================================================== */
+/* CABECERA */
+/* ========================================================== */
 
 .header{
 
     width:100%;
 
-    border:2px solid #000;
+    border-bottom:2px solid #000;
 
-    border-collapse:collapse;
+    padding-bottom:12px;
 
-    margin-bottom:18px;
+    margin-bottom:20px;
 
 }
 
@@ -56,188 +78,19 @@ body{
 
 }
 
-.header td{
-
-    border-right:2px solid #000;
-
-    vertical-align:middle;
-
-}
-
-.header td:last-child{
-
-    border-right:none;
-
-}
-
 .logo{
 
-    width:var(--logo-box-width);
-
-    text-align:center;
-
-    padding:10px;
+    width:var(--logo-width);
 
 }
 
 .logo img{
 
-    width:var(--logo-width);
-
-    height:auto;
-
-}
-
-.titulo{
-
-    text-align:center;
-
-    padding:10px;
-
-}
-
-.titulo h1{
-
-    font-size:22px;
-
-    font-weight:bold;
-
-    letter-spacing:.5px;
-
-}
-
-.titulo h2{
-
-    margin-top:4px;
-
-    font-size:13px;
-
-    font-weight:normal;
-
-}
-
-.codigo{
-
-    width:120px;
-
-    text-align:center;
-
-}
-
-.codigo h2{
-
-    font-size:30px;
-
-    font-weight:bold;
-
-}
-
-.fecha{
-
-    border-top:1px solid #000;
-
-    text-align:right;
-
-    padding:6px 10px;
-
-    font-size:9pt;
-
-}
-
-
-/*==========================================================
-                    DATOS DEL EQUIPO
-==========================================================*/
-
-.bloque{
-
-    border:1px solid #999;
-
-    border-radius:6px;
-
-    margin-bottom:16px;
-
-    overflow:hidden;
-
-}
-
-.bloqueTitulo{
-
-    background:#efefef;
-
-    font-size:13px;
-
-    font-weight:bold;
-
-    padding:8px 12px;
-
-    border-bottom:1px solid #bbb;
-
-}
-
-.datos{
-
-    display:grid;
-
-    grid-template-columns:1fr 1fr;
-
-    gap:8px 30px;
-
-    padding:15px;
-
-}
-
-.item{
-
-    display:flex;
-
-}
-
-.item label{
-
-    width:180px;
-
-    font-weight:bold;
-
-}
-
-.item span{
-
-    flex:1;
-
-}
-
-/*==========================================================
-                        RESUMEN
-==========================================================*/
-
-.resumenTabla{
-
     width:100%;
 
-    border-collapse:collapse;
-
 }
 
-.resumenTabla th{
-
-    background:#efefef;
-
-    padding:10px;
-
-    font-size:11pt;
-
-    border:1px solid #bdbdbd;
-
-}
-
-.resumenTabla td{
-
-    padding:12px;
-
-    text-align:center;
-
-    border:1px solid #d5d5d5;
+.tituloHospital{
 
     font-size:18pt;
 
@@ -245,48 +98,222 @@ body{
 
 }
 
-.cardResumen{
+.subtitulo{
 
-    border:1px solid #d0d0d0;
+    font-size:11pt;
 
-    border-radius:6px;
+    color:#444;
 
-    text-align:center;
+}
 
-    padding:12px;
+.tituloInforme{
+
+    margin-top:8px;
+
+    font-size:22pt;
+
+    font-weight:bold;
+
+    letter-spacing:1px;
+
+}
+
+.codigo{
+
+    text-align:right;
+
+    font-size:22pt;
+
+    font-weight:bold;
+
+}
+
+/* ========================================================== */
+/* DATOS DEL EQUIPO */
+/* ========================================================== */
+
+.ficha{
+
+    border:1px solid var(--borde);
+
+    margin-bottom:18px;
+
+}
+
+.fichaTitulo{
+
+    background:#e8e8e8;
+
+    font-weight:bold;
+
+    padding:8px;
+
+    font-size:12pt;
+
+}
+
+.ficha table{
+
+    width:100%;
+
+    border-collapse:collapse;
+
+}
+
+.ficha td{
+
+    padding:7px 10px;
+
+    border-bottom:1px solid #eee;
+
+}
+
+.ficha td:first-child{
+
+    width:190px;
+
+    font-weight:bold;
 
     background:#fafafa;
 
 }
 
-.cardResumen h3{
+/* ========================================================== */
+/* ESTADO */
+/* ========================================================== */
 
-    font-size:11px;
+.estado-activo,
+.estado-ingresado,
+.estado-fuera,
+.estado-baja,
+.estado-obsoleto,
+.estado-normal{
+
+    display:inline-block;
+
+    padding:4px 10px;
+
+    border-radius:4px;
+
+    color:white;
 
     font-weight:bold;
+
+    font-size:9pt;
+
+}
+
+.estado-activo{
+
+    background:#2e7d32;
+
+}
+
+.estado-ingresado{
+
+    background:#1976d2;
+
+}
+
+.estado-fuera{
+
+    background:#ef6c00;
+
+}
+
+.estado-baja{
+
+    background:#c62828;
+
+}
+
+.estado-obsoleto{
+
+    background:#616161;
+
+}
+
+.estado-normal{
+
+    background:#777;
+
+}
+
+/* ========================================================== */
+/* RESUMEN */
+/* ========================================================== */
+
+.resumenTitulo{
+
+    font-size:14pt;
+
+    font-weight:bold;
+
+    margin-top:20px;
+
+    margin-bottom:8px;
+
+}
+
+.tablaResumen{
+
+    width:100%;
+
+    border-collapse:collapse;
+
+    table-layout:fixed;
+
+    margin-bottom:25px;
+
+}
+
+.tablaResumen th{
+
+    background:#1d3557;
+
+    color:white;
+
+    padding:10px;
+
+    font-size:10pt;
+
+}
+
+.tablaResumen td{
+
+    text-align:center;
+
+    padding:12px;
+
+    font-size:16pt;
+
+    font-weight:bold;
+
+    border:1px solid #ddd;
+
+}
+
+/* ========================================================== */
+/* HISTORIAL */
+/* ========================================================== */
+
+.historialTitulo{
+
+    font-size:15pt;
+
+    font-weight:bold;
+
+    margin-top:20px;
 
     margin-bottom:10px;
 
 }
 
-.cardResumen p{
-
-    font-size:22px;
-
-    font-weight:bold;
-
-}
-
-
-/*==========================================================
-                        HISTORIAL
-==========================================================*/
+/* ========================================================== */
 
 .evento{
 
-    border:1px solid #bdbdbd;
-
-    border-left:8px solid #888;
+    border:1px solid #cfcfcf;
 
     border-radius:6px;
 
@@ -298,33 +325,15 @@ body{
 
 }
 
-/* Colores por tipo */
-
-.correctivo{
-
-    border-left-color:#d32f2f;
-
-}
-
-.preventivo{
-
-    border-left-color:#2e7d32;
-
-}
-
-.calibracion{
-
-    border-left-color:#1565c0;
-
-}
-
-.instalacion{
-
-    border-left-color:#ef6c00;
-
-}
+/* ========================================================== */
 
 .eventoHeader{
+
+    color:white;
+
+    padding:10px 14px;
+
+    font-weight:bold;
 
     display:flex;
 
@@ -332,19 +341,37 @@ body{
 
     align-items:center;
 
-    background:#f5f5f5;
+}
 
-    padding:10px 14px;
+/* Colores */
 
-    border-bottom:1px solid #ddd;
+.correctivo .eventoHeader{
+
+    background:var(--rojo);
+
+}
+
+.preventivo .eventoHeader{
+
+    background:var(--verde);
+
+}
+
+.calibracion .eventoHeader{
+
+    background:var(--azul);
+
+}
+
+.instalacion .eventoHeader{
+
+    background:var(--naranja);
 
 }
 
 .eventoTitulo{
 
-    font-size:15px;
-
-    font-weight:bold;
+    font-size:12pt;
 
 }
 
@@ -354,114 +381,102 @@ body{
 
 }
 
-.eventoInfo{
+/* ========================================================== */
 
-    display:grid;
+.tablaEvento{
 
-    grid-template-columns:1fr 1fr;
+    width:100%;
 
-    gap:12px;
-
-    padding:14px;
+    border-collapse:collapse;
 
 }
 
-.campo strong{
+.tablaEvento td{
 
-    display:block;
+    border:1px solid #ececec;
 
-    margin-bottom:4px;
+    padding:8px;
 
-}
-
-.seccion{
-
-    padding:14px;
-
-    border-top:1px dashed #ccc;
+    font-size:10pt;
 
 }
 
-.seccionTitulo{
+.tablaEvento td:nth-child(odd){
+
+    width:160px;
+
+    background:#fafafa;
 
     font-weight:bold;
 
-    margin-bottom:8px;
+}
+
+/* ========================================================== */
+
+.bloque{
+
+    padding:12px;
+
+}
+
+.tituloBloque{
+
+    font-weight:bold;
 
     font-size:11pt;
 
+    margin-bottom:5px;
+
+    color:#222;
+
 }
 
-.seccionTexto{
+.textoBloque{
+
+    background:#fafafa;
+
+    border:1px solid #ddd;
+
+    padding:10px;
+
+    line-height:1.5;
 
     white-space:pre-wrap;
 
-    line-height:1.45;
-
 }
 
-
-/*==========================================================
-                    ESTADOS
-==========================================================*/
-
-.estado{
-
-    display:inline-block;
-
-    padding:4px 10px;
-
-    border-radius:20px;
-
-    color:white;
-
-    font-size:9pt;
-
-    font-weight:bold;
-
-}
-
-.activo{
-
-    background:#2e7d32;
-
-}
-
-.ingresado{
-
-    background:#f9a825;
-
-}
-
-.fuera{
-
-    background:#d32f2f;
-
-}
-
-.baja{
-
-    background:#555;
-
-}
-
-
-/*==========================================================
-                        PIE
-==========================================================*/
+/* ========================================================== */
+/* PIE */
+/* ========================================================== */
 
 .footer{
 
-    margin-top:25px;
+    margin-top:30px;
 
-    border-top:1px solid #bbb;
+    border-top:1px solid #ccc;
 
     padding-top:8px;
 
     text-align:center;
 
-    font-size:8pt;
+    font-size:9pt;
 
     color:#666;
+
+}
+
+/* ========================================================== */
+/* IMPRESIÓN */
+/* ========================================================== */
+
+@media print{
+
+    body{
+
+        -webkit-print-color-adjust:exact;
+
+        print-color-adjust:exact;
+
+    }
 
 }
