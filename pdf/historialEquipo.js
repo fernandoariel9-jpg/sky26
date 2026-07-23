@@ -287,6 +287,18 @@ async function generarHTML(datos) {
   );
 
   let html = fs.readFileSync(templatePath, "utf8");
+    // ---------- Cargar CSS ----------
+const cssPath = path.join(
+  __dirname,
+  "../templates/historialEquipo.css"
+);
+
+const css = fs.readFileSync(cssPath, "utf8");
+
+html = html.replace(
+  "</head>",
+  `<style>${css}</style></head>`
+);
 
   // ---------- Logo ----------
   const logoPath = path.resolve(
@@ -304,36 +316,6 @@ async function generarHTML(datos) {
   } else {
     html = html.replace("{{LOGO}}", "");
   }
-
-  // ---------- Resumen ----------
-  const resumen = `
-    <table class="tabla-resumen">
-      <tr>
-        <td><b>Total intervenciones</b></td>
-        <td>${datos.resumen.total || 0}</td>
-      </tr>
-
-      <tr>
-        <td>Correctivos</td>
-        <td>${datos.resumen.correctivos || 0}</td>
-      </tr>
-
-      <tr>
-        <td>Preventivos</td>
-        <td>${datos.resumen.preventivos || 0}</td>
-      </tr>
-
-      <tr>
-        <td>Calibraciones</td>
-        <td>${datos.resumen.calibraciones || 0}</td>
-      </tr>
-
-      <tr>
-        <td>Instalaciones</td>
-        <td>${datos.resumen.instalaciones || 0}</td>
-      </tr>
-    </table>
-  `;
 
   // ---------- Datos generales ----------
 
@@ -375,11 +357,6 @@ async function generarHTML(datos) {
   );
 
   html = html.replace(
-    "{{RESUMEN}}",
-    resumen
-  );
-
-  html = html.replace(
     "{{HISTORIAL}}",
     generarHistorial(datos.historial)
   );
@@ -389,18 +366,30 @@ async function generarHTML(datos) {
     formatearFecha(new Date())
   );
 
-    html = html.replace("{{CORRECTIVOS}}", datos.resumen.correctivos || 0);
+html = html.replaceAll(
+    "{{TOTAL}}",
+    datos.resumen.total || 0
+);
 
-html = html.replace("{{PREVENTIVOS}}", datos.resumen.preventivos || 0);
+html = html.replaceAll(
+    "{{CORRECTIVOS}}",
+    datos.resumen.correctivos || 0
+);
 
-html = html.replace("{{CALIBRACIONES}}", datos.resumen.calibraciones || 0);
+html = html.replaceAll(
+    "{{PREVENTIVOS}}",
+    datos.resumen.preventivos || 0
+);
 
-html = html.replace("{{INSTALACIONES}}", datos.resumen.instalaciones || 0);
+html = html.replaceAll(
+    "{{CALIBRACIONES}}",
+    datos.resumen.calibraciones || 0
+);
 
-html = html.replace("{{TOTAL}}", datos.resumen.total || 0);
-
-  return html;
-}
+html = html.replaceAll(
+    "{{INSTALACIONES}}",
+    datos.resumen.instalaciones || 0
+);
 // -----------------------------------------------------
 // Genera el PDF
 // -----------------------------------------------------
