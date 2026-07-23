@@ -389,6 +389,16 @@ async function generarHTML(datos) {
     formatearFecha(new Date())
   );
 
+    html = html.replace("{{CORRECTIVOS}}", datos.resumen.correctivos || 0);
+
+html = html.replace("{{PREVENTIVOS}}", datos.resumen.preventivos || 0);
+
+html = html.replace("{{CALIBRACIONES}}", datos.resumen.calibraciones || 0);
+
+html = html.replace("{{INSTALACIONES}}", datos.resumen.instalaciones || 0);
+
+html = html.replace("{{TOTAL}}", datos.resumen.total || 0);
+
   return html;
 }
 // -----------------------------------------------------
