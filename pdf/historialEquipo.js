@@ -12,15 +12,6 @@ import pool from "../db.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const css = fs.readFileSync(
-    path.join(__dirname, "../templates/historialEquipo.css"),
-    "utf8"
-);
-
-html = html.replace(
-    "</head>",
-    `<style>${css}</style></head>`
-);
 
 // -----------------------------------------------------
 // Funciones auxiliares
@@ -390,6 +381,9 @@ html = html.replaceAll(
     "{{INSTALACIONES}}",
     datos.resumen.instalaciones || 0
 );
+    return html;
+
+}
 // -----------------------------------------------------
 // Genera el PDF
 // -----------------------------------------------------
