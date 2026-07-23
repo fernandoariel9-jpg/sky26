@@ -4,6 +4,13 @@
 ========================================================== */
 
 @page {
+   :root{
+
+    --logo-width:90px;
+
+    --logo-box-width:130px;
+
+}
     size: A4;
     margin: 18mm 15mm 18mm 15mm;
 }
@@ -65,17 +72,19 @@ body{
 
 .logo{
 
-    width:120px;
+    width:var(--logo-box-width);
 
     text-align:center;
 
-    padding:8px;
+    padding:10px;
 
 }
 
 .logo img{
 
-    width:90px;
+    width:var(--logo-width);
+
+    height:auto;
 
 }
 
@@ -202,15 +211,37 @@ body{
                         RESUMEN
 ==========================================================*/
 
-.resumen{
+.resumenTabla{
 
-    display:grid;
+    width:100%;
 
-    grid-template-columns:repeat(5,1fr);
+    border-collapse:collapse;
 
-    gap:10px;
+}
 
-    padding:15px;
+.resumenTabla th{
+
+    background:#efefef;
+
+    padding:10px;
+
+    font-size:11pt;
+
+    border:1px solid #bdbdbd;
+
+}
+
+.resumenTabla td{
+
+    padding:12px;
+
+    text-align:center;
+
+    border:1px solid #d5d5d5;
+
+    font-size:18pt;
+
+    font-weight:bold;
 
 }
 
