@@ -34,42 +34,138 @@ function formatearFecha(fecha) {
 }
 
 function generarHistorial(historial) {
-  return historial
-    .map((item) => {
-      const clase = (item.tipo_mantenimiento || "")
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "");
 
-      return `
-      <div class="evento ${clase}">
-        <h3>
-          ${item.fin ? "✅" : "🟡"}
-          ${item.tipo_mantenimiento || "-"}
-        </h3>
+    return historial.map(item => {
 
-        <p><b>Fecha:</b> ${formatearFecha(item.fecha)}</p>
-        <p><b>Solicitado por:</b> ${item.solicitado_por || "-"}</p>
-        <p><b>Técnico:</b> ${item.asignado || "-"}</p>
+        const tipo = (item.tipo_mantenimiento || "Mantenimiento");
 
-        <p><b>Diagnóstico</b></p>
-        <p>${item.diagnostico || "-"}</p>
+        const clase = tipo
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/\s+/g, "");
 
-        <p><b>Solución</b></p>
-        <p>${item.solucion || "-"}</p>
+        const estado = item.fin
+            ? "✅ FINALIZADO"
+            : "🟡 EN CURSO";
 
-        ${
-          item.observacion
-            ? `
-        <p><b>Observaciones</b></p>
-        <p>${item.observacion}</p>
-        `
-            : ""
-        }
-      </div>
-      `;
-    })
-    .join("");
+        return `
+
+<div class="evento ${clase}">
+
+    <div class="eventoHeader">
+
+        <div class="eventoTitulo">
+
+            ${tipo}
+
+        </div>
+
+        <div class="eventoFecha">
+
+            ${formatearFecha(item.fecha)}
+
+        </div>
+
+    </div>
+
+    <div class="eventoInfo">
+
+        <div class="campo">
+
+            <strong>Estado</strong>
+
+            ${estado}
+
+        </div>
+
+        <div class="campo">
+
+            <strong>Técnico</strong>
+
+            ${item.asignado || "-"}
+
+        </div>
+
+        <div class="campo">
+
+            <strong>Solicitado por</strong>
+
+            ${item.solicitado_por || "-"}
+
+        </div>
+
+        <div class="campo">
+
+            <strong>Fecha de finalización</strong>
+
+            ${formatearFecha(item.fecha_fin)}
+
+        </div>
+
+    </div>
+
+    <div class="seccion">
+
+        <div class="seccionTitulo">
+
+            Diagnóstico
+
+        </div>
+
+        <div class="seccionTexto">
+
+            ${item.diagnostico || "Sin diagnóstico registrado."}
+
+        </div>
+
+    </div>
+
+    <div class="seccion">
+
+        <div class="seccionTitulo">
+
+            Solución
+
+        </div>
+
+        <div class="seccionTexto">
+
+            ${item.solucion || "Sin solución registrada."}
+
+        </div>
+
+    </div>
+
+    ${
+        item.observacion
+        ?
+`
+    <div class="seccion">
+
+        <div class="seccionTitulo">
+
+            Observaciones
+
+        </div>
+
+        <div class="seccionTexto">
+
+            ${item.observacion}
+
+        </div>
+
+    </div>
+`
+        : ""
+    }
+
+</div>
+
+`;
+
+    }).join("");
+
 }
 
 // -----------------------------------------------------
