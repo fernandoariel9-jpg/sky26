@@ -282,7 +282,7 @@ async function generarHTML(datos) {
   // ---------- Logo ----------
   const logoPath = path.resolve(
     __dirname,
-    "../public/logosmall_old.png"
+    "../templates/logo.png"
   );
 
   if (fs.existsSync(logoPath)) {
