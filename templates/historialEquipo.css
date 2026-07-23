@@ -1,0 +1,436 @@
+/* ==========================================================
+   HISTORIAL DE MANTENIMIENTO - SKY26
+   Ingeniería Clínica
+========================================================== */
+
+@page {
+    size: A4;
+    margin: 18mm 15mm 18mm 15mm;
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial, Helvetica, sans-serif;
+}
+
+body{
+
+    color:#222;
+
+    font-size:10pt;
+
+    background:white;
+
+}
+
+/*==========================================================
+                        ENCABEZADO
+==========================================================*/
+
+.header{
+
+    width:100%;
+
+    border:2px solid #000;
+
+    border-collapse:collapse;
+
+    margin-bottom:18px;
+
+}
+
+.header table{
+
+    width:100%;
+
+    border-collapse:collapse;
+
+}
+
+.header td{
+
+    border-right:2px solid #000;
+
+    vertical-align:middle;
+
+}
+
+.header td:last-child{
+
+    border-right:none;
+
+}
+
+.logo{
+
+    width:120px;
+
+    text-align:center;
+
+    padding:8px;
+
+}
+
+.logo img{
+
+    width:90px;
+
+}
+
+.titulo{
+
+    text-align:center;
+
+    padding:10px;
+
+}
+
+.titulo h1{
+
+    font-size:22px;
+
+    font-weight:bold;
+
+    letter-spacing:.5px;
+
+}
+
+.titulo h2{
+
+    margin-top:4px;
+
+    font-size:13px;
+
+    font-weight:normal;
+
+}
+
+.codigo{
+
+    width:120px;
+
+    text-align:center;
+
+}
+
+.codigo h2{
+
+    font-size:30px;
+
+    font-weight:bold;
+
+}
+
+.fecha{
+
+    border-top:1px solid #000;
+
+    text-align:right;
+
+    padding:6px 10px;
+
+    font-size:9pt;
+
+}
+
+
+/*==========================================================
+                    DATOS DEL EQUIPO
+==========================================================*/
+
+.bloque{
+
+    border:1px solid #999;
+
+    border-radius:6px;
+
+    margin-bottom:16px;
+
+    overflow:hidden;
+
+}
+
+.bloqueTitulo{
+
+    background:#efefef;
+
+    font-size:13px;
+
+    font-weight:bold;
+
+    padding:8px 12px;
+
+    border-bottom:1px solid #bbb;
+
+}
+
+.datos{
+
+    display:grid;
+
+    grid-template-columns:1fr 1fr;
+
+    gap:8px 30px;
+
+    padding:15px;
+
+}
+
+.item{
+
+    display:flex;
+
+}
+
+.item label{
+
+    width:180px;
+
+    font-weight:bold;
+
+}
+
+.item span{
+
+    flex:1;
+
+}
+
+/*==========================================================
+                        RESUMEN
+==========================================================*/
+
+.resumen{
+
+    display:grid;
+
+    grid-template-columns:repeat(5,1fr);
+
+    gap:10px;
+
+    padding:15px;
+
+}
+
+.cardResumen{
+
+    border:1px solid #d0d0d0;
+
+    border-radius:6px;
+
+    text-align:center;
+
+    padding:12px;
+
+    background:#fafafa;
+
+}
+
+.cardResumen h3{
+
+    font-size:11px;
+
+    font-weight:bold;
+
+    margin-bottom:10px;
+
+}
+
+.cardResumen p{
+
+    font-size:22px;
+
+    font-weight:bold;
+
+}
+
+
+/*==========================================================
+                        HISTORIAL
+==========================================================*/
+
+.evento{
+
+    border:1px solid #bdbdbd;
+
+    border-left:8px solid #888;
+
+    border-radius:6px;
+
+    margin-bottom:18px;
+
+    overflow:hidden;
+
+    page-break-inside:avoid;
+
+}
+
+/* Colores por tipo */
+
+.correctivo{
+
+    border-left-color:#d32f2f;
+
+}
+
+.preventivo{
+
+    border-left-color:#2e7d32;
+
+}
+
+.calibracion{
+
+    border-left-color:#1565c0;
+
+}
+
+.instalacion{
+
+    border-left-color:#ef6c00;
+
+}
+
+.eventoHeader{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    background:#f5f5f5;
+
+    padding:10px 14px;
+
+    border-bottom:1px solid #ddd;
+
+}
+
+.eventoTitulo{
+
+    font-size:15px;
+
+    font-weight:bold;
+
+}
+
+.eventoFecha{
+
+    font-size:10pt;
+
+}
+
+.eventoInfo{
+
+    display:grid;
+
+    grid-template-columns:1fr 1fr;
+
+    gap:12px;
+
+    padding:14px;
+
+}
+
+.campo strong{
+
+    display:block;
+
+    margin-bottom:4px;
+
+}
+
+.seccion{
+
+    padding:14px;
+
+    border-top:1px dashed #ccc;
+
+}
+
+.seccionTitulo{
+
+    font-weight:bold;
+
+    margin-bottom:8px;
+
+    font-size:11pt;
+
+}
+
+.seccionTexto{
+
+    white-space:pre-wrap;
+
+    line-height:1.45;
+
+}
+
+
+/*==========================================================
+                    ESTADOS
+==========================================================*/
+
+.estado{
+
+    display:inline-block;
+
+    padding:4px 10px;
+
+    border-radius:20px;
+
+    color:white;
+
+    font-size:9pt;
+
+    font-weight:bold;
+
+}
+
+.activo{
+
+    background:#2e7d32;
+
+}
+
+.ingresado{
+
+    background:#f9a825;
+
+}
+
+.fuera{
+
+    background:#d32f2f;
+
+}
+
+.baja{
+
+    background:#555;
+
+}
+
+
+/*==========================================================
+                        PIE
+==========================================================*/
+
+.footer{
+
+    margin-top:25px;
+
+    border-top:1px solid #bbb;
+
+    padding-top:8px;
+
+    text-align:center;
+
+    font-size:8pt;
+
+    color:#666;
+
+}
