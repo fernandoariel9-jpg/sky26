@@ -294,7 +294,7 @@ html = html.replace(
   // ---------- Logo ----------
   const logoPath = path.resolve(
     __dirname,
-    "../templates/logo.png"
+    "../templates/logo_app.png"
   );
 
   if (fs.existsSync(logoPath)) {
