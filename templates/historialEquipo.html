@@ -5,99 +5,53 @@
 
 <meta charset="UTF-8">
 
-<title>Historial del Equipo</title>
+<title>Historial de Mantenimiento</title>
 
-<link rel="stylesheet" href="../public/css/pdf.css">
+<link rel="stylesheet" href="historialEquipo.css">
 
 </head>
 
 <body>
 
-<div class="contenedor">
+<!-- =======================================================
+     ENCABEZADO
+======================================================== -->
 
-<header>
-
-<div class="logo">
-
-<img src="{{LOGO}}" />
-
-</div>
-
-<div class="titulo">
-
-<h1>{{HOSPITAL}}</h1>
-
-<h2>Sistema de Gestión de Equipos de Ingeniería Clínica</h2>
-
-<h3>Historial del Equipo</h3>
-
-</div>
-
-</header>
-
-<hr>
-
-<section class="datos">
-
-<div class="card">
-
-<h3>Información General</h3>
+<div class="header">
 
 <table>
 
 <tr>
 
-<td><b>Equipo</b></td>
+<td class="logo">
 
-<td>{{DESCRIPCION}}</td>
+<img src="{{LOGO}}" alt="Logo">
 
-</tr>
+</td>
 
-<tr>
+<td class="titulo">
 
-<td><b>Marca</b></td>
+<h1>HISTORIAL DE MANTENIMIENTO</h1>
 
-<td>{{MARCA}}</td>
+<h2>Ingeniería Clínica - Sky26</h2>
 
-</tr>
+</td>
 
-<tr>
+<td class="codigo">
 
-<td><b>N° Serie</b></td>
+<h2>RIC-02</h2>
 
-<td>{{SERIE}}</td>
-
-</tr>
-
-<tr>
-
-<td><b>Servicio</b></td>
-
-<td>{{SERVICIO}}</td>
+</td>
 
 </tr>
 
 <tr>
 
-<td><b>Área</b></td>
+<td colspan="3" class="fecha">
 
-<td>{{AREA}}</td>
+Fecha de emisión: {{FECHA}}
 
-</tr>
-
-<tr>
-
-<td><b>Estado</b></td>
-
-<td>{{ESTADO}}</td>
-
-</tr>
-
-<tr>
-
-<td><b>Último Preventivo</b></td>
-
-<td>{{ULTIMO}}</td>
+</td>
 
 </tr>
 
@@ -105,23 +59,181 @@
 
 </div>
 
-<div class="card">
+<!-- =======================================================
+     DATOS DEL EQUIPO
+======================================================== -->
 
-<h3>Resumen</h3>
+<div class="bloque">
 
-{{RESUMEN}}
+<div class="bloqueTitulo">
+
+DATOS DEL EQUIPO
 
 </div>
 
-</section>
+<div class="datos">
 
-<h2 class="tituloHistorial">
+<div class="item">
 
-Historial de intervenciones
+<label>Equipo</label>
 
-</h2>
+<span>{{DESCRIPCION}}</span>
 
-{{HISTORIAL}}
+</div>
+
+<div class="item">
+
+<label>Estado</label>
+
+<span>{{ESTADO}}</span>
+
+</div>
+
+<div class="item">
+
+<label>Marca / Modelo</label>
+
+<span>{{MARCA}}</span>
+
+</div>
+
+<div class="item">
+
+<label>Último Preventivo</label>
+
+<span>{{ULTIMO}}</span>
+
+</div>
+
+<div class="item">
+
+<label>Número de Serie</label>
+
+<span>{{SERIE}}</span>
+
+</div>
+
+<div class="item">
+
+<label>Total Intervenciones</label>
+
+<span>{{TOTAL}}</span>
+
+</div>
+
+<div class="item">
+
+<label>Servicio</label>
+
+<span>{{SERVICIO}}</span>
+
+</div>
+
+<div class="item">
+
+<label>Área</label>
+
+<span>{{AREA}}</span>
+
+</div>
+
+</div>
+
+</div>
+<!-- =======================================================
+     RESUMEN
+======================================================== -->
+
+<div class="bloque">
+
+    <div class="bloqueTitulo">
+
+        RESUMEN DE INTERVENCIONES
+
+    </div>
+
+    <div class="resumen">
+
+        <div class="cardResumen">
+
+            <h3>Correctivos</h3>
+
+            <p>{{CORRECTIVOS}}</p>
+
+        </div>
+
+        <div class="cardResumen">
+
+            <h3>Preventivos</h3>
+
+            <p>{{PREVENTIVOS}}</p>
+
+        </div>
+
+        <div class="cardResumen">
+
+            <h3>Calibraciones</h3>
+
+            <p>{{CALIBRACIONES}}</p>
+
+        </div>
+
+        <div class="cardResumen">
+
+            <h3>Instalaciones</h3>
+
+            <p>{{INSTALACIONES}}</p>
+
+        </div>
+
+        <div class="cardResumen">
+
+            <h3>Total</h3>
+
+            <p>{{TOTAL}}</p>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- =======================================================
+     HISTORIAL
+======================================================== -->
+
+<div class="bloque">
+
+    <div class="bloqueTitulo">
+
+        HISTORIAL DE INTERVENCIONES
+
+    </div>
+
+    <div>
+
+        {{HISTORIAL}}
+
+    </div>
+
+</div>
+<!-- =======================================================
+     PIE
+======================================================== -->
+
+<div class="footer">
+
+    <div>
+
+        <strong>Sky26 - Sistema de Gestión de Ingeniería Clínica</strong>
+
+    </div>
+
+    <div>
+
+        Documento generado automáticamente.
+
+    </div>
 
 </div>
 
