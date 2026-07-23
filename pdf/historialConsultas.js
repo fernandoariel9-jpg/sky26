@@ -73,6 +73,10 @@ export async function obtenerHistorial(numeroSerie) {
 // Resumen estadístico
 // -----------------------------------------------------
 
+// -----------------------------------------------------
+// Resumen estadístico ampliado
+// -----------------------------------------------------
+
 export async function obtenerResumen(numeroSerie) {
 
     const result = await pool.query(
@@ -85,49 +89,65 @@ export async function obtenerResumen(numeroSerie) {
                 SUM(
                     CASE
                         WHEN tipo_mantenimiento='Correctivo'
-                        THEN 1
-                        ELSE 0
+                        THEN 1 ELSE 0
                     END
-                ),
-                0
+                ),0
             )::int AS correctivos,
 
             COALESCE(
                 SUM(
                     CASE
                         WHEN tipo_mantenimiento='Preventivo'
-                        THEN 1
-                        ELSE 0
+                        THEN 1 ELSE 0
                     END
-                ),
-                0
+                ),0
             )::int AS preventivos,
 
             COALESCE(
                 SUM(
                     CASE
-                        WHEN tipo_mantenimiento IN ('Calibración','Calibracion')
-                        THEN 1
-                        ELSE 0
+                        WHEN tipo_mantenimiento IN
+                        ('Calibración','Calibracion')
+                        THEN 1 ELSE 0
                     END
-                ),
-                0
+                ),0
             )::int AS calibraciones,
 
             COALESCE(
                 SUM(
                     CASE
-                        WHEN tipo_mantenimiento IN ('Instalación','Instalacion')
-                        THEN 1
-                        ELSE 0
+                        WHEN tipo_mantenimiento IN
+                        ('Instalación','Instalacion')
+                        THEN 1 ELSE 0
                     END
+                ),0
+            )::int AS instalaciones,
+
+            MIN(fecha) AS primer_mantenimiento,
+
+            MAX(fecha) AS ultima_intervencion,
+
+            ROUND(
+
+                AVG(
+
+                    CASE
+
+                        WHEN fecha_fin IS NOT NULL
+
+                        THEN EXTRACT(EPOCH FROM (fecha_fin-fecha))/86400
+
+                    END
+
                 ),
-                0
-            )::int AS instalaciones
+
+                1
+
+            ) AS promedio_reparacion_dias
 
         FROM ric01
 
-        WHERE numero_serie = $1
+        WHERE numero_serie=$1
         `,
         [numeroSerie]
     );
