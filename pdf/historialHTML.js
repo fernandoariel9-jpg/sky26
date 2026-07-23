@@ -192,3 +192,170 @@ export async function generarHTML(datos) {
     // ----------------------------------------
 
     let historialHTML = "";
+
+        // ----------------------------------------
+    // Historial de intervenciones
+    // ----------------------------------------
+
+    for (const item of datos.historial) {
+
+        const tipo = item.tipo_mantenimiento || "Mantenimiento";
+
+        const color = colorMantenimiento(tipo);
+
+        const clase = claseMantenimiento(tipo);
+
+        const estado = estadoMantenimiento(item.fin);
+
+        const icono = item.fin ? "✅" : "🟡";
+
+        historialHTML += `
+
+<div class="evento ${clase}">
+
+    <div class="eventoHeader"
+         style="border-left:6px solid ${color};">
+
+        <div class="eventoTitulo">
+
+            ${icono} ${escapeHTML(tipo)}
+
+        </div>
+
+        <div class="eventoFecha">
+
+            ${formatearFecha(item.fecha)}
+
+        </div>
+
+    </div>
+
+    <table class="tablaEvento">
+
+        <tr>
+
+            <td><strong>Estado</strong></td>
+
+            <td>${estado}</td>
+
+            <td><strong>Técnico</strong></td>
+
+            <td>${escapeHTML(item.asignado || "-")}</td>
+
+        </tr>
+
+        <tr>
+
+            <td><strong>Solicitado por</strong></td>
+
+            <td>${escapeHTML(item.solicitado_por || "-")}</td>
+
+            <td><strong>Finalizado</strong></td>
+
+            <td>${formatearFecha(item.fecha_fin)}</td>
+
+        </tr>
+
+    </table>
+
+    <div class="bloque">
+
+        <div class="tituloBloque">
+
+            Diagnóstico
+
+        </div>
+
+        <div class="textoBloque">
+
+            ${escapeHTML(
+                item.diagnostico ||
+                "Sin diagnóstico registrado."
+            )}
+
+        </div>
+
+    </div>
+
+    <div class="bloque">
+
+        <div class="tituloBloque">
+
+            Solución
+
+        </div>
+
+        <div class="textoBloque">
+
+            ${escapeHTML(
+                item.solucion ||
+                "Sin solución registrada."
+            )}
+
+        </div>
+
+    </div>
+
+    ${
+        item.observacion
+        ?
+
+`
+
+    <div class="bloque">
+
+        <div class="tituloBloque">
+
+            Observaciones
+
+        </div>
+
+        <div class="textoBloque">
+
+            ${escapeHTML(item.observacion)}
+
+        </div>
+
+    </div>
+
+`
+
+        : ""
+
+    }
+
+</div>
+
+`;
+
+    }
+    // ----------------------------------------
+    // Insertar historial en la plantilla
+    // ----------------------------------------
+
+    html = html.replaceAll(
+        "{{HISTORIAL}}",
+        historialHTML
+    );
+
+    // ----------------------------------------
+    // Pie del informe
+    // ----------------------------------------
+
+    html = html.replaceAll(
+        "{{ANIO}}",
+        new Date().getFullYear().toString()
+    );
+
+    html = html.replaceAll(
+        "{{VERSION}}",
+        "Sky26 v1.0"
+    );
+
+    // ----------------------------------------
+    // Devolver HTML listo para Puppeteer
+    // ----------------------------------------
+
+    return html;
+
+}
