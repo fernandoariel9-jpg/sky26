@@ -63,7 +63,7 @@ export async function generarHTML(datos) {
 
     const logoPath = path.join(
         __dirname,
-        "../public/logosmall_old.png"
+        "../templates/logo_app.png"
     );
 
     if (fs.existsSync(logoPath)) {
