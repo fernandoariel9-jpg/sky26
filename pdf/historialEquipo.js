@@ -5,7 +5,6 @@
 
 import puppeteer from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
-
 import { obtenerDatosEquipo } from "./historialConsultas.js";
 import { generarHTML } from "./historialHTML.js";
 
@@ -38,29 +37,20 @@ async function generarPDF(req, res) {
         browser = await puppeteer.launch({
 
             executablePath: await chromium.executablePath(),
-
             headless: chromium.headless,
-
             args: chromium.args,
-
             defaultViewport: chromium.defaultViewport
-
         });
 
         const page = await browser.newPage();
 
         await page.setViewport({
-
             width: 1240,
-
             height: 1754
-
         });
 
         await page.setContent(html, {
-
             waitUntil: "networkidle0"
-
         });
 
         await page.emulateMediaType("screen");
@@ -70,27 +60,16 @@ async function generarPDF(req, res) {
         // ----------------------------------------
 
         const pdf = await page.pdf({
-
             format: "A4",
-
             printBackground: true,
-
             preferCSSPageSize: true,
-
             displayHeaderFooter: false,
-
             margin: {
-
                 top: "12mm",
-
                 bottom: "12mm",
-
                 left: "12mm",
-
                 right: "12mm"
-
             }
-
         });
 
         // ----------------------------------------
@@ -98,7 +77,6 @@ async function generarPDF(req, res) {
         // ----------------------------------------
 
         await browser.close();
-
         browser = null;
 
         // ----------------------------------------
@@ -106,49 +84,32 @@ async function generarPDF(req, res) {
         // ----------------------------------------
 
         res.setHeader(
-
             "Content-Type",
-
             "application/pdf"
-
         );
 
         res.setHeader(
-
             "Content-Disposition",
-
             `inline; filename="Historial_${serie}.pdf"`
-
         );
 
         res.end(pdf);
-
     }
 
     catch (error) {
-
         console.error(
-
             "Error generando PDF:",
-
             error
-
         );
 
         if (browser) {
-
             try {
-
                 await browser.close();
-
             }
-
             catch {}
-
         }
 
         res.status(500).json({
-
             error: error.message
 
         });
