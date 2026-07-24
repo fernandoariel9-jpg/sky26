@@ -171,14 +171,14 @@ body{
     font-size:11pt;
     font-weight:bold;
     margin-top:10px;
-    margin-bottom:8px;
+    margin-bottom:5px;
 }
 
 .tablaResumen{
     width:100%;
     border-collapse:collapse;
     table-layout:fixed;
-    margin-bottom:10px;
+    margin-bottom:70px;
 }
 
 .tablaResumen th{
@@ -191,7 +191,7 @@ body{
 .tablaResumen td{
     text-align:center;
     padding:12px;
-    font-size:16pt;
+    font-size:11pt;
     font-weight:bold;
     border:1px solid #ddd;
 }
@@ -199,8 +199,8 @@ body{
 .tablaIndicadores{
     width:100%;
     border-collapse:collapse;
-    margin-top:8px;
-    margin-bottom:10px;
+    margin-top:5px;
+    margin-bottom:5px;
 }
 
 .tablaIndicadores th{
@@ -224,7 +224,7 @@ body{
 /* ========================================================== */
 
 .historialTitulo{
-    font-size:12pt;
+    font-size:11pt;
     font-weight:bold;
     margin-top:10px;
     margin-bottom:5px;
