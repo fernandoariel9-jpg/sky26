@@ -14,44 +14,27 @@
 
 :root{
 
-    --logo-width: 95px;      /* ← Cambia este valor cuando quieras */
-
+    --logo-width: 80px;      /* ← Cambia este valor cuando quieras */
     --gris:#666;
-
     --grisClaro:#ececec;
-
     --grisFondo:#f7f7f7;
-
     --borde:#cfcfcf;
-
     --rojo:#d32f2f;
-
     --verde:#2e7d32;
-
     --azul:#1565c0;
-
     --naranja:#ef6c00;
-
 }
-
 *{
 
     box-sizing:border-box;
-
 }
 
 body{
-
     font-family:Arial, Helvetica, sans-serif;
-
     font-size:10pt;
-
     color:#222;
-
     margin:0;
-
     padding:0;
-
 }
 
 /* ========================================================== */
@@ -59,73 +42,48 @@ body{
 /* ========================================================== */
 
 .header{
-
     width:100%;
-
     border-bottom:2px solid #000;
-
-    padding-bottom:12px;
-
-    margin-bottom:20px;
-
+    padding-bottom:10px;
+    margin-bottom:10px;
 }
 
 .header table{
-
     width:100%;
-
     border-collapse:collapse;
-
 }
 
 .logo{
-
     width:var(--logo-width);
-
 }
 
 .logo img{
-
     width:100%;
-
 }
 
 .tituloHospital{
-
-    font-size:18pt;
-
+    font-size:14pt;
     font-weight:bold;
-
 }
 
 .subtitulo{
 
-    font-size:11pt;
-
+    font-size:12pt;
     color:#444;
-
 }
 
 .tituloInforme{
 
     margin-top:8px;
-
-    font-size:22pt;
-
+    font-size:14pt;
     font-weight:bold;
-
     letter-spacing:1px;
-
 }
 
 .codigo{
-
     text-align:right;
-
     font-size:22pt;
-
     font-weight:bold;
-
 }
 
 /* ========================================================== */
@@ -133,49 +91,31 @@ body{
 /* ========================================================== */
 
 .ficha{
-
     border:1px solid var(--borde);
-
     margin-bottom:18px;
-
 }
 
 .fichaTitulo{
-
     background:#e8e8e8;
-
     font-weight:bold;
-
     padding:8px;
-
     font-size:12pt;
-
 }
 
 .ficha table{
-
     width:100%;
-
     border-collapse:collapse;
-
 }
 
 .ficha td{
-
     padding:7px 10px;
-
-    border-bottom:1px solid #eee;
-
+    border-bottom:1px solid #444;
 }
 
 .ficha td:first-child{
-
     width:190px;
-
     font-weight:bold;
-
     background:#fafafa;
-
 }
 
 /* ========================================================== */
@@ -190,53 +130,36 @@ body{
 .estado-normal{
 
     display:inline-block;
-
     padding:4px 10px;
-
     border-radius:4px;
-
     color:white;
-
     font-weight:bold;
-
     font-size:9pt;
 
 }
 
 .estado-activo{
-
     background:#2e7d32;
-
 }
 
 .estado-ingresado{
-
     background:#1976d2;
-
 }
 
 .estado-fuera{
-
     background:#ef6c00;
-
 }
 
 .estado-baja{
-
     background:#c62828;
-
 }
 
 .estado-obsoleto{
-
     background:#616161;
-
 }
 
 .estado-normal{
-
     background:#777;
-
 }
 
 /* ========================================================== */
@@ -245,92 +168,55 @@ body{
 
 .resumenTitulo{
 
-    font-size:14pt;
-
+    font-size:11pt;
     font-weight:bold;
-
-    margin-top:20px;
-
+    margin-top:10px;
     margin-bottom:8px;
-
 }
 
 .tablaResumen{
-
     width:100%;
-
     border-collapse:collapse;
-
     table-layout:fixed;
-
-    margin-bottom:25px;
-
+    margin-bottom:10px;
 }
 
 .tablaResumen th{
-
     background:#1d3557;
-
     color:white;
-
     padding:10px;
-
     font-size:10pt;
-
 }
 
 .tablaResumen td{
-
     text-align:center;
-
     padding:12px;
-
     font-size:16pt;
-
     font-weight:bold;
-
     border:1px solid #ddd;
-
 }
 
 .tablaIndicadores{
-
     width:100%;
-
     border-collapse:collapse;
-
     margin-top:8px;
-
-    margin-bottom:20px;
-
+    margin-bottom:10px;
 }
 
 .tablaIndicadores th{
-
     background:#efefef;
-
     border:1px solid #444;
-
     padding:8px;
-
     text-align:center;
-
     font-size:11px;
-
     font-weight:bold;
-
 }
 
 .tablaIndicadores td{
-
     border:1px solid #444;
-
     padding:10px;
-
     text-align:center;
-
     font-size:12px;
-
 }
 
 /* ========================================================== */
@@ -338,151 +224,99 @@ body{
 /* ========================================================== */
 
 .historialTitulo{
-
-    font-size:15pt;
-
+    font-size:12pt;
     font-weight:bold;
-
-    margin-top:20px;
-
-    margin-bottom:10px;
-
+    margin-top:10px;
+    margin-bottom:5px;
 }
 
 /* ========================================================== */
 
 .evento{
-
     border:1px solid #cfcfcf;
-
     border-radius:6px;
-
     margin-bottom:18px;
-
     overflow:hidden;
-
     page-break-inside:avoid;
-
 }
 
 /* ========================================================== */
 
 .eventoHeader{
-
     color:white;
-
     padding:10px 14px;
-
     font-weight:bold;
-
     display:flex;
-
     justify-content:space-between;
-
     align-items:center;
-
 }
 
 /* Colores */
 
 .correctivo .eventoHeader{
-
     background:var(--rojo);
-
 }
 
 .preventivo .eventoHeader{
-
     background:var(--verde);
-
 }
 
 .calibracion .eventoHeader{
-
     background:var(--azul);
-
 }
 
 .instalacion .eventoHeader{
-
     background:var(--naranja);
-
 }
 
 .eventoTitulo{
-
     font-size:12pt;
-
 }
 
 .eventoFecha{
-
     font-size:10pt;
-
 }
 
 /* ========================================================== */
 
 .tablaEvento{
-
     width:100%;
-
     border-collapse:collapse;
-
 }
 
 .tablaEvento td{
-
     border:1px solid #ececec;
-
     padding:8px;
-
     font-size:10pt;
-
 }
 
 .tablaEvento td:nth-child(odd){
-
     width:160px;
-
     background:#fafafa;
-
     font-weight:bold;
-
 }
 
 /* ========================================================== */
 
 .bloque{
-
     padding:12px;
 
 }
 
 .tituloBloque{
-
     font-weight:bold;
-
     font-size:11pt;
-
     margin-bottom:5px;
-
     color:#222;
 
 }
 
 .textoBloque{
-
     background:#fafafa;
-
     border:1px solid #ddd;
-
     padding:10px;
-
     line-height:1.5;
-
     white-space:pre-wrap;
-
 }
 
 /* ========================================================== */
@@ -490,19 +324,12 @@ body{
 /* ========================================================== */
 
 .footer{
-
     margin-top:30px;
-
     border-top:1px solid #ccc;
-
     padding-top:8px;
-
     text-align:center;
-
     font-size:9pt;
-
     color:#666;
-
 }
 
 /* ========================================================== */
@@ -512,11 +339,7 @@ body{
 @media print{
 
     body{
-
         -webkit-print-color-adjust:exact;
-
         print-color-adjust:exact;
-
     }
-
 }
