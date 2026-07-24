@@ -1,32 +1,313 @@
-// -----------------------------------------------------
-// historialHTML.js
-// Generador del HTML del historial de equipos
-// -----------------------------------------------------
-
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
 
-import {
-    formatearFecha,
-    estadoEquipoClase,
-    estadoMantenimiento,
-    claseMantenimiento,
-    colorMantenimiento,
-    escapeHTML
-} from "./historialHelpers.js";
-
-// -----------------------------------------------------
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// -----------------------------------------------------
+// ======================================================
+// Formatea fechas
+// ======================================================
+
+function formatearFecha(fecha) {
+
+    if (!fecha) return "-";
+
+    try {
+
+        return new Date(fecha).toLocaleString("es-AR", {
+
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+
+        });
+
+    } catch {
+
+        return fecha;
+
+    }
+
+}
+
+// ======================================================
+// Devuelve la clase CSS según el tipo
+// ======================================================
+
+function obtenerClase(tipo = "") {
+
+    return tipo
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, "");
+
+}
+
+// ======================================================
+// Badge de estado
+// ======================================================
+
+function badgeEstado(estado = "") {
+
+    const e = estado.toLowerCase();
+
+    if (e.includes("activo"))
+        return '<span class="estado-activo">ACTIVO</span>';
+
+    if (e.includes("ingres"))
+        return '<span class="estado-ingresado">INGRESADO</span>';
+
+    if (e.includes("fuera"))
+        return '<span class="estado-fuera">FUERA DE SERVICIO</span>';
+
+    if (e.includes("baja"))
+        return '<span class="estado-baja">DE BAJA</span>';
+
+    if (e.includes("obsole"))
+        return '<span class="estado-obsoleto">OBSOLETO</span>';
+
+    return `<span class="estado-normal">${estado || "-"}</span>`;
+
+}
+
+// ======================================================
+// Obtiene primera intervención
+// ======================================================
+
+function primeraIntervencion(historial) {
+
+    if (!historial.length)
+        return "-";
+
+    return formatearFecha(
+        historial[historial.length - 1].fecha
+    );
+
+}
+
+// ======================================================
+// Obtiene última intervención
+// ======================================================
+
+function ultimaIntervencion(historial) {
+
+    if (!historial.length)
+        return "-";
+
+    return formatearFecha(
+        historial[0].fecha
+    );
+
+}
+
+// ======================================================
+// Genera el historial de intervenciones
+// ======================================================
+
+function generarHistorial(historial = []) {
+
+    if (!historial.length) {
+
+        return `
+
+<div class="sinHistorial">
+
+No existen intervenciones registradas para este equipo.
+
+</div>
+
+`;
+
+    }
+
+    return historial.map((item) => {
+
+        const tipo = item.tipo_mantenimiento || "Mantenimiento";
+
+        const clase = obtenerClase(tipo);
+
+        const estado = item.fin
+            ? '<span class="estado-finalizado">FINALIZADO</span>'
+            : '<span class="estado-curso">EN CURSO</span>';
+
+        return `
+
+<table class="tablaIntervencion ${clase}">
+
+<tr class="cabeceraIntervencion">
+
+<td colspan="2">
+
+<div class="cabeceraFlex">
+
+<div class="tipo">
+
+${tipo}
+
+</div>
+
+<div>
+
+${estado}
+
+</div>
+
+<div>
+
+${formatearFecha(item.fecha)}
+
+</div>
+
+</div>
+
+</td>
+
+</tr>
+
+<tr>
+
+<td class="tituloCampo">
+
+Técnico
+
+</td>
+
+<td>
+
+${item.asignado || "-"}
+
+</td>
+
+</tr>
+
+<tr>
+
+<td class="tituloCampo">
+
+Solicitado por
+
+</td>
+
+<td>
+
+${item.solicitado_por || item.usuario || "-"}
+
+</td>
+
+</tr>
+
+<tr>
+
+<td class="tituloCampo">
+
+Fecha de Finalización
+
+</td>
+
+<td>
+
+${formatearFecha(item.fecha_fin)}
+
+</td>
+
+</tr>
+
+<tr>
+
+<th colspan="2">
+
+DIAGNÓSTICO
+
+</th>
+
+</tr>
+
+<tr>
+
+<td colspan="2" class="texto">
+
+${item.diagnostico || "Sin diagnóstico registrado."}
+
+</td>
+
+</tr>
+
+<tr>
+
+<th colspan="2">
+
+SOLUCIÓN
+
+</th>
+
+</tr>
+
+<tr>
+
+<td colspan="2" class="texto">
+
+${item.solucion || "Sin solución registrada."}
+
+</td>
+
+</tr>
+
+${
+item.observacion
+?
+
+`
+
+<tr>
+
+<th colspan="2">
+
+OBSERVACIONES
+
+</th>
+
+</tr>
+
+<tr>
+
+<td colspan="2" class="texto">
+
+${item.observacion}
+
+</td>
+
+</tr>
+
+`
+
+:
+
+""
+
+}
+
+</table>
+
+`;
+
+    }).join("\n");
+
+}
+
+// ======================================================
 // Genera el HTML completo
-// -----------------------------------------------------
+// ======================================================
 
 export async function generarHTML(datos) {
+
+    // --------------------------------------------
+    // Template HTML
+    // --------------------------------------------
 
     const templatePath = path.join(
         __dirname,
@@ -38,9 +319,9 @@ export async function generarHTML(datos) {
         "utf8"
     );
 
-    // ----------------------------------------
-    // Cargar CSS
-    // ----------------------------------------
+    // --------------------------------------------
+    // CSS
+    // --------------------------------------------
 
     const cssPath = path.join(
         __dirname,
@@ -57,304 +338,170 @@ export async function generarHTML(datos) {
         `<style>${css}</style></head>`
     );
 
-    // ----------------------------------------
+    // --------------------------------------------
     // Logo
-    // ----------------------------------------
+    // --------------------------------------------
 
     const logoPath = path.join(
         __dirname,
-        "../templates/logo_app.png"
+        "../templates/logosmall_old.png"
     );
 
     if (fs.existsSync(logoPath)) {
 
-        const logoBase64 = fs
+        const logo = fs
             .readFileSync(logoPath)
             .toString("base64");
 
-        html = html.replace(
+        html = html.replaceAll(
+
             "{{LOGO}}",
-            `data:image/png;base64,${logoBase64}`
+
+            `data:image/png;base64,${logo}`
+
         );
 
-    } else {
+    }
+    else{
 
-        html = html.replace(
+        html = html.replaceAll(
             "{{LOGO}}",
             ""
         );
 
     }
 
-    // ----------------------------------------
-    // Datos del encabezado
-    // ----------------------------------------
-
-    html = html.replaceAll(
-        "{{HOSPITAL}}",
-        "Hospital P. D. Dr. Guillermo Rawson"
-    );
-
-    html = html.replaceAll(
-        "{{FECHA}}",
-        formatearFecha(new Date())
-    );
-
-    html = html.replaceAll(
-        "{{DESCRIPCION}}",
-        escapeHTML(datos.equipo.descripcion || "-")
-    );
-
-    html = html.replaceAll(
-        "{{MARCA}}",
-        escapeHTML(datos.equipo.marca_modelo || "-")
-    );
-
-    html = html.replaceAll(
-        "{{SERIE}}",
-        escapeHTML(datos.equipo.numero_serie || "-")
-    );
-
-    html = html.replaceAll(
-        "{{SERVICIO}}",
-        escapeHTML(datos.equipo.servicio || "-")
-    );
-
-    html = html.replaceAll(
-        "{{AREA}}",
-        escapeHTML(datos.equipo.area || "-")
-    );
+    // --------------------------------------------
+    // Variables del informe
+    // --------------------------------------------
 
-    html = html.replaceAll(
-        "{{ULTIMO}}",
-        formatearFecha(datos.equipo.ultimo_mant)
-    );
+    const variables = {
 
-    // ----------------------------------------
-    // Estado del equipo
-    // ----------------------------------------
+        HOSPITAL:
+            "Hospital P. D. Dr. Guillermo Rawson",
 
-    html = html.replaceAll(
-        "{{ESTADO}}",
-        `
-        <span class="${estadoEquipoClase(datos.equipo.estado)}">
-            ${escapeHTML(datos.equipo.estado || "-")}
-        </span>
-        `
-    );
+        FECHA:
+            formatearFecha(new Date()),
 
-    // ----------------------------------------
-    // Resumen estadístico
-    // ----------------------------------------
+        DESCRIPCION:
+            datos.equipo.descripcion ?? "-",
 
-    html = html.replaceAll(
-        "{{TOTAL}}",
-        datos.resumen.total ?? 0
-    );
+        MARCA:
+            datos.equipo.marca_modelo ?? "-",
 
-    html = html.replaceAll(
-        "{{CORRECTIVOS}}",
-        datos.resumen.correctivos ?? 0
-    );
+        SERIE:
+            datos.equipo.numero_serie ?? "-",
 
-    html = html.replaceAll(
-        "{{PREVENTIVOS}}",
-        datos.resumen.preventivos ?? 0
-    );
+        SERVICIO:
+            datos.equipo.servicio ?? "-",
 
-    html = html.replaceAll(
-        "{{CALIBRACIONES}}",
-        datos.resumen.calibraciones ?? 0
-    );
+        AREA:
+            datos.equipo.area ?? "-",
 
-    html = html.replaceAll(
-        "{{INSTALACIONES}}",
-        datos.resumen.instalaciones ?? 0
-    );
+        ESTADO:
+            badgeEstado(datos.equipo.estado),
 
-    html = html.replaceAll(
-        "{{PRIMER_MANTENIMIENTO}}",
-        formatearFecha(datos.resumen.primer_mantenimiento)
-    );
+        ULTIMO:
+            formatearFecha(datos.equipo.ultimo_mant),
 
-    html = html.replaceAll(
-        "{{ULTIMA_INTERVENCION}}",
-        formatearFecha(datos.resumen.ultima_intervencion)
-    );
+        TOTAL:
+            datos.resumen.total ?? 0,
 
-    html = html.replaceAll(
-        "{{PROMEDIO_REPARACION}}",
-        datos.resumen.promedio_reparacion_dias ?? "-"
-    );
+        CORRECTIVOS:
+            datos.resumen.correctivos ?? 0,
 
-    // ----------------------------------------
-    // Aquí se insertará el historial
-    // ----------------------------------------
+        PREVENTIVOS:
+            datos.resumen.preventivos ?? 0,
 
-    let historialHTML = "";
+        CALIBRACIONES:
+            datos.resumen.calibraciones ?? 0,
 
-        // ----------------------------------------
-    // Historial de intervenciones
-    // ----------------------------------------
+        INSTALACIONES:
+            datos.resumen.instalaciones ?? 0,
 
-    for (const item of datos.historial) {
+        PRIMER_MANTENIMIENTO:
+            datos.resumen.primer_mantenimiento
+                ? formatearFecha(datos.resumen.primer_mantenimiento)
+                : primeraIntervencion(datos.historial),
 
-        const tipo = item.tipo_mantenimiento || "Mantenimiento";
+        ULTIMA_INTERVENCION:
+            datos.resumen.ultima_intervencion
+                ? formatearFecha(datos.resumen.ultima_intervencion)
+                : ultimaIntervencion(datos.historial),
 
-        const color = colorMantenimiento(tipo);
+        PROMEDIO_REPARACION:
+            datos.resumen.promedio_reparacion_dias ?? "-",
 
-        const clase = claseMantenimiento(tipo);
+        VERSION:
+            "1.0",
 
-        const estado = estadoMantenimiento(item.fin);
+        ANIO:
+            new Date().getFullYear()
 
-        const icono = item.fin ? "✅" : "🟡";
+    };
 
-        historialHTML += `
+    // --------------------------------------------
+    // Reemplazar variables
+    // --------------------------------------------
 
-<div class="evento ${clase}">
+    for (const [clave, valor] of Object.entries(variables)) {
 
-    <div class="eventoHeader"
-         style="border-left:6px solid ${color};">
+        html = html.replaceAll(
 
-        <div class="eventoTitulo">
+            `{{${clave}}}`,
 
-            ${icono} ${escapeHTML(tipo)}
+            valor
 
-        </div>
-
-        <div class="eventoFecha">
-
-            ${formatearFecha(item.fecha)}
-
-        </div>
-
-    </div>
-
-    <table class="tablaEvento">
-
-        <tr>
-
-            <td><strong>Estado</strong></td>
-
-            <td>${estado}</td>
-
-            <td><strong>Técnico</strong></td>
-
-            <td>${escapeHTML(item.asignado || "-")}</td>
-
-        </tr>
-
-        <tr>
-
-            <td><strong>Solicitado por</strong></td>
-
-            <td>${escapeHTML(item.solicitado_por || "-")}</td>
-
-            <td><strong>Finalizado</strong></td>
-
-            <td>${formatearFecha(item.fecha_fin)}</td>
-
-        </tr>
-
-    </table>
-
-    <div class="bloque">
-
-        <div class="tituloBloque">
-
-            Diagnóstico
-
-        </div>
-
-        <div class="textoBloque">
-
-            ${escapeHTML(
-                item.diagnostico ||
-                "Sin diagnóstico registrado."
-            )}
-
-        </div>
-
-    </div>
-
-    <div class="bloque">
-
-        <div class="tituloBloque">
-
-            Solución
-
-        </div>
-
-        <div class="textoBloque">
-
-            ${escapeHTML(
-                item.solucion ||
-                "Sin solución registrada."
-            )}
-
-        </div>
-
-    </div>
-
-    ${
-        item.observacion
-        ?
-
-`
-
-    <div class="bloque">
-
-        <div class="tituloBloque">
-
-            Observaciones
-
-        </div>
-
-        <div class="textoBloque">
-
-            ${escapeHTML(item.observacion)}
-
-        </div>
-
-    </div>
-
-`
-
-        : ""
+        );
 
     }
 
-</div>
+    // --------------------------------------------
+    // Insertar historial
+    // --------------------------------------------
 
-`;
+    html = html.replace(
 
-    }
-    // ----------------------------------------
-    // Insertar historial en la plantilla
-    // ----------------------------------------
-
-    html = html.replaceAll(
         "{{HISTORIAL}}",
-        historialHTML
+
+        generarHistorial(datos.historial)
+
     );
 
-    // ----------------------------------------
-    // Pie del informe
-    // ----------------------------------------
+    // --------------------------------------------
+    // Imagen del equipo (preparado para el futuro)
+    // --------------------------------------------
 
-    html = html.replaceAll(
-        "{{ANIO}}",
-        new Date().getFullYear().toString()
-    );
+    if (!html.includes("{{IMAGEN_EQUIPO}}")) {
 
-    html = html.replaceAll(
-        "{{VERSION}}",
-        "Sky26 v1.0"
-    );
+        // La plantilla todavía usa un recuadro fijo.
+        // No hacemos nada por ahora.
 
-    // ----------------------------------------
-    // Devolver HTML listo para Puppeteer
-    // ----------------------------------------
+    } else {
+
+        html = html.replaceAll(
+            "{{IMAGEN_EQUIPO}}",
+            ""
+        );
+
+    }
+
+    // --------------------------------------------
+    // Código QR (reservado para futuras versiones)
+    // --------------------------------------------
+
+    if (html.includes("{{QR}}")) {
+
+        html = html.replaceAll(
+            "{{QR}}",
+            ""
+        );
+
+    }
+
+    // --------------------------------------------
+    // Devolver HTML completo
+    // --------------------------------------------
 
     return html;
 
