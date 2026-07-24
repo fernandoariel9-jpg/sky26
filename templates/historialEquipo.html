@@ -11,9 +11,9 @@
 
 <body>
 
-<!-- =======================================================
-     ENCABEZADO
-======================================================== -->
+<!-- ========================================================= -->
+<!-- CABECERA -->
+<!-- ========================================================= -->
 
 <div class="header">
 
@@ -21,33 +21,56 @@
 
 <tr>
 
-<td class="logo">
+<td style="width:130px;text-align:center;">
 
-<img src="{{LOGO}}" alt="LogoIC">
-
-</td>
-
-<td class="titulo">
-
-<h1>HISTORIAL DE MANTENIMIENTO</h1>
-
-<h2>Ingeniería Clínica - SkyIC</h2>
+<img src="{{LOGO}}" class="logo">
 
 </td>
 
-<td class="codigo">
+<td>
 
-<h2>RIC02</h2>
+<div class="tituloHospital">
+
+{{HOSPITAL}}
+
+</div>
+
+<div class="subtitulo">
+
+Servicio de Ingeniería Clínica
+
+</div>
+
+<div class="tituloInforme">
+
+HISTORIAL DE MANTENIMIENTO
+
+</div>
+
+<div style="margin-top:8px;">
+
+Fecha de emisión:
+<b>{{FECHA}}</b>
+
+</div>
 
 </td>
 
-</tr>
+<td style="width:130px;text-align:center;border-left:2px solid #000;">
 
-<tr>
+<div class="codigo">
 
-<td colspan="3" class="fecha">
+RIC02
 
-Fecha de emisión: {{FECHA}}
+</div>
+
+<div style="margin-top:25px;
+font-size:9pt;
+color:#666;">
+
+Código interno
+
+</div>
 
 </td>
 
@@ -57,100 +80,131 @@ Fecha de emisión: {{FECHA}}
 
 </div>
 
-<!-- =======================================================
-     DATOS DEL EQUIPO
-======================================================== -->
+<!-- ========================================================= -->
+<!-- DATOS DEL EQUIPO -->
+<!-- ========================================================= -->
 
-<div class="bloque">
+<div class="ficha">
 
-<div class="bloqueTitulo">
+<div class="fichaTitulo">
 
 DATOS DEL EQUIPO
 
 </div>
 
-<div class="datos">
+<table>
 
-<div class="item">
+<tr>
 
-<label>Equipo: </label>
+<td style="width:70%;padding:0;border:none;">
 
-<span>{{DESCRIPCION}}</span>
+<table>
+
+<tr>
+
+<td>Equipo</td>
+
+<td>{{DESCRIPCION}}</td>
+
+</tr>
+
+<tr>
+
+<td>Marca / Modelo</td>
+
+<td>{{MARCA}}</td>
+
+</tr>
+
+<tr>
+
+<td>Número de Serie</td>
+
+<td>{{SERIE}}</td>
+
+</tr>
+
+<tr>
+
+<td>Servicio</td>
+
+<td>{{SERVICIO}}</td>
+
+</tr>
+
+<tr>
+
+<td>Área</td>
+
+<td>{{AREA}}</td>
+
+</tr>
+
+<tr>
+
+<td>Estado</td>
+
+<td>{{ESTADO}}</td>
+
+</tr>
+
+<tr>
+
+<td>Último Preventivo</td>
+
+<td>{{ULTIMO}}</td>
+
+</tr>
+
+</table>
+
+</td>
+
+<td style="width:30%;
+text-align:center;
+vertical-align:middle;
+border-left:2px solid #000;">
+
+<div style="font-size:11pt;
+font-weight:bold;
+margin-bottom:10px;">
+
+IMAGEN DEL EQUIPO
 
 </div>
 
-<div class="item">
+<div style="height:190px;
+border:1px solid #999;
+display:flex;
+align-items:center;
+justify-content:center;
+color:#888;">
 
-<label>Estado: </label>
-
-<span>{{ESTADO}}</span>
-
-</div>
-
-<div class="item">
-
-<label>Marca / Modelo: </label>
-
-<span>{{MARCA}}</span>
+Sin imagen
 
 </div>
 
-<div class="item">
+</td>
 
-<label>Último Preventivo: </label>
+</tr>
 
-<span>{{ULTIMO}}</span>
-
-</div>
-
-<div class="item">
-
-<label>Número de Serie: </label>
-
-<span>{{SERIE}}</span>
+</table>
 
 </div>
 
-<div class="item">
+<!-- ========================================================= -->
+<!-- RESUMEN DE INTERVENCIONES -->
+<!-- ========================================================= -->
 
-<label>Total Intervenciones: </label>
-
-<span>{{TOTAL}}</span>
-
-</div>
-
-<div class="item">
-
-<label>Servicio: </label>
-
-<span>{{SERVICIO}}</span>
-
-</div>
-
-<div class="item">
-
-<label>Área: </label>
-
-<span>{{AREA}}</span>
-
-</div>
-
-</div>
-
-</div>
-<!-- =======================================================
-     RESUMEN
-======================================================== -->
-
-<div class="bloque">
-
-<div class="bloqueTitulo">
+<div class="resumenTitulo">
 
 RESUMEN DE INTERVENCIONES
 
 </div>
 
-<table class="resumenTabla">
+<table class="tablaResumen">
+
+<thead>
 
 <tr>
 
@@ -166,6 +220,10 @@ RESUMEN DE INTERVENCIONES
 
 </tr>
 
+</thead>
+
+<tbody>
+
 <tr>
 
 <td>{{CORRECTIVOS}}</td>
@@ -180,46 +238,85 @@ RESUMEN DE INTERVENCIONES
 
 </tr>
 
+</tbody>
+
 </table>
 
+<!-- ========================================================= -->
+<!-- INFORMACIÓN GENERAL -->
+<!-- ========================================================= -->
+
+<table class="tablaResumenSecundaria">
+
+<tr>
+
+<th>Primera intervención</th>
+
+<th>Última intervención</th>
+
+<th>Tiempo promedio de reparación</th>
+
+</tr>
+
+<tr>
+
+<td>{{PRIMER_MANTENIMIENTO}}</td>
+
+<td>{{ULTIMA_INTERVENCION}}</td>
+
+<td>{{PROMEDIO_REPARACION}}</td>
+
+</tr>
+
+</table>
+
+<!-- ========================================================= -->
+<!-- HISTORIAL -->
+<!-- ========================================================= -->
+
+<div class="historialTitulo">
+
+HISTORIAL DE INTERVENCIONES
+
 </div>
 
-<!-- =======================================================
-     HISTORIAL
-======================================================== -->
+{{HISTORIAL}}
 
-<div class="bloque">
-
-    <div class="bloqueTitulo">
-
-        HISTORIAL DE INTERVENCIONES
-
-    </div>
-
-    <div>
-
-        {{HISTORIAL}}
-
-    </div>
-
-</div>
-<!-- =======================================================
-     PIE
-======================================================== -->
+<!-- ========================================================= -->
+<!-- PIE DEL DOCUMENTO -->
+<!-- ========================================================= -->
 
 <div class="footer">
 
-    <div>
+<table style="width:100%; border-collapse:collapse; margin-top:25px;">
 
-        <strong>Sky26 - Sistema de Gestión de Ingeniería Clínica</strong>
+<tr>
 
-    </div>
+<td style="width:40%; text-align:left;">
 
-    <div>
+<b>Sky26</b><br>
 
-        Documento generado automáticamente.
+Sistema de Gestión de Ingeniería Clínica
 
-    </div>
+</td>
+
+<td style="width:20%; text-align:center;">
+
+Documento generado automáticamente
+
+</td>
+
+<td style="width:40%; text-align:right;">
+
+Versión {{VERSION}}<br>
+
+© {{ANIO}}
+
+</td>
+
+</tr>
+
+</table>
 
 </div>
 
