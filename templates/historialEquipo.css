@@ -279,6 +279,49 @@ body{
 
 /* ========================================================== */
 
+.tablaIntervencion{
+    width:100%;
+    border:2px solid #666;
+    border-radius:6px;
+    border-collapse:separate;
+    border-spacing:0;
+    margin-bottom:18px;
+    overflow:hidden;
+    page-break-inside:avoid;
+}
+
+.cabeceraIntervencion{
+    background:#f3f3f3;
+    border-bottom:2px solid #666;
+
+}
+
+.tablaIntervencion td,
+.tablaIntervencion th{
+    border:1px solid #bfbfbf;
+    padding:8px;
+}
+
+.correctivo .cabeceraIntervencion{
+    background:#ffe6e6;
+    border-top:6px solid #c62828;
+}
+
+.preventivo .cabeceraIntervencion{
+    background:#eaf7ea;
+    border-top:6px solid #2e7d32;
+}
+
+.calibracion .cabeceraIntervencion{
+    background:#eef3ff;
+    border-top:6px solid #1565c0;
+}
+
+.instalacion .cabeceraIntervencion{
+    background:#fff7e6;
+    border-top:6px solid #ef6c00;
+}
+
 .tablaEvento{
     width:100%;
     border-collapse:collapse;
