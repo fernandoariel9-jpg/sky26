@@ -143,7 +143,33 @@ export async function obtenerResumen(numeroSerie) {
 
                 1
 
-            ) AS promedio_reparacion_dias
+            ) AS promedio_reparacion_dias,
+
+            COALESCE(
+
+    SUM(
+
+        CASE
+
+            WHEN tipo_mantenimiento = 'Correctivo'
+             AND fecha_fin IS NOT NULL
+
+            THEN (fecha_fin::date - fecha::date)
+
+            WHEN tipo_mantenimiento = 'Correctivo'
+             AND fecha_fin IS NULL
+
+            THEN (CURRENT_DATE - fecha::date)
+
+            ELSE 0
+
+        END
+
+    ),
+
+    0
+
+)::int AS dias_fuera_servicio
 
         FROM ric01
 
@@ -155,7 +181,6 @@ export async function obtenerResumen(numeroSerie) {
     return result.rows[0];
 
 }
-
 // -----------------------------------------------------
 // Devuelve todos los datos juntos
 // -----------------------------------------------------
