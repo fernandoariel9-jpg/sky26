@@ -146,21 +146,15 @@ No existen intervenciones registradas para este equipo.
 <div class="cabeceraFlex">
 
 <div class="tipo">
-
 ${tipo}
-
 </div>
 
 <div>
-
 ${estado}
-
 </div>
 
 <div>
-
 ${formatearFecha(item.fecha)}
-
 </div>
 
 </div>
@@ -172,15 +166,11 @@ ${formatearFecha(item.fecha)}
 <tr>
 
 <td class="tituloCampo">
-
 Técnico
-
 </td>
 
 <td>
-
 ${item.asignado || "-"}
-
 </td>
 
 </tr>
@@ -188,15 +178,11 @@ ${item.asignado || "-"}
 <tr>
 
 <td class="tituloCampo">
-
 Solicitado por
-
 </td>
 
 <td>
-
 ${item.solicitado_por || item.usuario || "-"}
-
 </td>
 
 </tr>
@@ -204,15 +190,11 @@ ${item.solicitado_por || item.usuario || "-"}
 <tr>
 
 <td class="tituloCampo">
-
 Fecha de Finalización
-
 </td>
 
 <td>
-
 ${formatearFecha(item.fecha_fin)}
-
 </td>
 
 </tr>
@@ -220,9 +202,7 @@ ${formatearFecha(item.fecha_fin)}
 <tr>
 
 <th colspan="2">
-
 DIAGNÓSTICO
-
 </th>
 
 </tr>
@@ -230,9 +210,7 @@ DIAGNÓSTICO
 <tr>
 
 <td colspan="2" class="texto">
-
 ${item.diagnostico || "Sin diagnóstico registrado."}
-
 </td>
 
 </tr>
@@ -240,9 +218,7 @@ ${item.diagnostico || "Sin diagnóstico registrado."}
 <tr>
 
 <th colspan="2">
-
 SOLUCIÓN
-
 </th>
 
 </tr>
@@ -250,9 +226,7 @@ SOLUCIÓN
 <tr>
 
 <td colspan="2" class="texto">
-
 ${item.solucion || "Sin solución registrada."}
-
 </td>
 
 </tr>
@@ -266,9 +240,7 @@ item.observacion
 <tr>
 
 <th colspan="2">
-
 OBSERVACIONES
-
 </th>
 
 </tr>
@@ -276,9 +248,7 @@ OBSERVACIONES
 <tr>
 
 <td colspan="2" class="texto">
-
 ${item.observacion}
-
 </td>
 
 </tr>
@@ -344,7 +314,7 @@ export async function generarHTML(datos) {
 
     const logoPath = path.join(
         __dirname,
-        "../templates/logosmall_old.png"
+        "../templates/logo_app.png"
     );
 
     if (fs.existsSync(logoPath)) {
