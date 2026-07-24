@@ -432,6 +432,9 @@ export async function generarHTML(datos) {
         PROMEDIO_REPARACION:
             datos.resumen.promedio_reparacion_dias ?? "-",
 
+        DIAS_FUERA_SERVICIO:
+            datos.resumen.dias_fuera_servicio ?? 0,
+
         VERSION:
             "1.0",
 
