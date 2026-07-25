@@ -87,6 +87,20 @@ const verificarToken = (req, res, next) => {
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.json());
+app.use((req, res, next) => {
+
+  res.setHeader(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
+
+  res.setHeader("Pragma", "no-cache");
+
+  res.setHeader("Expires", "0");
+
+  next();
+
+});
 
 async function guardarResumenTiempos() {
   try {
