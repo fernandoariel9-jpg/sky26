@@ -99,7 +99,7 @@ body{
     background:#e8e8e8;
     font-weight:bold;
     padding:8px;
-    font-size:12pt;
+    font-size:10pt;
 }
 
 .ficha table{
@@ -178,7 +178,7 @@ body{
     width:100%;
     border-collapse:collapse;
     table-layout:fixed;
-    margin-bottom:70px;
+    margin-bottom:10px;
 }
 
 .tablaResumen th{
@@ -235,7 +235,7 @@ body{
 .evento{
     border:1px solid #cfcfcf;
     border-radius:6px;
-    margin-bottom:18px;
+    margin-bottom:10px;
     overflow:hidden;
     page-break-inside:avoid;
 }
@@ -282,10 +282,10 @@ body{
 .tablaIntervencion{
     width:100%;
     border:2px solid #666;
-    border-radius:6px;
+    border-radius:10px;
     border-collapse:separate;
     border-spacing:0;
-    margin-bottom:18px;
+    margin-bottom:10px;
     overflow:hidden;
     page-break-inside:avoid;
 }
@@ -330,7 +330,7 @@ body{
 .tablaEvento td{
     border:1px solid #ececec;
     padding:8px;
-    font-size:10pt;
+    font-size:9pt;
 }
 
 .tablaEvento td:nth-child(odd){
@@ -348,7 +348,7 @@ body{
 
 .tituloBloque{
     font-weight:bold;
-    font-size:11pt;
+    font-size:10pt;
     margin-bottom:5px;
     color:#222;
 
@@ -371,7 +371,7 @@ body{
     border-top:1px solid #ccc;
     padding-top:8px;
     text-align:center;
-    font-size:9pt;
+    font-size:8pt;
     color:#666;
 }
 
