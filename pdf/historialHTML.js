@@ -459,7 +459,7 @@ export async function generarHTML(datos) {
                 font-size:12px;
             "
         >
-            Sin fotografía
+            Imágen no disponible
         </div>
         `
     );
