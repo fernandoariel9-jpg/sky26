@@ -900,20 +900,100 @@ app.put("/api/equipos/:id", async (req, res) => {
 
 app.post("/api/ric01", async (req, res) => {
   try {
+
     const { tarea, area, origen, solicitado_por } = req.body;
 
+    // Valores por defecto
+    let descripcion = null;
+    let marca_modelo = null;
+    let numero_serie = null;
+    let servicio = null;
+
+    // ¿Es una solicitud automática desde QR?
+    if (
+      tarea &&
+      tarea.includes("Solicitud automática") &&
+      tarea.includes("{") &&
+      tarea.includes("}")
+    ) {
+
+      const match = tarea.match(/\{([^}]*)\}/);
+
+      if (match) {
+
+        const datos = match[1]
+          .split(",")
+          .map(x => x.trim().replace(/^"(.*)"$/, "$1"));
+
+        if (datos.length >= 4) {
+
+          descripcion   = datos[0] || null;
+          marca_modelo  = datos[1] || null;
+          numero_serie  = datos[2] || null;
+          servicio      = datos[3] || null;
+
+          console.log("Equipo detectado desde QR:", {
+            descripcion,
+            marca_modelo,
+            numero_serie,
+            servicio
+          });
+
+        }
+      }
+    }
+
     await pool.query(
-      `INSERT INTO ric01 
-       (tarea, area, origen, usuario, fecha)
-       VALUES ($1, $2, $3, $4, NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')`,
-      [tarea, area, origen, solicitado_por]
+      `
+      INSERT INTO ric01
+      (
+        tarea,
+        area,
+        origen,
+        usuario,
+        fecha,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio
+      )
+      VALUES
+      (
+        $1,
+        $2,
+        $3,
+        $4,
+        NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires',
+        $5,
+        $6,
+        $7,
+        $8
+      )
+      `,
+      [
+        tarea,
+        area,
+        origen,
+        solicitado_por,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio
+      ]
     );
 
-    res.status(201).json({ message: "Creado" });
+    res.status(201).json({
+      message: "Creado"
+    });
 
   } catch (error) {
+
     console.error("Error creando pedido interno:", error);
-    res.status(500).json({ error: error.message });
+
+    res.status(500).json({
+      error: error.message
+    });
+
   }
 });
 
