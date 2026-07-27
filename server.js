@@ -505,6 +505,52 @@ app.put("/api/equipos/:id/estado", async (req, res) => {
   }
 });
 
+app.put("/api/equipos/:serie/imagen", async (req, res) => {
+
+  try {
+
+    const { serie } = req.params;
+    const { imagen } = req.body;
+
+    if (!imagen) {
+      return res.status(400).json({
+        error: "No se recibió ninguna imagen"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE equipos
+      SET imagen = $1
+      WHERE numero_serie = $2
+      RETURNING numero_serie
+      `,
+      [imagen, serie]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json({
+      ok: true,
+      mensaje: "Imagen guardada correctamente"
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  }
+
+});
+
 app.get("/equipos/serie/:serie", async (req, res) => {
   const { serie } = req.params;
 
