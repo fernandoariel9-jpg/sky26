@@ -1393,6 +1393,7 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
         e.area,
         e.sub_servicio,
         e.ultimo_mant,
+        e.imagen,
 
         -- Mantenimiento abierto (se mantiene igual)
         r.id AS mantenimiento_id,
