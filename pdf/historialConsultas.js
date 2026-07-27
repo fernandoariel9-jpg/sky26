@@ -22,7 +22,8 @@ export async function obtenerEquipo(numeroSerie) {
             servicio,
             area,
             sub_servicio,
-            ultimo_mant
+            ultimo_mant,
+            imagen
         FROM equipos
         WHERE numero_serie = $1
         `,
