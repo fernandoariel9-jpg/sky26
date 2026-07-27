@@ -429,6 +429,43 @@ export async function generarHTML(datos) {
 
     }
 
+    if (datos.equipo.imagen) {
+
+    html = html.replace(
+        "{{IMAGEN_EQUIPO}}",
+        `<img
+            src="${datos.equipo.imagen}"
+            style="
+                width:100%;
+                height:100%;
+                object-fit:contain;
+            "
+        />`
+    );
+
+} else {
+
+    html = html.replace(
+        "{{IMAGEN_EQUIPO}}",
+        `
+        <div
+            style="
+                width:100%;
+                height:100%;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                color:#777;
+                font-size:12px;
+            "
+        >
+            Sin fotografía
+        </div>
+        `
+    );
+
+}
+
     // --------------------------------------------
     // Insertar historial
     // --------------------------------------------
