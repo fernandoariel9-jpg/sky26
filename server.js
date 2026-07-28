@@ -1938,6 +1938,19 @@ app.post("/tareas", async (req, res) => {
       ]
     );
 
+    if (numero_serie) {
+
+    await pool.query(
+        `
+        UPDATE equipos
+        SET estado = 'Ingresado'
+        WHERE numero_serie = $1
+        `,
+        [numero_serie]
+    );
+
+}
+
     // Si el QR traía el servicio del equipo, lo guardamos
     if (numero_serie && servicio_equipo) {
 
