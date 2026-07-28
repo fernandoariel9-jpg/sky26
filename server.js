@@ -1811,44 +1811,148 @@ app.get("/api/areas", async (req, res) => {
 });
 
 app.post("/tareas", async (req, res) => {
-  // Aceptamos payload tanto con { usuario, tarea, area, servicio, subservicio, ... }
-  // como con campos faltantes — en ese caso intentamos completar desde la tabla usuarios
   try {
-    let { usuario, tarea, area, fin, imagen, servicio, subservicio } = req.body;
 
-    // Si faltan area/servicio/subservicio, intentar obtenerlas desde la tabla 'usuarios'
+    let {
+      usuario,
+      tarea,
+      area,
+      fin,
+      imagen,
+      servicio,
+      subservicio
+    } = req.body;
+
+    // Si faltan area/servicio/subservicio, intentar obtenerlas desde la tabla usuarios
     if ((!area || !servicio || !subservicio) && usuario) {
       try {
+
         const userQ = await pool.query(
           "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
           [usuario]
         );
+
         if (userQ.rows.length > 0) {
+
           area = area || userQ.rows[0].area;
           servicio = servicio || userQ.rows[0].servicio;
           subservicio = subservicio || userQ.rows[0].subservicio;
+
         } else {
-          // También intentar buscar en tabla personal por mail/nombre (por si el usuario es personal)
+
           const personalQ = await pool.query(
             "SELECT area FROM personal WHERE mail = $1 OR nombre = $1 LIMIT 1",
             [usuario]
           );
+
           if (personalQ.rows.length > 0) {
             area = area || personalQ.rows[0].area;
           }
         }
+
       } catch (lookupErr) {
-        console.error("Error buscando area/servicio/subservicio en usuarios:", lookupErr);
+        console.error("Error buscando area/servicio/subservicio:", lookupErr);
+      }
+    }
+
+    // ======================================================
+    // Extraer datos del equipo si es una solicitud automática
+    // ======================================================
+
+    let descripcion = null;
+    let marca_modelo = null;
+    let numero_serie = null;
+    let servicio_equipo = null;
+
+    if (
+      tarea &&
+      tarea.includes("Solicitud automática") &&
+      tarea.includes("{") &&
+      tarea.includes("}")
+    ) {
+
+      const match = tarea.match(/\{([^}]*)\}/);
+
+      if (match) {
+
+        const datos = match[1]
+          .split(",")
+          .map(x => x.trim().replace(/^"(.*)"$/, "$1"));
+
+        if (datos.length >= 4) {
+
+          descripcion = datos[0];
+          marca_modelo = datos[1];
+          numero_serie = datos[2];
+          servicio_equipo = datos[3];
+
+          console.log("Equipo detectado:", {
+            descripcion,
+            marca_modelo,
+            numero_serie,
+            servicio_equipo
+          });
+
+        }
       }
     }
 
     const fecha = fechaLocalArgentina();
 
     const result = await pool.query(
-      `INSERT INTO ric01 (usuario, tarea, fin, imagen, fecha, fecha_comp, fecha_fin, area, servicio, subservicio) 
-       VALUES ($1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8) RETURNING *`,
-      [usuario, tarea, fin || false, imagen || null, fecha, area || null, servicio || null, subservicio || null]
+      `
+      INSERT INTO ric01
+      (
+        usuario,
+        tarea,
+        fin,
+        imagen,
+        fecha,
+        fecha_comp,
+        fecha_fin,
+        area,
+        servicio,
+        subservicio,
+        descripcion,
+        marca_modelo,
+        numero_serie
+      )
+      VALUES
+      (
+        $1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11
+      )
+      RETURNING *
+      `,
+      [
+        usuario,
+        tarea,
+        fin || false,
+        imagen || null,
+        fecha,
+        area || null,
+        servicio || null,        // Servicio del solicitante
+        subservicio || null,
+        descripcion,
+        marca_modelo,
+        numero_serie
+      ]
     );
+
+    // Si el QR traía el servicio del equipo, lo guardamos
+    if (numero_serie && servicio_equipo) {
+
+      await pool.query(
+        `
+        UPDATE ric01
+        SET servicio = $1
+        WHERE id = $2
+        `,
+        [servicio_equipo, result.rows[0].id]
+      );
+
+      result.rows[0].servicio = servicio_equipo;
+
+    }
 
     // Notificar al personal del área
     const personalRes = await pool.query(
@@ -1856,16 +1960,26 @@ app.post("/tareas", async (req, res) => {
       [area]
     );
 
-    const payload = { title: "Nueva tarea asignada", body: tarea, icon: "/icon-192x192.png" };
+    const payload = {
+      title: "Nueva tarea asignada",
+      body: tarea,
+      icon: "/icon-192x192.png"
+    };
 
-    personalRes.rows.forEach(({ id, suscripcion }) => {
-      if (suscripcion) enviarNotificacion(id, payload).catch(console.error);
+    personalRes.rows.forEach(({ id }) => {
+      enviarNotificacion(id, payload).catch(console.error);
     });
 
     res.status(201).json(result.rows[0]);
+
   } catch (err) {
+
     console.error("Error creando tarea:", err);
-    res.status(500).json({ error: "Error creando tarea" });
+
+    res.status(500).json({
+      error: "Error creando tarea"
+    });
+
   }
 });
 
