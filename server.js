@@ -2045,7 +2045,7 @@ async function calcularYGuardarPromediosGlobal() {   // ← renombrada
   try {
     const result = await pool.query(`
       SELECT
-        DATE(fecha_registro) AS fecha,
+        DATE(fecha) AS fecha,
         COUNT(*) AS total_tareas,
         COUNT(fecha_comp) AS tareas_completadas,
         COUNT(fecha_fin) AS tareas_finalizadas,
