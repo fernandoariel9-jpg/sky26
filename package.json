@@ -1,7 +1,6 @@
 {
   "name": "sky26-backend",
   "version": "1.0.0",
-  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -11,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "@sparticuz/chromium": "^149.0.0",
+    "@zxing/browser": "^0.2.1",
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
