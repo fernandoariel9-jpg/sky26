@@ -1587,6 +1587,48 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
   }
 });
 
+app.get("/buscar-equipos", async (req, res) => {
+  try {
+
+    const texto = req.query.q?.trim();
+
+    if (!texto) {
+      return res.json([]);
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        estado,
+        servicio
+      FROM equipos
+      WHERE
+            numero_serie ILIKE '%' || $1 || '%'
+         OR descripcion ILIKE '%' || $1 || '%'
+         OR marca_modelo ILIKE '%' || $1 || '%'
+      ORDER BY descripcion
+      LIMIT 20
+      `,
+      [texto]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error buscando equipos"
+    });
+
+  }
+});
+
 app.put("/ric01/asignar-equipo/:id", async (req, res) => {
   const { id } = req.params;
 
