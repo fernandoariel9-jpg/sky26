@@ -1610,7 +1610,13 @@ app.get("/buscar-equipos", async (req, res) => {
             numero_serie ILIKE '%' || $1 || '%'
          OR descripcion ILIKE '%' || $1 || '%'
          OR marca_modelo ILIKE '%' || $1 || '%'
-      ORDER BY descripcion
+      ORDER BY
+        CASE
+          WHEN numero_serie ILIKE $1 || '%' THEN 0
+          WHEN numero_serie ILIKE '%' || $1 || '%' THEN 1
+          ELSE 2
+        END,
+        descripcion
       LIMIT 20
       `,
       [texto]
