@@ -845,7 +845,8 @@ app.post("/api/equipos", async (req, res) => {
     ultimo_mant,
     fecha_alta,
     fecha_baja,
-    estado
+    estado,
+    imagen
   } = req.body;
 
   try {
@@ -881,11 +882,12 @@ app.post("/api/equipos", async (req, res) => {
         ultimo_mant,
         fecha_alta,
         fecha_baja,
-        estado
+        estado,
+        imagen
       )
       VALUES
       (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
       )
       RETURNING *
       `,
@@ -901,7 +903,8 @@ app.post("/api/equipos", async (req, res) => {
         ultimo_mant,
         fecha_alta || new Date(),
         fecha_baja,
-        estado || "En Servicio"
+        estado || "En Servicio",
+        imagen || null
       ]
     );
 
