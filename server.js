@@ -832,6 +832,7 @@ app.get("/diagnosticos/ric02", async (req, res) => {
 });
 
 app.post("/api/equipos", async (req, res) => {
+
   const {
     numero_serie,
     descripcion,
@@ -848,14 +849,46 @@ app.post("/api/equipos", async (req, res) => {
   } = req.body;
 
   try {
+
+    // Verificar si ya existe el número de serie
+    const existe = await pool.query(
+      `
+      SELECT id
+      FROM equipos
+      WHERE numero_serie = $1
+      `,
+      [numero_serie]
+    );
+
+    if (existe.rows.length > 0) {
+      return res.status(409).json({
+        error: "Ya existe un equipo con ese número de serie."
+      });
+    }
+
     const result = await pool.query(
-      `INSERT INTO equipos (
-        numero_serie, descripcion, marca_modelo,
-        servicio, sub_servicio, encargado, area,
-        periodo, ultimo_mant, fecha_alta, fecha_baja, estado
+      `
+      INSERT INTO equipos
+      (
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta,
+        fecha_baja,
+        estado
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-      RETURNING *`,
+      VALUES
+      (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+      )
+      RETURNING *
+      `,
       [
         numero_serie,
         descripcion,
@@ -872,11 +905,18 @@ app.post("/api/equipos", async (req, res) => {
       ]
     );
 
-    res.json(result.rows[0]);
+    res.status(201).json(result.rows[0]);
+
   } catch (error) {
+
     console.error(error);
-    res.status(500).json({ error: "Error creando equipo" });
+
+    res.status(500).json({
+      error: "Error creando equipo"
+    });
+
   }
+
 });
 
 app.put("/api/equipos/:id", async (req, res) => {
