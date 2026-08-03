@@ -2472,11 +2472,32 @@ app.put("/personal/:id", async (req, res) => {
 // ---------- SERVICIOS ----------
 app.get("/servicios", async (req, res) => {
   try {
-    const result = await pool.query("SELECT servicio, subservicio, area FROM servicios ORDER BY servicio");
+
+    const result = await pool.query(
+      `
+      SELECT
+        area,
+        servicio,
+        subservicio,
+        encargado
+      FROM servicios
+      ORDER BY
+        area,
+        servicio,
+        subservicio
+      `
+    );
+
     res.json(result.rows);
+
   } catch (err) {
+
     console.error(err);
-    res.status(500).json({ error: "Error al obtener servicios" });
+
+    res.status(500).json({
+      error: "Error al obtener servicios"
+    });
+
   }
 });
 
