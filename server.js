@@ -810,6 +810,35 @@ app.get("/api/equipos", async (req, res) => {
   }
 });
 
+app.get("/equipos/existe/:serie", async (req, res) => {
+
+  const { serie } = req.params;
+
+  const result = await pool.query(
+
+    `
+    SELECT
+      descripcion,
+      servicio,
+      estado
+    FROM equipos
+    WHERE UPPER(numero_serie)=UPPER($1)
+    LIMIT 1
+    `,
+    [serie]
+
+  );
+
+  res.json({
+
+    existe: result.rows.length > 0,
+
+    equipo: result.rows[0] || null
+
+  });
+
+});
+
 app.get("/diagnosticos/ric02", async (req, res) => {
   try {
     const result = await pool.query(`
