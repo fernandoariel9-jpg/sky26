@@ -953,6 +953,81 @@ app.post("/api/equipos", async (req, res) => {
 
 app.put("/api/equipos/:id", async (req, res) => {
   const { id } = req.params;
+
+  const {
+    numero_serie,
+    descripcion,
+    marca_modelo,
+    servicio,
+    sub_servicio,
+    encargado,
+    area,
+    periodo,
+    ultimo_mant,
+    fecha_alta,
+    fecha_baja,
+    estado,
+    imagen
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE equipos
+      SET
+        numero_serie = $1,
+        descripcion = $2,
+        marca_modelo = $3,
+        servicio = $4,
+        sub_servicio = $5,
+        encargado = $6,
+        area = $7,
+        periodo = $8,
+        ultimo_mant = $9,
+        fecha_alta = $10,
+        fecha_baja = $11,
+        estado = $12,
+        imagen = $13
+      WHERE id = $14
+      RETURNING *
+      `,
+      [
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta,
+        fecha_baja,
+        estado,
+        imagen,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error actualizando equipo:", error);
+
+    res.status(500).json({
+      error: "Error actualizando equipo"
+    });
+  }
+});
+
+app.put("/api/equipos/:id", async (req, res) => {
+  const { id } = req.params;
   const { numero_serie, descripcion, marca, modelo, area } = req.body;
 
   try {
