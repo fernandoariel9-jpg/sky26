@@ -1045,6 +1045,338 @@ app.put("/api/equipos/:id", async (req, res) => {
   }
 });
 
+app.post("/api/ric29", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const {
+      ric01_id,
+      equipo_id,
+      numero_serie,
+      marca_modelo,
+      area,
+      servicio,
+      sub_servicio,
+      encargado,
+      fecha,
+      tecnico,
+      resultado_general,
+      observaciones,
+
+      inspecciones,
+      energia,
+      carga,
+      bateria,
+      sincronismo,
+      monitorizacion,
+      alarmas
+    } = req.body;
+
+    // --------------------------------------------------
+    // 1. CABECERA RIC 29
+    // --------------------------------------------------
+
+    const resultRic29 = await client.query(
+      `
+      INSERT INTO ric29 (
+        ric01_id,
+        equipo_id,
+        numero_serie,
+        marca_modelo,
+        area,
+        servicio,
+        sub_servicio,
+        encargado,
+        fecha,
+        tecnico,
+        resultado_general,
+        observaciones
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+      )
+      RETURNING id
+      `,
+      [
+        ric01_id || null,
+        equipo_id || null,
+        numero_serie || null,
+        marca_modelo || null,
+        area || null,
+        servicio || null,
+        sub_servicio || null,
+        encargado || null,
+        fecha || new Date(),
+        tecnico || null,
+        resultado_general || null,
+        observaciones || null
+      ]
+    );
+
+    const ric29_id = resultRic29.rows[0].id;
+
+
+    // --------------------------------------------------
+    // 2. INSPECCIONES
+    // --------------------------------------------------
+
+    if (inspecciones) {
+
+      await client.query(
+        `
+        INSERT INTO ric29_inspecciones (
+          ric29_id,
+          limpieza_exterior,
+          papel_registro,
+          estado_cables,
+          observaciones
+        )
+        VALUES ($1,$2,$3,$4,$5)
+        `,
+        [
+          ric29_id,
+          inspecciones.limpieza_exterior || null,
+          inspecciones.papel_registro || null,
+          inspecciones.estado_cables || null,
+          inspecciones.observaciones || null
+        ]
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // 3. ENTREGA DE ENERGÍA
+    // --------------------------------------------------
+
+    if (Array.isArray(energia)) {
+
+      for (const item of energia) {
+
+        await client.query(
+          `
+          INSERT INTO ric29_energia (
+            ric29_id,
+            energia_nominal,
+            resultado_medicion,
+            incertidumbre,
+            rango_min,
+            rango_max,
+            conforme
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          `,
+          [
+            ric29_id,
+            item.energia_nominal || null,
+            item.resultado_medicion || null,
+            item.incertidumbre || null,
+            item.rango_min || null,
+            item.rango_max || null,
+            item.conforme ?? null
+          ]
+        );
+
+      }
+
+    }
+
+
+    // --------------------------------------------------
+    // 4. TIEMPO DE CARGA
+    // --------------------------------------------------
+
+    if (Array.isArray(carga)) {
+
+      for (const item of carga) {
+
+        await client.query(
+          `
+          INSERT INTO ric29_carga (
+            ric29_id,
+            numero_medicion,
+            resultado_medicion,
+            incertidumbre,
+            rango_max,
+            conforme
+          )
+          VALUES ($1,$2,$3,$4,$5,$6)
+          `,
+          [
+            ric29_id,
+            item.numero_medicion,
+            item.resultado_medicion || null,
+            item.incertidumbre || null,
+            item.rango_max || null,
+            item.conforme ?? null
+          ]
+        );
+
+      }
+
+    }
+
+
+    // --------------------------------------------------
+    // 5. BATERÍA
+    // --------------------------------------------------
+
+    if (Array.isArray(bateria)) {
+
+      for (const item of bateria) {
+
+        await client.query(
+          `
+          INSERT INTO ric29_bateria (
+            ric29_id,
+            numero_medicion,
+            resultado_medicion,
+            incertidumbre,
+            rango_max,
+            conforme,
+            observaciones
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7)
+          `,
+          [
+            ric29_id,
+            item.numero_medicion,
+            item.resultado_medicion || null,
+            item.incertidumbre || null,
+            item.rango_max || null,
+            item.conforme ?? null,
+            item.observaciones || null
+          ]
+        );
+
+      }
+
+    }
+
+
+    // --------------------------------------------------
+    // 6. SINCRONISMO
+    // --------------------------------------------------
+
+    if (sincronismo) {
+
+      await client.query(
+        `
+        INSERT INTO ric29_sincronismo (
+          ric29_id,
+          resultado_medicion,
+          incertidumbre,
+          rango_max,
+          conforme
+        )
+        VALUES ($1,$2,$3,$4,$5)
+        `,
+        [
+          ric29_id,
+          sincronismo.resultado_medicion || null,
+          sincronismo.incertidumbre || null,
+          sincronismo.rango_max || null,
+          sincronismo.conforme ?? null
+        ]
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // 7. MONITORIZACIÓN
+    // --------------------------------------------------
+
+    if (Array.isArray(monitorizacion)) {
+
+      for (const item of monitorizacion) {
+
+        await client.query(
+          `
+          INSERT INTO ric29_monitorizacion (
+            ric29_id,
+            frecuencia_nominal,
+            resultado_medicion,
+            incertidumbre,
+            conforme
+          )
+          VALUES ($1,$2,$3,$4,$5)
+          `,
+          [
+            ric29_id,
+            item.frecuencia_nominal || null,
+            item.resultado_medicion || null,
+            item.incertidumbre || null,
+            item.conforme ?? null
+          ]
+        );
+
+      }
+
+    }
+
+
+    // --------------------------------------------------
+    // 8. ALARMAS
+    // --------------------------------------------------
+
+    if (alarmas) {
+
+      await client.query(
+        `
+        INSERT INTO ric29_alarmas (
+          ric29_id,
+          alarma_alta_frecuencia,
+          alarma_baja_frecuencia,
+          activacion_alarmas,
+          observaciones
+        )
+        VALUES ($1,$2,$3,$4,$5)
+        `,
+        [
+          ric29_id,
+          alarmas.alarma_alta_frecuencia ?? null,
+          alarmas.alarma_baja_frecuencia ?? null,
+          alarmas.activacion_alarmas ?? null,
+          alarmas.observaciones || null
+        ]
+      );
+
+    }
+
+
+    // --------------------------------------------------
+    // TODO CORRECTO
+    // --------------------------------------------------
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      ok: true,
+      mensaje: "RIC 29 guardado correctamente",
+      ric29_id
+    });
+
+  } catch (error) {
+
+    await client.query("ROLLBACK");
+
+    console.error("Error guardando RIC 29:", error);
+
+    res.status(500).json({
+      ok: false,
+      error: "Error guardando RIC 29"
+    });
+
+  } finally {
+
+    client.release();
+
+  }
+});
+
 app.post("/api/ric01", async (req, res) => {
   try {
 
