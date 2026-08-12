@@ -1183,41 +1183,35 @@ app.post("/api/ric29", async (req, res) => {
 
     }
 
+// --------------------------------------------------
+// 4. TIEMPO DE CARGA
+// --------------------------------------------------
 
-    // --------------------------------------------------
-    // 4. TIEMPO DE CARGA
-    // --------------------------------------------------
+if (carga) {
 
-    if (Array.isArray(carga)) {
+  await client.query(
+    `
+    INSERT INTO ric29_carga (
+      ric29_id,
+      numero_medicion,
+      resultado_medicion,
+      incertidumbre,
+      rango_max,
+      conforme
+    )
+    VALUES ($1,$2,$3,$4,$5,$6)
+    `,
+    [
+      ric29_id,
+      1,
+      carga.resultado_medicion ?? null,
+      carga.incertidumbre ?? 0.05,
+      carga.rango_max ?? 15,
+      carga.conforme ?? null
+    ]
+  );
 
-      for (const item of carga) {
-
-        await client.query(
-          `
-          INSERT INTO ric29_carga (
-            ric29_id,
-            numero_medicion,
-            resultado_medicion,
-            incertidumbre,
-            rango_max,
-            conforme
-          )
-          VALUES ($1,$2,$3,$4,$5,$6)
-          `,
-          [
-            ric29_id,
-            item.numero_medicion,
-            item.resultado_medicion || null,
-            item.incertidumbre || null,
-            item.rango_max || null,
-            item.conforme ?? null
-          ]
-        );
-
-      }
-
-    }
-
+}
 
     // --------------------------------------------------
     // 5. BATERÍA
@@ -1284,40 +1278,48 @@ app.post("/api/ric29", async (req, res) => {
 
     }
 
+// --------------------------------------------------
+// 7. MONITORIZACIÓN
+// --------------------------------------------------
 
-    // --------------------------------------------------
-    // 7. MONITORIZACIÓN
-    // --------------------------------------------------
+if (monitorizacion) {
 
-    if (Array.isArray(monitorizacion)) {
-
-      for (const item of monitorizacion) {
-
-        await client.query(
-          `
-          INSERT INTO ric29_monitorizacion (
-            ric29_id,
-            frecuencia_nominal,
-            resultado_medicion,
-            incertidumbre,
-            conforme
-          )
-          VALUES ($1,$2,$3,$4,$5)
-          `,
-          [
-            ric29_id,
-            item.frecuencia_nominal || null,
-            item.resultado_medicion || null,
-            item.incertidumbre || null,
-            item.conforme ?? null
-          ]
-        );
-
-      }
-
+  const mediciones = [
+    {
+      frecuencia_nominal: 60,
+      ...(monitorizacion["60"] || {})
+    },
+    {
+      frecuencia_nominal: 120,
+      ...(monitorizacion["120"] || {})
     }
+  ];
 
+  for (const item of mediciones) {
 
+    await client.query(
+      `
+      INSERT INTO ric29_monitorizacion (
+        ric29_id,
+        frecuencia_nominal,
+        resultado_medicion,
+        incertidumbre,
+        conforme
+      )
+      VALUES ($1,$2,$3,$4,$5)
+      `,
+      [
+        ric29_id,
+        item.frecuencia_nominal,
+        item.resultado ?? null,
+        item.incertidumbre ?? 3,
+        item.conforme ?? null
+      ]
+    );
+
+  }
+
+}
     // --------------------------------------------------
     // 8. ALARMAS
     // --------------------------------------------------
