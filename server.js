@@ -10,6 +10,7 @@ import fetch from "node-fetch";
 import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
 import { obtenerRIC29 } from "./pdf/protocolosConsultas.js";
+import { generarRIC29PDF } from "./pdf/ric29PDF.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1393,6 +1394,40 @@ app.get("/api/ric29/:id", async (req, res) => {
   } catch (error) {
     console.error(
       "Error obteniendo RIC29:",
+      error
+    );
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.get("/api/ric29/:id/pdf", async (req, res) => {
+  try {
+    const ric29_id = Number(req.params.id);
+    if (!Number.isInteger(ric29_id)) {
+      return res.status(400).json({
+        error: "ID RIC29 inválido"
+      });
+    }
+    console.log(
+      `Generando PDF RIC29: ${ric29_id}`
+    );
+    const pdf = await generarRIC29PDF(
+      ric29_id
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/pdf"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `inline; filename="RIC29_${ric29_id}.pdf"`
+    );
+    res.send(pdf);
+  } catch (error) {
+    console.error(
+      "Error generando PDF RIC29:",
       error
     );
     res.status(500).json({
