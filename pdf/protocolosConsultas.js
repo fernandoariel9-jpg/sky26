@@ -10,6 +10,22 @@ import pool from "../db.js";
 
 export async function obtenerRIC29(id) {
 
+    console.log("=================================");
+    console.log("OBTENER RIC29");
+    console.log("id recibido:", id);
+    console.log("tipo:", typeof id);
+    console.log("=================================");
+
+    const idNumerico = Number(id);
+
+    console.log("idNumerico:", idNumerico);
+
+    if (!Number.isInteger(idNumerico)) {
+        throw new Error(
+            `ID RIC29 inválido: ${id}`
+        );
+    }
+
     const { rows: cabecera } = await pool.query(`
         SELECT
             r.*,
@@ -18,10 +34,17 @@ export async function obtenerRIC29(id) {
         LEFT JOIN equipos e
             ON e.id = r.equipo_id
         WHERE r.id = $1
-    `, [id]);
+    `, [idNumerico]);
+
+    console.log(
+        "RIC29 encontrados:",
+        cabecera.length
+    );
 
     if (!cabecera.length) {
-        throw new Error("RIC29 no encontrado");
+        throw new Error(
+            `RIC29 no encontrado para id=${idNumerico}`
+        );
     }
 
     const ric29 = cabecera[0];
@@ -44,7 +67,7 @@ export async function obtenerRIC29(id) {
                  FROM ${tabla}
                  WHERE ric29_id = $1
                  ORDER BY id`,
-                [id]
+                [idNumerico]
             );
 
             return [nombre, rows];
