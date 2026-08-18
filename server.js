@@ -1312,7 +1312,7 @@ if (monitorizacion) {
       [
         ric29_id,
         item.frecuencia_nominal,
-        item.resultado ?? null,
+        item.resultado_medicion ?? null,
         item.incertidumbre ?? 3,
         item.conforme ?? null
       ]
