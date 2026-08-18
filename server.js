@@ -1381,24 +1381,43 @@ if (monitorizacion) {
 });
 
 app.get("/api/ric29/:id", async (req, res) => {
-    const client = await pool.connect();
-    try {
-        const datos = await obtenerRIC29(
-            client,
-            req.params.id
-        );
-        res.json(datos);
-    } catch (error) {
-        console.error(
-            "Error obteniendo RIC29:",
-            error
-        );
-        res.status(500).json({
-            error: error.message
-        });
-    } finally {
-        client.release();
+
+  const client = await pool.connect();
+
+  try {
+
+    const ric29_id = parseInt(req.params.id, 10);
+
+    if (isNaN(ric29_id)) {
+      return res.status(400).json({
+        error: "El ID del RIC29 no es válido"
+      });
     }
+
+    const datos = await obtenerRIC29(
+      client,
+      ric29_id
+    );
+
+    res.json(datos);
+
+  } catch (error) {
+
+    console.error(
+      "Error obteniendo RIC29:",
+      error
+    );
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  } finally {
+
+    client.release();
+
+  }
+
 });
 
 app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
