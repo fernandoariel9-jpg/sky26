@@ -685,6 +685,7 @@ function generarContenido(
 // ============================================================
 
 export async function generarRIC29PDF(
+  client,
   ric29_id
 ) {
 
@@ -692,10 +693,22 @@ export async function generarRIC29PDF(
   // OBTENER DATOS
   // ----------------------------------------------------------
 
-  const datos =
-    await obtenerRIC29(
-      ric29_id
-    );
+  const datos = await obtenerRIC29(
+    ric29_id
+  );
+
+  console.log(
+    "RIC29 datos obtenidos:",
+    datos
+  );
+
+
+  // ----------------------------------------------------------
+  // CABECERA
+  // ----------------------------------------------------------
+
+  const cab = datos;
+
 
   // ----------------------------------------------------------
   // CONTENIDO DE SECCIONES
@@ -706,21 +719,21 @@ export async function generarRIC29PDF(
 
 
   // ----------------------------------------------------------
-  // VARIABLES
+  // VARIABLES PARA LA PLANTILLA
   // ----------------------------------------------------------
-
-const cab = datos;
 
   const variables = {
 
-    CODIGO:
-      "RIC29"
+    CODIGO: "RIC29",
 
     TITULO:
-      "Mantenimiento Preventivo"
+      "PROTOCOLO DE MANTENIMIENTO PREVENTIVO",
 
     SUBTITULO:
-      "Cardiodesfibriladores"
+      "Equipo desfibrilador",
+
+    HOSPITAL:
+      "Sky26",
 
     DESCRIPCION:
       esc(cab.descripcion || ""),
@@ -785,16 +798,19 @@ const cab = datos;
 
   return generarProtocoloPDF({
 
-    plantilla: "ric29.html",
+    plantilla:
+      "ric29.html",
 
     variables,
 
     nombreArchivo:
       `RIC29_${ric29_id}.pdf`,
 
-    formato: "A4",
+    formato:
+      "A4",
 
-    orientacion: "portrait"
+    orientacion:
+      "portrait"
 
   });
 
