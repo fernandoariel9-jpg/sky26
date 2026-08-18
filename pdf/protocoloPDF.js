@@ -1,34 +1,48 @@
 // ============================================================
-// MOTOR COMÚN DE PDFs DE PROTOCOLOS
-// Sky26 - Ingeniería Clínica
+// MOTOR COMÚN DE PDF PARA PROTOCOLOS RIC
+// protocoloPDF.js
 // ============================================================
 
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import puppeteer from "puppeteer";
 
+
 // ============================================================
-// CONFIGURACIÓN DE RUTAS
+// CONFIGURACIÓN GENERAL
 // ============================================================
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = path.resolve();
 
-// Carpeta raíz del proyecto
-const ROOT_DIR = path.join(__dirname, "..");
-
-// Carpeta de plantillas
-const TEMPLATES_DIR = path.join(
-  ROOT_DIR,
-  "templates"
-);
-
-// Logo común
 const LOGO_PATH = path.join(
-  TEMPLATES_DIR,
+  __dirname,
+  "templates",
   "logo_app.png"
 );
+
+
+// ============================================================
+// FORMATEAR FECHA
+// ============================================================
+
+function formatearFecha(fecha) {
+
+  if (!fecha) {
+    return "";
+  }
+
+  const d = new Date(fecha);
+
+  if (isNaN(d.getTime())) {
+    return fecha;
+  }
+
+  return d.toLocaleDateString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  });
+}
 
 
 // ============================================================
@@ -54,7 +68,7 @@ function escaparHTML(valor) {
 
 
 // ============================================================
-// CONVERTIR LOGO A BASE64
+// LOGO
 // ============================================================
 
 function obtenerLogoBase64() {
@@ -69,72 +83,10 @@ function obtenerLogoBase64() {
     return "";
   }
 
-  const buffer =
+  const imagen =
     fs.readFileSync(LOGO_PATH);
 
-  return `data:image/png;base64,${buffer.toString("base64")}`;
-}
-
-
-// ============================================================
-// FORMATEAR FECHA
-// ============================================================
-
-export function formatearFecha(
-  fecha
-) {
-
-  if (!fecha) {
-    return "";
-  }
-
-  const date =
-    new Date(fecha);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(fecha);
-  }
-
-  return date.toLocaleDateString(
-    "es-AR",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    }
-  );
-}
-
-
-// ============================================================
-// FORMATEAR FECHA Y HORA
-// ============================================================
-
-export function formatearFechaHora(
-  fecha
-) {
-
-  if (!fecha) {
-    return "";
-  }
-
-  const date =
-    new Date(fecha);
-
-  if (Number.isNaN(date.getTime())) {
-    return String(fecha);
-  }
-
-  return date.toLocaleString(
-    "es-AR",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    }
-  );
+  return `data:image/png;base64,${imagen.toString("base64")}`;
 }
 
 
@@ -142,7 +94,7 @@ export function formatearFechaHora(
 // REEMPLAZAR VARIABLES
 // ============================================================
 
-export function reemplazarVariables(
+function reemplazarVariables(
   html,
   variables = {}
 ) {
@@ -150,22 +102,17 @@ export function reemplazarVariables(
   let resultado = html;
 
   for (
-    const [clave, valor]
-    of Object.entries(variables)
+    const [clave, valor] of Object.entries(variables)
   ) {
 
     const marcador =
       `{{${clave}}}`;
 
-    const valorHTML =
-      valor === null ||
-      valor === undefined
-        ? ""
-        : String(valor);
-
     resultado =
-      resultado.split(marcador)
-        .join(valorHTML);
+      resultado.split(marcador).join(
+        valor ?? ""
+      );
+
   }
 
   return resultado;
@@ -173,30 +120,430 @@ export function reemplazarVariables(
 
 
 // ============================================================
-// CARGAR PLANTILLA
+// GENERAR HTML DEL ENCABEZADO
 // ============================================================
 
-export function cargarPlantilla(
-  nombreArchivo
-) {
+function generarEncabezado({
+  codigo,
+  titulo,
+  subtitulo,
+  cabecera
+}) {
 
-  const ruta =
-    path.join(
-      TEMPLATES_DIR,
-      nombreArchivo
-    );
+  const logo =
+    obtenerLogoBase64();
 
-  if (!fs.existsSync(ruta)) {
+  return `
+<div class="protocolo-header">
 
-    throw new Error(
-      `No existe la plantilla PDF: ${ruta}`
-    );
-  }
+  <table class="header-table">
 
-  return fs.readFileSync(
-    ruta,
-    "utf8"
-  );
+    <tr>
+
+      <td class="header-logo">
+        ${
+          logo
+            ? `<img src="${logo}" class="logo">`
+            : ""
+        }
+      </td>
+
+      <td class="header-info">
+
+        <div class="hospital">
+          Servicio de Ingeniería Clínica
+        </div>
+
+        <div class="titulo">
+          ${escaparHTML(titulo)}
+        </div>
+
+        <div class="subtitulo">
+          ${escaparHTML(subtitulo)}
+        </div>
+
+        <div class="fecha">
+          Fecha:
+          <b>
+            ${formatearFecha(cabecera?.fecha)}
+          </b>
+        </div>
+
+      </td>
+
+      <td class="header-codigo">
+
+        <div class="codigo">
+          ${escaparHTML(codigo)}
+        </div>
+
+        <div class="codigo-texto">
+          Protocolo
+        </div>
+
+      </td>
+
+    </tr>
+
+  </table>
+
+</div>
+`;
+}
+
+
+// ============================================================
+// DATOS DEL EQUIPO
+// ============================================================
+
+function generarDatosEquipo(cabecera) {
+
+  return `
+<div class="ficha">
+
+  <div class="ficha-titulo">
+    DATOS DEL EQUIPO
+  </div>
+
+  <table class="datos-equipo">
+
+    <tr>
+      <td>Equipo</td>
+      <td>
+        ${escaparHTML(cabecera?.descripcion || "")}
+      </td>
+    </tr>
+
+    <tr>
+      <td>Marca / Modelo</td>
+      <td>
+        ${escaparHTML(cabecera?.marca_modelo)}
+      </td>
+    </tr>
+
+    <tr>
+      <td>Número de Serie</td>
+      <td>
+        ${escaparHTML(cabecera?.numero_serie)}
+      </td>
+    </tr>
+
+    <tr>
+      <td>Servicio</td>
+      <td>
+        ${escaparHTML(cabecera?.servicio)}
+      </td>
+    </tr>
+
+    <tr>
+      <td>Área</td>
+      <td>
+        ${escaparHTML(cabecera?.area)}
+      </td>
+    </tr>
+
+    <tr>
+      <td>Subservicio</td>
+      <td>
+        ${escaparHTML(cabecera?.sub_servicio)}
+      </td>
+    </tr>
+
+    <tr>
+      <td>Técnico</td>
+      <td>
+        ${escaparHTML(cabecera?.tecnico)}
+      </td>
+    </tr>
+
+    <tr>
+      <td>Resultado general</td>
+      <td>
+        <b>
+          ${escaparHTML(cabecera?.resultado_general)}
+        </b>
+      </td>
+    </tr>
+
+  </table>
+
+</div>
+`;
+}
+
+
+// ============================================================
+// ESTILOS COMUNES
+// ============================================================
+
+function generarCSS() {
+
+  return `
+<style>
+
+@page {
+  size: A4;
+  margin: 15mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  font-size: 10pt;
+
+  color: #222;
+
+  margin: 0;
+
+  padding: 0;
+}
+
+table {
+
+  width: 100%;
+
+  border-collapse: collapse;
+}
+
+.protocolo-header {
+
+  border: 1.5px solid #000;
+
+  margin-bottom: 15px;
+}
+
+.header-table td {
+
+  padding: 8px;
+
+  vertical-align: middle;
+}
+
+.header-logo {
+
+  width: 22%;
+
+  text-align: center;
+}
+
+.logo {
+
+  max-width: 110px;
+
+  max-height: 70px;
+}
+
+.header-info {
+
+  width: 58%;
+
+  text-align: center;
+}
+
+.hospital {
+
+  font-size: 10pt;
+
+  font-weight: bold;
+
+  margin-bottom: 5px;
+}
+
+.titulo {
+
+  font-size: 16pt;
+
+  font-weight: bold;
+
+  text-transform: uppercase;
+}
+
+.subtitulo {
+
+  font-size: 12pt;
+
+  margin-top: 3px;
+}
+
+.fecha {
+
+  margin-top: 8px;
+
+  font-size: 9pt;
+}
+
+.header-codigo {
+
+  width: 20%;
+
+  text-align: center;
+
+  border-left: 1.5px solid #000;
+}
+
+.codigo {
+
+  font-size: 20pt;
+
+  font-weight: bold;
+}
+
+.codigo-texto {
+
+  font-size: 8pt;
+
+  color: #666;
+
+  margin-top: 5px;
+}
+
+.ficha {
+
+  border: 1px solid #000;
+
+  margin-bottom: 15px;
+}
+
+.ficha-titulo {
+
+  background: #e5e7eb;
+
+  border-bottom: 1px solid #000;
+
+  font-weight: bold;
+
+  padding: 7px;
+
+  font-size: 10pt;
+}
+
+.datos-equipo td {
+
+  border: 1px solid #ccc;
+
+  padding: 6px;
+}
+
+.datos-equipo td:first-child {
+
+  width: 25%;
+
+  font-weight: bold;
+
+  background: #f5f5f5;
+}
+
+.seccion {
+
+  margin-top: 15px;
+
+  margin-bottom: 15px;
+
+  page-break-inside: avoid;
+}
+
+.seccion-titulo {
+
+  background: #e5e7eb;
+
+  border: 1px solid #000;
+
+  padding: 7px;
+
+  font-size: 11pt;
+
+  font-weight: bold;
+}
+
+.tabla {
+
+  margin-top: 5px;
+
+  width: 100%;
+
+  border-collapse: collapse;
+}
+
+.tabla th {
+
+  background: #f3f4f6;
+
+  font-weight: bold;
+}
+
+.tabla th,
+.tabla td {
+
+  border: 1px solid #777;
+
+  padding: 5px;
+
+  text-align: center;
+}
+
+.conforme {
+
+  color: #15803d;
+
+  font-weight: bold;
+}
+
+.no-conforme {
+
+  color: #dc2626;
+
+  font-weight: bold;
+}
+
+.observaciones {
+
+  border: 1px solid #999;
+
+  padding: 8px;
+
+  margin-top: 5px;
+
+  white-space: pre-wrap;
+}
+
+.resultado-general {
+
+  margin-top: 20px;
+
+  padding: 12px;
+
+  border: 2px solid #000;
+
+  text-align: center;
+
+  font-size: 14pt;
+
+  font-weight: bold;
+}
+
+.footer {
+
+  margin-top: 25px;
+
+  padding-top: 8px;
+
+  border-top: 1px solid #999;
+
+  font-size: 8pt;
+
+  color: #666;
+}
+
+</style>
+`;
 }
 
 
@@ -204,78 +551,129 @@ export function cargarPlantilla(
 // GENERAR PDF
 // ============================================================
 
-export async function generarPDFProtocolo({
+export async function generarProtocoloPDF({
 
-  plantilla,
+  codigo,
 
-  variables = {},
+  titulo,
 
-  nombreArchivo = "protocolo.pdf",
+  subtitulo,
 
-  formato = "A4",
+  datos,
 
-  orientacion = "portrait"
+  generarContenido,
+
+  hospital = "Sky26",
+
+  version = "1.0"
 
 }) {
 
+  if (!datos) {
+
+    throw new Error(
+      "No se recibieron datos para generar el PDF."
+    );
+
+  }
+
   // ----------------------------------------------------------
-  // 1. CARGAR HTML
+  // ENCABEZADO
   // ----------------------------------------------------------
 
-  let html =
-    cargarPlantilla(
-      plantilla
+  const encabezado =
+    generarEncabezado({
+      codigo,
+      titulo,
+      subtitulo,
+      cabecera: datos.cabecera
+    });
+
+
+  // ----------------------------------------------------------
+  // DATOS EQUIPO
+  // ----------------------------------------------------------
+
+  const equipo =
+    generarDatosEquipo(
+      datos.cabecera
     );
 
 
   // ----------------------------------------------------------
-  // 2. LOGO
+  // CONTENIDO ESPECÍFICO DEL PROTOCOLO
   // ----------------------------------------------------------
 
-  const logo =
-    obtenerLogoBase64();
-
-
-  // ----------------------------------------------------------
-  // 3. VARIABLES GENERALES
-  // ----------------------------------------------------------
-
-  const variablesCompletas = {
-
-    LOGO: logo,
-
-    FECHA_EMISION:
-      formatearFecha(
-        new Date()
-      ),
-
-    FECHA:
-      formatearFecha(
-        new Date()
-      ),
-
-    ANIO:
-      new Date()
-        .getFullYear(),
-
-    ...variables
-
-  };
+  const contenido =
+    typeof generarContenido === "function"
+      ? generarContenido(datos)
+      : "";
 
 
   // ----------------------------------------------------------
-  // 4. REEMPLAZAR VARIABLES
+  // HTML COMPLETO
   // ----------------------------------------------------------
 
-  html =
-    reemplazarVariables(
-      html,
-      variablesCompletas
-    );
+  const html = `
+
+<!DOCTYPE html>
+
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>
+${escaparHTML(codigo)}
+</title>
+
+${generarCSS()}
+
+</head>
+
+<body>
+
+${encabezado}
+
+${equipo}
+
+${contenido}
+
+<div class="footer">
+
+<table>
+
+<tr>
+
+<td>
+<b>${escaparHTML(hospital)}</b><br>
+Sistema de Gestión de Ingeniería Clínica
+</td>
+
+<td style="text-align:center;">
+Documento generado automáticamente
+</td>
+
+<td style="text-align:right;">
+Versión ${escaparHTML(version)}<br>
+© ${new Date().getFullYear()}
+</td>
+
+</tr>
+
+</table>
+
+</div>
+
+</body>
+
+</html>
+`;
 
 
   // ----------------------------------------------------------
-  // 5. INICIAR PUPPETEER
+  // PUPPETEER
   // ----------------------------------------------------------
 
   const browser =
@@ -285,8 +683,7 @@ export async function generarPDFProtocolo({
 
       args: [
         "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage"
+        "--disable-setuid-sandbox"
       ]
 
     });
@@ -298,10 +695,6 @@ export async function generarPDFProtocolo({
       await browser.newPage();
 
 
-    // --------------------------------------------------------
-    // 6. CARGAR HTML
-    // --------------------------------------------------------
-
     await page.setContent(
       html,
       {
@@ -310,41 +703,29 @@ export async function generarPDFProtocolo({
     );
 
 
-    // --------------------------------------------------------
-    // 7. GENERAR PDF
-    // --------------------------------------------------------
-
     const pdf =
       await page.pdf({
 
-        format,
-
-        landscape:
-          orientacion === "landscape",
+        format: "A4",
 
         printBackground: true,
 
         margin: {
 
           top: "15mm",
+
+          right: "15mm",
+
           bottom: "15mm",
-          left: "12mm",
-          right: "12mm"
 
-        },
+          left: "15mm"
 
-        displayHeaderFooter: false
+        }
 
       });
 
 
-    return {
-
-      pdf,
-
-      nombreArchivo
-
-    };
+    return pdf;
 
 
   } finally {
@@ -352,40 +733,5 @@ export async function generarPDFProtocolo({
     await browser.close();
 
   }
-
-}
-
-
-// ============================================================
-// GENERADOR SIMPLIFICADO
-// ============================================================
-
-export async function generarProtocoloPDF({
-
-  plantilla,
-
-  variables = {},
-
-  nombreArchivo,
-
-  formato = "A4",
-
-  orientacion = "portrait"
-
-}) {
-
-  return generarPDFProtocolo({
-
-    plantilla,
-
-    variables,
-
-    nombreArchivo,
-
-    formato,
-
-    orientacion
-
-  });
 
 }
