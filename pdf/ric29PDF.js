@@ -57,7 +57,6 @@ function fecha(valor) {
   );
 }
 
-
 // ============================================================
 // RESULTADO CONFORMIDAD
 // ============================================================
@@ -88,7 +87,6 @@ function estado(conforme) {
     </span>
   `;
 }
-
 
 // ============================================================
 // INSPECCIONES
@@ -155,7 +153,6 @@ function generarInspecciones(
 
   `;
 }
-
 
 // ============================================================
 // ENTREGA DE ENERGÍA
@@ -685,9 +682,11 @@ function generarContenido(
 // ============================================================
 
 export async function generarRIC29PDF(
-  client,
   ric29_id
 ) {
+
+  console.log("RIC29PDF recibió:", ric29_id);
+  console.log("Tipo:", typeof ric29_id);
 
   // ----------------------------------------------------------
   // OBTENER DATOS
