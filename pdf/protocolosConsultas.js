@@ -1,27 +1,28 @@
 // =====================================================
-// CONSULTAS DE PROTOCOLOS RIC
+// CONSULTAS DE PROTOCOLOS DE MANTENIMIENTO
 // =====================================================
 
 import pool from "../db.js";
 
-// -----------------------------------------------------
-// RIC29 completo
-// -----------------------------------------------------
+// =====================================================
+// RIC29
+// =====================================================
 
 export async function obtenerRIC29(id) {
 
     const { rows: cabecera } = await pool.query(`
         SELECT
             r.*,
-            e.descripcion,
             e.estado
         FROM ric29 r
-        LEFT JOIN equipos e ON e.id = r.equipo_id
+        LEFT JOIN equipos e
+            ON e.id = r.equipo_id
         WHERE r.id = $1
     `, [id]);
 
-    if (!cabecera.length)
+    if (!cabecera.length) {
         throw new Error("RIC29 no encontrado");
+    }
 
     const ric29 = cabecera[0];
 
@@ -39,7 +40,10 @@ export async function obtenerRIC29(id) {
         tablas.map(async ([nombre, tabla]) => {
 
             const { rows } = await pool.query(
-                `SELECT * FROM ${tabla} WHERE ric29_id = $1 ORDER BY id`,
+                `SELECT *
+                 FROM ${tabla}
+                 WHERE ric29_id = $1
+                 ORDER BY id`,
                 [id]
             );
 
