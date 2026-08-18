@@ -1,12 +1,12 @@
 // ============================================================
-// MOTOR COMÚN DE GENERACIÓN DE PDFs DE PROTOCOLOS
+// MOTOR COMÚN DE PDFs DE PROTOCOLOS
 // Sky26 - Ingeniería Clínica
 // ============================================================
 
-import puppeteer from "puppeteer";
-import fs from "fs/promises";
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import puppeteer from "puppeteer";
 
 // ============================================================
 // CONFIGURACIÓN DE RUTAS
@@ -15,23 +15,18 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// /pdf
-const PDF_DIR = __dirname;
-
-// raíz del proyecto
+// Carpeta raíz del proyecto
 const ROOT_DIR = path.join(__dirname, "..");
 
-// plantilla HTML común
-const TEMPLATE_PATH = path.join(
+// Carpeta de plantillas
+const TEMPLATES_DIR = path.join(
   ROOT_DIR,
-  "templates",
-  "protocoloPDF.html"
+  "templates"
 );
 
-// logo institucional
+// Logo común
 const LOGO_PATH = path.join(
-  ROOT_DIR,
-  "templates",
+  TEMPLATES_DIR,
   "logo_app.png"
 );
 
@@ -42,7 +37,10 @@ const LOGO_PATH = path.join(
 
 function escaparHTML(valor) {
 
-  if (valor === null || valor === undefined) {
+  if (
+    valor === null ||
+    valor === undefined
+  ) {
     return "";
   }
 
@@ -56,22 +54,48 @@ function escaparHTML(valor) {
 
 
 // ============================================================
-// FORMATO DE FECHA
+// CONVERTIR LOGO A BASE64
 // ============================================================
 
-function formatearFecha(fecha) {
+function obtenerLogoBase64() {
+
+  if (!fs.existsSync(LOGO_PATH)) {
+
+    console.warn(
+      "⚠️ No se encontró el logo:",
+      LOGO_PATH
+    );
+
+    return "";
+  }
+
+  const buffer =
+    fs.readFileSync(LOGO_PATH);
+
+  return `data:image/png;base64,${buffer.toString("base64")}`;
+}
+
+
+// ============================================================
+// FORMATEAR FECHA
+// ============================================================
+
+export function formatearFecha(
+  fecha
+) {
 
   if (!fecha) {
     return "";
   }
 
-  const d = new Date(fecha);
+  const date =
+    new Date(fecha);
 
-  if (Number.isNaN(d.getTime())) {
+  if (Number.isNaN(date.getTime())) {
     return String(fecha);
   }
 
-  return d.toLocaleDateString(
+  return date.toLocaleDateString(
     "es-AR",
     {
       day: "2-digit",
@@ -83,18 +107,33 @@ function formatearFecha(fecha) {
 
 
 // ============================================================
-// LOGO EN BASE64
+// FORMATEAR FECHA Y HORA
 // ============================================================
 
-async function obtenerLogoBase64() {
+export function formatearFechaHora(
+  fecha
+) {
 
-  const buffer = await fs.readFile(
-    LOGO_PATH
-  );
+  if (!fecha) {
+    return "";
+  }
 
-  return (
-    "data:image/png;base64," +
-    buffer.toString("base64")
+  const date =
+    new Date(fecha);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(fecha);
+  }
+
+  return date.toLocaleString(
+    "es-AR",
+    {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    }
   );
 }
 
@@ -103,22 +142,30 @@ async function obtenerLogoBase64() {
 // REEMPLAZAR VARIABLES
 // ============================================================
 
-function reemplazarVariables(
+export function reemplazarVariables(
   html,
   variables = {}
 ) {
 
   let resultado = html;
 
-  for (const [clave, valor] of Object.entries(variables)) {
+  for (
+    const [clave, valor]
+    of Object.entries(variables)
+  ) {
 
     const marcador =
       `{{${clave}}}`;
 
+    const valorHTML =
+      valor === null ||
+      valor === undefined
+        ? ""
+        : String(valor);
+
     resultado =
-      resultado.split(marcador).join(
-        valor ?? ""
-      );
+      resultado.split(marcador)
+        .join(valorHTML);
   }
 
   return resultado;
@@ -126,107 +173,30 @@ function reemplazarVariables(
 
 
 // ============================================================
-// GENERAR HTML
+// CARGAR PLANTILLA
 // ============================================================
 
-export async function generarHTMLProtocolo({
+export function cargarPlantilla(
+  nombreArchivo
+) {
 
-  codigo,
-  titulo,
-  subtitulo,
-  contenido,
-  variables = {}
-
-}) {
-
-  // ----------------------------------------------------------
-  // CARGAR PLANTILLA
-  // ----------------------------------------------------------
-
-  let html =
-    await fs.readFile(
-      TEMPLATE_PATH,
-      "utf8"
+  const ruta =
+    path.join(
+      TEMPLATES_DIR,
+      nombreArchivo
     );
 
+  if (!fs.existsSync(ruta)) {
 
-  // ----------------------------------------------------------
-  // LOGO
-  // ----------------------------------------------------------
-
-  const logo =
-    await obtenerLogoBase64();
-
-
-  // ----------------------------------------------------------
-  // FECHA
-  // ----------------------------------------------------------
-
-  const fecha =
-    formatearFecha(
-      new Date()
+    throw new Error(
+      `No existe la plantilla PDF: ${ruta}`
     );
+  }
 
-
-  // ----------------------------------------------------------
-  // VARIABLES COMUNES
-  // ----------------------------------------------------------
-
-  const variablesComunes = {
-
-    LOGO: logo,
-
-    CODIGO:
-      escaparHTML(codigo),
-
-    TITULO:
-      escaparHTML(titulo),
-
-    SUBTITULO:
-      escaparHTML(subtitulo),
-
-    FECHA: fecha,
-
-    CONTENIDO:
-      contenido || "",
-
-    HOSPITAL:
-      "Hospital",
-
-    VERSION:
-      "1.0",
-
-    ANIO:
-      new Date().getFullYear()
-
-  };
-
-
-  // ----------------------------------------------------------
-  // COMBINAR VARIABLES
-  // ----------------------------------------------------------
-
-  const todasLasVariables = {
-
-    ...variablesComunes,
-
-    ...variables
-
-  };
-
-
-  // ----------------------------------------------------------
-  // REEMPLAZAR
-  // ----------------------------------------------------------
-
-  html =
-    reemplazarVariables(
-      html,
-      todasLasVariables
-    );
-
-
-  return html;
+  return fs.readFileSync(
+    ruta,
+    "utf8"
+  );
 }
 
 
@@ -234,134 +204,152 @@ export async function generarHTMLProtocolo({
 // GENERAR PDF
 // ============================================================
 
-export async function generarProtocoloPDF({
+export async function generarPDFProtocolo({
 
-  codigo,
-  titulo,
-  subtitulo,
-  contenido,
-  variables = {}
+  plantilla,
+
+  variables = {},
+
+  nombreArchivo = "protocolo.pdf",
+
+  formato = "A4",
+
+  orientacion = "portrait"
 
 }) {
 
-  let browser = null;
+  // ----------------------------------------------------------
+  // 1. CARGAR HTML
+  // ----------------------------------------------------------
+
+  let html =
+    cargarPlantilla(
+      plantilla
+    );
+
+
+  // ----------------------------------------------------------
+  // 2. LOGO
+  // ----------------------------------------------------------
+
+  const logo =
+    obtenerLogoBase64();
+
+
+  // ----------------------------------------------------------
+  // 3. VARIABLES GENERALES
+  // ----------------------------------------------------------
+
+  const variablesCompletas = {
+
+    LOGO: logo,
+
+    FECHA_EMISION:
+      formatearFecha(
+        new Date()
+      ),
+
+    FECHA:
+      formatearFecha(
+        new Date()
+      ),
+
+    ANIO:
+      new Date()
+        .getFullYear(),
+
+    ...variables
+
+  };
+
+
+  // ----------------------------------------------------------
+  // 4. REEMPLAZAR VARIABLES
+  // ----------------------------------------------------------
+
+  html =
+    reemplazarVariables(
+      html,
+      variablesCompletas
+    );
+
+
+  // ----------------------------------------------------------
+  // 5. INICIAR PUPPETEER
+  // ----------------------------------------------------------
+
+  const browser =
+    await puppeteer.launch({
+
+      headless: true,
+
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage"
+      ]
+
+    });
+
 
   try {
-
-    // --------------------------------------------------------
-    // GENERAR HTML
-    // --------------------------------------------------------
-
-    const html =
-      await generarHTMLProtocolo({
-
-        codigo,
-        titulo,
-        subtitulo,
-        contenido,
-        variables
-
-      });
-
-
-    // --------------------------------------------------------
-    // INICIAR PUPPETEER
-    // --------------------------------------------------------
-
-    browser =
-      await puppeteer.launch({
-
-        headless: true,
-
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-gpu"
-        ]
-
-      });
-
-
-    // --------------------------------------------------------
-    // CREAR PÁGINA
-    // --------------------------------------------------------
 
     const page =
       await browser.newPage();
 
 
     // --------------------------------------------------------
-    // CONFIGURAR TAMAÑO
-    // --------------------------------------------------------
-
-    await page.setViewport({
-
-      width: 1200,
-
-      height: 1600,
-
-      deviceScaleFactor: 1
-
-    });
-
-
-    // --------------------------------------------------------
-    // CARGAR HTML
+    // 6. CARGAR HTML
     // --------------------------------------------------------
 
     await page.setContent(
       html,
       {
-        waitUntil: [
-          "load",
-          "networkidle0"
-        ]
+        waitUntil: "networkidle0"
       }
     );
 
 
     // --------------------------------------------------------
-    // GENERAR PDF
+    // 7. GENERAR PDF
     // --------------------------------------------------------
 
     const pdf =
       await page.pdf({
 
-        format: "A4",
+        format,
+
+        landscape:
+          orientacion === "landscape",
 
         printBackground: true,
-
-        preferCSSPageSize: true,
 
         margin: {
 
           top: "15mm",
-
-          right: "12mm",
-
           bottom: "15mm",
+          left: "12mm",
+          right: "12mm"
 
-          left: "12mm"
+        },
 
-        }
+        displayHeaderFooter: false
 
       });
 
 
-    return pdf;
+    return {
+
+      pdf,
+
+      nombreArchivo
+
+    };
+
 
   } finally {
 
-    // --------------------------------------------------------
-    // CERRAR NAVEGADOR
-    // --------------------------------------------------------
-
-    if (browser) {
-
-      await browser.close();
-
-    }
+    await browser.close();
 
   }
 
@@ -369,11 +357,35 @@ export async function generarProtocoloPDF({
 
 
 // ============================================================
-// EXPORTAR FUNCIONES AUXILIARES
+// GENERADOR SIMPLIFICADO
 // ============================================================
 
-export {
-  escaparHTML,
-  formatearFecha,
-  reemplazarVariables
-};
+export async function generarProtocoloPDF({
+
+  plantilla,
+
+  variables = {},
+
+  nombreArchivo,
+
+  formato = "A4",
+
+  orientacion = "portrait"
+
+}) {
+
+  return generarPDFProtocolo({
+
+    plantilla,
+
+    variables,
+
+    nombreArchivo,
+
+    formato,
+
+    orientacion
+
+  });
+
+}
