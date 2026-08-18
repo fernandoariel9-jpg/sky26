@@ -9,7 +9,7 @@ import webpush from "web-push";
 import fetch from "node-fetch";
 import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
-import { obtenerRIC29 } from "./pdf/ric29Consultas.js";
+import { obtenerRIC29 } from "./pdf/protocolosConsultas.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
