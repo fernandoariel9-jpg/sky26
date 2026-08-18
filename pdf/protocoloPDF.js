@@ -276,39 +276,38 @@ try {
   // --------------------------------------------------------
 
   const pdf =
-    await page.pdf({
+  await page.pdf({
 
-      format,
+    format: formato,
 
-      landscape,
+    landscape,
 
-      printBackground:
-        true,
+    printBackground:
+      true,
 
-      preferCSSPageSize:
-        true,
+    preferCSSPageSize:
+      true,
 
-      displayHeaderFooter:
-        false,
+    displayHeaderFooter:
+      false,
 
-      margin: {
+    margin: {
 
-        top:
-          "12mm",
+      top:
+        "12mm",
 
-        right:
-          "12mm",
+      right:
+        "12mm",
 
-        bottom:
-          "15mm",
+      bottom:
+        "15mm",
 
-        left:
-          "12mm"
+      left:
+        "12mm"
 
-      }
+    }
 
-    });
-
+  });
 
   return pdf;
 
