@@ -6,44 +6,30 @@
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer";
+import { fileURLToPath } from "url";
 
 
 // ============================================================
-// CONFIGURACIÓN GENERAL
+// RUTAS
 // ============================================================
 
-const __dirname = path.resolve();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const LOGO_PATH = path.join(
+// /pdf/protocoloPDF.js
+// /templates/ric29.html
+// /templates/logo_app.png
+
+const TEMPLATES_DIR = path.join(
   __dirname,
   "..",
-  "templates",
-  "logo_app.png"
+  "templates"
 );
 
-
-// ============================================================
-// FORMATEAR FECHA
-// ============================================================
-
-function formatearFecha(fecha) {
-
-  if (!fecha) {
-    return "";
-  }
-
-  const d = new Date(fecha);
-
-  if (isNaN(d.getTime())) {
-    return fecha;
-  }
-
-  return d.toLocaleDateString("es-AR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric"
-  });
-}
+const LOGO_PATH = path.join(
+  TEMPLATES_DIR,
+  "logo_app.png"
+);
 
 
 // ============================================================
@@ -69,7 +55,7 @@ function escaparHTML(valor) {
 
 
 // ============================================================
-// LOGO
+// OBTENER LOGO BASE64
 // ============================================================
 
 function obtenerLogoBase64() {
@@ -88,6 +74,41 @@ function obtenerLogoBase64() {
     fs.readFileSync(LOGO_PATH);
 
   return `data:image/png;base64,${imagen.toString("base64")}`;
+}
+
+
+// ============================================================
+// LEER PLANTILLA HTML
+// ============================================================
+
+function obtenerPlantilla(nombrePlantilla) {
+
+  if (!nombrePlantilla) {
+
+    throw new Error(
+      "No se indicó la plantilla HTML del protocolo."
+    );
+
+  }
+
+  const rutaPlantilla =
+    path.join(
+      TEMPLATES_DIR,
+      nombrePlantilla
+    );
+
+  if (!fs.existsSync(rutaPlantilla)) {
+
+    throw new Error(
+      `No se encontró la plantilla: ${rutaPlantilla}`
+    );
+
+  }
+
+  return fs.readFileSync(
+    rutaPlantilla,
+    "utf8"
+  );
 }
 
 
@@ -121,560 +142,74 @@ function reemplazarVariables(
 
 
 // ============================================================
-// GENERAR HTML DEL ENCABEZADO
-// ============================================================
-
-function generarEncabezado({
-  codigo,
-  titulo,
-  subtitulo,
-  cabecera
-}) {
-
-  const logo =
-    obtenerLogoBase64();
-
-  return `
-<div class="protocolo-header">
-
-  <table class="header-table">
-
-    <tr>
-
-      <td class="header-logo">
-        ${
-          logo
-            ? `<img src="${logo}" class="logo">`
-            : ""
-        }
-      </td>
-
-      <td class="header-info">
-
-        <div class="hospital">
-          Servicio de Ingeniería Clínica
-        </div>
-
-        <div class="titulo">
-          ${escaparHTML(titulo)}
-        </div>
-
-        <div class="subtitulo">
-          ${escaparHTML(subtitulo)}
-        </div>
-
-        <div class="fecha">
-          Fecha:
-          <b>
-            ${formatearFecha(cabecera?.fecha)}
-          </b>
-        </div>
-
-      </td>
-
-      <td class="header-codigo">
-
-        <div class="codigo">
-          ${escaparHTML(codigo)}
-        </div>
-
-        <div class="codigo-texto">
-          Protocolo
-        </div>
-
-      </td>
-
-    </tr>
-
-  </table>
-
-</div>
-`;
-}
-
-
-// ============================================================
-// DATOS DEL EQUIPO
-// ============================================================
-
-function generarDatosEquipo(cabecera) {
-
-  return `
-<div class="ficha">
-
-  <div class="ficha-titulo">
-    DATOS DEL EQUIPO
-  </div>
-
-  <table class="datos-equipo">
-
-    <tr>
-      <td>Equipo</td>
-      <td>
-        ${escaparHTML(cabecera?.descripcion || "")}
-      </td>
-    </tr>
-
-    <tr>
-      <td>Marca / Modelo</td>
-      <td>
-        ${escaparHTML(cabecera?.marca_modelo)}
-      </td>
-    </tr>
-
-    <tr>
-      <td>Número de Serie</td>
-      <td>
-        ${escaparHTML(cabecera?.numero_serie)}
-      </td>
-    </tr>
-
-    <tr>
-      <td>Servicio</td>
-      <td>
-        ${escaparHTML(cabecera?.servicio)}
-      </td>
-    </tr>
-
-    <tr>
-      <td>Área</td>
-      <td>
-        ${escaparHTML(cabecera?.area)}
-      </td>
-    </tr>
-
-    <tr>
-      <td>Subservicio</td>
-      <td>
-        ${escaparHTML(cabecera?.sub_servicio)}
-      </td>
-    </tr>
-
-    <tr>
-      <td>Técnico</td>
-      <td>
-        ${escaparHTML(cabecera?.tecnico)}
-      </td>
-    </tr>
-
-    <tr>
-      <td>Resultado general</td>
-      <td>
-        <b>
-          ${escaparHTML(cabecera?.resultado_general)}
-        </b>
-      </td>
-    </tr>
-
-  </table>
-
-</div>
-`;
-}
-
-
-// ============================================================
-// ESTILOS COMUNES
-// ============================================================
-
-function generarCSS() {
-
-  return `
-<style>
-
-@page {
-  size: A4;
-  margin: 15mm;
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-
-  font-family:
-    Arial,
-    Helvetica,
-    sans-serif;
-
-  font-size: 10pt;
-
-  color: #222;
-
-  margin: 0;
-
-  padding: 0;
-}
-
-table {
-
-  width: 100%;
-
-  border-collapse: collapse;
-}
-
-.protocolo-header {
-
-  border: 1.5px solid #000;
-
-  margin-bottom: 15px;
-}
-
-.header-table td {
-
-  padding: 8px;
-
-  vertical-align: middle;
-}
-
-.header-logo {
-
-  width: 22%;
-
-  text-align: center;
-}
-
-.logo {
-
-  max-width: 110px;
-
-  max-height: 70px;
-}
-
-.header-info {
-
-  width: 58%;
-
-  text-align: center;
-}
-
-.hospital {
-
-  font-size: 10pt;
-
-  font-weight: bold;
-
-  margin-bottom: 5px;
-}
-
-.titulo {
-
-  font-size: 16pt;
-
-  font-weight: bold;
-
-  text-transform: uppercase;
-}
-
-.subtitulo {
-
-  font-size: 12pt;
-
-  margin-top: 3px;
-}
-
-.fecha {
-
-  margin-top: 8px;
-
-  font-size: 9pt;
-}
-
-.header-codigo {
-
-  width: 20%;
-
-  text-align: center;
-
-  border-left: 1.5px solid #000;
-}
-
-.codigo {
-
-  font-size: 20pt;
-
-  font-weight: bold;
-}
-
-.codigo-texto {
-
-  font-size: 8pt;
-
-  color: #666;
-
-  margin-top: 5px;
-}
-
-.ficha {
-
-  border: 1px solid #000;
-
-  margin-bottom: 15px;
-}
-
-.ficha-titulo {
-
-  background: #e5e7eb;
-
-  border-bottom: 1px solid #000;
-
-  font-weight: bold;
-
-  padding: 7px;
-
-  font-size: 10pt;
-}
-
-.datos-equipo td {
-
-  border: 1px solid #ccc;
-
-  padding: 6px;
-}
-
-.datos-equipo td:first-child {
-
-  width: 25%;
-
-  font-weight: bold;
-
-  background: #f5f5f5;
-}
-
-.seccion {
-
-  margin-top: 15px;
-
-  margin-bottom: 15px;
-
-  page-break-inside: avoid;
-}
-
-.seccion-titulo {
-
-  background: #e5e7eb;
-
-  border: 1px solid #000;
-
-  padding: 7px;
-
-  font-size: 11pt;
-
-  font-weight: bold;
-}
-
-.tabla {
-
-  margin-top: 5px;
-
-  width: 100%;
-
-  border-collapse: collapse;
-}
-
-.tabla th {
-
-  background: #f3f4f6;
-
-  font-weight: bold;
-}
-
-.tabla th,
-.tabla td {
-
-  border: 1px solid #777;
-
-  padding: 5px;
-
-  text-align: center;
-}
-
-.conforme {
-
-  color: #15803d;
-
-  font-weight: bold;
-}
-
-.no-conforme {
-
-  color: #dc2626;
-
-  font-weight: bold;
-}
-
-.observaciones {
-
-  border: 1px solid #999;
-
-  padding: 8px;
-
-  margin-top: 5px;
-
-  white-space: pre-wrap;
-}
-
-.resultado-general {
-
-  margin-top: 20px;
-
-  padding: 12px;
-
-  border: 2px solid #000;
-
-  text-align: center;
-
-  font-size: 14pt;
-
-  font-weight: bold;
-}
-
-.footer {
-
-  margin-top: 25px;
-
-  padding-top: 8px;
-
-  border-top: 1px solid #999;
-
-  font-size: 8pt;
-
-  color: #666;
-}
-
-</style>
-`;
-}
-
-
-// ============================================================
 // GENERAR PDF
 // ============================================================
 
 export async function generarProtocoloPDF({
 
-  codigo,
+  plantilla,
 
-  titulo,
+  variables = {},
 
-  subtitulo,
+  nombreArchivo,
 
-  datos,
+  formato = "A4",
 
-  generarContenido,
-
-  hospital = "Sky26",
-
-  version = "1.0"
+  orientacion = "portrait"
 
 }) {
 
-  if (!datos) {
-
-    throw new Error(
-      "No se recibieron datos para generar el PDF."
-    );
-
-  }
-
   // ----------------------------------------------------------
-  // ENCABEZADO
+  // 1. LEER PLANTILLA
   // ----------------------------------------------------------
 
-  const encabezado =
-    generarEncabezado({
-      codigo,
-      titulo,
-      subtitulo,
-      cabecera: datos.cabecera
-    });
-
-
-  // ----------------------------------------------------------
-  // DATOS EQUIPO
-  // ----------------------------------------------------------
-
-  const equipo =
-    generarDatosEquipo(
-      datos.cabecera
+  let html =
+    obtenerPlantilla(
+      plantilla
     );
 
 
   // ----------------------------------------------------------
-  // CONTENIDO ESPECÍFICO DEL PROTOCOLO
+  // 2. LOGO
   // ----------------------------------------------------------
 
-  const contenido =
-    typeof generarContenido === "function"
-      ? generarContenido(datos)
-      : "";
+  const logo =
+    obtenerLogoBase64();
 
 
   // ----------------------------------------------------------
-  // HTML COMPLETO
+  // 3. VARIABLES GENERALES
   // ----------------------------------------------------------
 
-  const html = `
+  const variablesCompletas = {
 
-<!DOCTYPE html>
+    ...variables,
 
-<html lang="es">
+    LOGO:
+      logo,
 
-<head>
+    ANIO:
+      new Date().getFullYear(),
 
-<meta charset="UTF-8">
+    VERSION:
+      variables.VERSION || "1.0"
 
-<title>
-${escaparHTML(codigo)}
-</title>
-
-${generarCSS()}
-
-</head>
-
-<body>
-
-${encabezado}
-
-${equipo}
-
-${contenido}
-
-<div class="footer">
-
-<table>
-
-<tr>
-
-<td>
-<b>${escaparHTML(hospital)}</b><br>
-Sistema de Gestión de Ingeniería Clínica
-</td>
-
-<td style="text-align:center;">
-Documento generado automáticamente
-</td>
-
-<td style="text-align:right;">
-Versión ${escaparHTML(version)}<br>
-© ${new Date().getFullYear()}
-</td>
-
-</tr>
-
-</table>
-
-</div>
-
-</body>
-
-</html>
-`;
+  };
 
 
   // ----------------------------------------------------------
-  // PUPPETEER
+  // 4. REEMPLAZAR VARIABLES
+  // ----------------------------------------------------------
+
+  html =
+    reemplazarVariables(
+      html,
+      variablesCompletas
+    );
+
+
+  // ----------------------------------------------------------
+  // 5. PUPPETEER
   // ----------------------------------------------------------
 
   const browser =
@@ -696,6 +231,10 @@ Versión ${escaparHTML(version)}<br>
       await browser.newPage();
 
 
+    // --------------------------------------------------------
+    // CONFIGURAR HTML
+    // --------------------------------------------------------
+
     await page.setContent(
       html,
       {
@@ -704,22 +243,73 @@ Versión ${escaparHTML(version)}<br>
     );
 
 
+    // --------------------------------------------------------
+    // ESPERAR FUENTES / IMÁGENES
+    // --------------------------------------------------------
+
+    await page.evaluate(
+      async () => {
+
+        if (document.fonts) {
+          await document.fonts.ready;
+        }
+
+        const imagenes =
+          Array.from(
+            document.images
+          );
+
+        await Promise.all(
+          imagenes.map(
+            imagen => {
+
+              if (imagen.complete) {
+                return Promise.resolve();
+              }
+
+              return new Promise(
+                resolve => {
+
+                  imagen.onload =
+                    resolve;
+
+                  imagen.onerror =
+                    resolve;
+
+                }
+              );
+
+            }
+          )
+        );
+
+      }
+    );
+
+
+    // --------------------------------------------------------
+    // PDF
+    // --------------------------------------------------------
+
     const pdf =
       await page.pdf({
 
-        format: "A4",
+        format,
+
+        landscape:
+          orientacion === "landscape",
 
         printBackground: true,
 
         margin: {
 
-          top: "15mm",
+          top: "12mm",
 
-          right: "15mm",
+          right: "12mm",
 
-          bottom: "15mm",
+          bottom: "12mm",
 
-          left: "15mm"
+          left: "12mm"
 
         }
 
