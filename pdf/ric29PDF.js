@@ -1,23 +1,40 @@
 // ============================================================
-// RIC29 PDF
-// Preparación de datos para el motor común protocoloPDF.js
+// MOTOR COMÚN DE PDF PARA PROTOCOLOS RIC
+// protocoloPDF.js
 // ============================================================
 
-import {
-  obtenerRIC29,
-  RIC29_CONFIG
-} from "./ric29Datos.js";
+import fs from "fs";
+import path from "path";
+import puppeteer from "puppeteer";
 
-import {
-  generarProtocoloPDF
-} from "./protocoloPDF.js";
+
+// ============================================================
+// RUTA BASE
+// ============================================================
+
+const BASE_DIR = process.cwd();
+
+
+// ============================================================
+// RUTAS
+// ============================================================
+
+const TEMPLATES_DIR = path.join(
+  BASE_DIR,
+  "templates"
+);
+
+const LOGO_PATH = path.join(
+  TEMPLATES_DIR,
+  "logo_app.png"
+);
 
 
 // ============================================================
 // ESCAPAR HTML
 // ============================================================
 
-function esc(valor) {
+function escaparHTML(valor) {
 
   if (
     valor === null ||
@@ -36,772 +53,608 @@ function esc(valor) {
 
 
 // ============================================================
-// FORMATEAR FECHA
+// CARGAR PLANTILLA
 // ============================================================
 
-function fecha(valor) {
+function cargarPlantilla(nombreArchivo) {
 
-  if (!valor) return "";
+  const ruta = path.join(
+    TEMPLATES_DIR,
+    nombreArchivo
+  );
 
-  const d = new Date(valor);
+  if (!fs.existsSync(ruta)) {
 
-  if (Number.isNaN(d.getTime())) {
-    return esc(valor);
+    throw new Error(
+      `No existe la plantilla PDF: ${ruta}`
+    );
+
   }
 
-  return d.toLocaleDateString(
-    "es-AR",
-    {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    }
+  return fs.readFileSync(
+    ruta,
+    "utf8"
   );
 }
 
 
 // ============================================================
-// RESULTADO CONFORMIDAD
+// LOGO
 // ============================================================
 
-function estado(conforme) {
+function obtenerLogo() {
 
-  if (conforme === true) {
+  if (!fs.existsSync(LOGO_PATH)) {
 
-    return `
-      <span class="conforme">
-        CONFORME
-      </span>
-    `;
+    throw new Error(
+      `No existe el logo: ${LOGO_PATH}`
+    );
+
   }
 
-  if (conforme === false) {
+  const buffer =
+    fs.readFileSync(LOGO_PATH);
 
-    return `
-      <span class="no-conforme">
-        NO CONFORME
-      </span>
-    `;
-  }
-
-  return `
-    <span class="na">
-      NO APLICA
-    </span>
-  `;
+  return (
+    "data:image/png;base64," +
+    buffer.toString("base64")
+  );
 }
 
 
 // ============================================================
-// INSPECCIONES
+// REEMPLAZAR VARIABLES
 // ============================================================
 
-function generarInspecciones(
-  datos
+function reemplazarVariables(
+  html,
+  variables
 ) {
 
-  const item =
-    datos.inspecciones?.[0];
+  let resultado = html;
 
-  if (!item) {
+  for (
+    const [clave, valor]
+    of Object.entries(variables || {})
+  ) {
 
-    return `
-      <p class="sin-datos">
-        Sin datos registrados.
-      </p>
-    `;
+    const marcador =
+      `{{${clave}}}`;
+
+    resultado =
+      resultado.split(marcador).join(
+        valor ?? ""
+      );
+
   }
 
-  return `
-
-    <table class="tabla">
-
-      <thead>
-        <tr>
-          <th>Inspección</th>
-          <th>Resultado</th>
-        </tr>
-      </thead>
-
-      <tbody>
-
-        <tr>
-          <td>Limpieza exterior</td>
-          <td>${esc(item.limpieza_exterior)}</td>
-        </tr>
-
-        <tr>
-          <td>Papel de registro</td>
-          <td>${esc(item.papel_registro)}</td>
-        </tr>
-
-        <tr>
-          <td>Estado de cables</td>
-          <td>${esc(item.estado_cables)}</td>
-        </tr>
-
-      </tbody>
-
-    </table>
-
-    ${
-      item.observaciones
-        ? `
-          <div class="observaciones">
-            <b>Observaciones:</b>
-            ${esc(item.observaciones)}
-          </div>
-        `
-        : ""
-    }
-
-  `;
+  return resultado;
 }
 
 
 // ============================================================
-// ENTREGA DE ENERGÍA
+// CSS COMÚN
 // ============================================================
 
-function generarEnergia(
-  datos
-) {
-
-  if (!datos.energia?.length) {
-
-    return `
-      <p class="sin-datos">
-        Sin datos registrados.
-      </p>
-    `;
-  }
+function obtenerCSS() {
 
   return `
 
-    <table class="tabla">
+<style>
 
-      <thead>
+@page {
 
-        <tr>
-          <th>Energía nominal</th>
-          <th>Resultado</th>
-          <th>Incertidumbre</th>
-          <th>Rango</th>
-          <th>Resultado</th>
-        </tr>
+  size: A4;
 
-      </thead>
+  margin:
+    12mm
+    12mm
+    15mm
+    12mm;
+}
 
-      <tbody>
 
-        ${
-          datos.energia.map(item => `
+* {
 
-            <tr>
+  box-sizing:
+    border-box;
 
-              <td>
-                ${
-                  item.energia_nominal !== null
-                    ? `${esc(item.energia_nominal)} J`
-                    : "Máx. energía"
-                }
-              </td>
+}
 
-              <td>
-                ${
-                  item.resultado_medicion !== null
-                    ? `${esc(item.resultado_medicion)} J`
-                    : "-"
-                }
-              </td>
 
-              <td>
-                ${
-                  item.incertidumbre !== null
-                    ? `± ${esc(item.incertidumbre)} J`
-                    : "-"
-                }
-              </td>
+body {
 
-              <td>
-                ${
-                  item.rango_min !== null &&
-                  item.rango_max !== null
-                    ? `${esc(item.rango_min)} - ${esc(item.rango_max)} J`
-                    : "-"
-                }
-              </td>
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
 
-              <td>
-                ${estado(item.conforme)}
-              </td>
+  font-size:
+    9pt;
 
-            </tr>
+  color:
+    #222;
 
-          `).join("")
-        }
+  margin:
+    0;
 
-      </tbody>
+  padding:
+    0;
 
-    </table>
+}
 
-  `;
+
+table {
+
+  width:
+    100%;
+
+  border-collapse:
+    collapse;
+
+}
+
+
+.header {
+
+  width:
+    100%;
+
+  border:
+    1.5px solid #000;
+
+  margin-bottom:
+    12px;
+
+}
+
+
+.header td {
+
+  vertical-align:
+    middle;
+
+}
+
+
+.logo {
+
+  max-width:
+    105px;
+
+  max-height:
+    70px;
+
+}
+
+
+.tituloHospital {
+
+  font-size:
+    12pt;
+
+  font-weight:
+    bold;
+
+}
+
+
+.subtitulo {
+
+  font-size:
+    10pt;
+
+}
+
+
+.codigo {
+
+  font-size:
+    18pt;
+
+  font-weight:
+    bold;
+
+}
+
+
+.ficha {
+
+  border:
+    1px solid #000;
+
+  margin-bottom:
+    12px;
+
+}
+
+
+.fichaTitulo {
+
+  background:
+    #e5e7eb;
+
+  border-bottom:
+    1px solid #000;
+
+  padding:
+    6px;
+
+  font-weight:
+    bold;
+
+}
+
+
+.ficha table td {
+
+  border:
+    1px solid #ccc;
+
+  padding:
+    5px;
+
+}
+
+
+.ficha table td:first-child {
+
+  font-weight:
+    bold;
+
+  background:
+    #f5f5f5;
+
+}
+
+
+.resumenTitulo {
+
+  background:
+    #e5e7eb;
+
+  border:
+    1px solid #000;
+
+  padding:
+    6px;
+
+  margin-top:
+    12px;
+
+  margin-bottom:
+    5px;
+
+  font-weight:
+    bold;
+
+}
+
+
+.tabla {
+
+  width:
+    100%;
+
+  border-collapse:
+    collapse;
+
+  margin-bottom:
+    8px;
+
+}
+
+
+.tabla th,
+.tabla td {
+
+  border:
+    1px solid #777;
+
+  padding:
+    5px;
+
+}
+
+
+.tabla th {
+
+  background:
+    #f3f4f6;
+
+  font-weight:
+    bold;
+
+  text-align:
+    center;
+
+}
+
+
+.tabla td {
+
+  vertical-align:
+    middle;
+
+}
+
+
+.conforme {
+
+  color:
+    #15803d;
+
+  font-weight:
+    bold;
+
+}
+
+
+.no-conforme {
+
+  color:
+    #dc2626;
+
+  font-weight:
+    bold;
+
+}
+
+
+.na {
+
+  color:
+    #666;
+
+  font-weight:
+    bold;
+
+}
+
+
+.observaciones {
+
+  border:
+    1px solid #999;
+
+  padding:
+    7px;
+
+  margin-top:
+    5px;
+
+  white-space:
+    pre-wrap;
+
+}
+
+
+.seccion {
+
+  page-break-inside:
+    avoid;
+
+  margin-bottom:
+    10px;
+
+}
+
+
+.footer {
+
+  margin-top:
+    20px;
+
+  padding-top:
+    8px;
+
+  border-top:
+    1px solid #999;
+
+  font-size:
+    8pt;
+
+  color:
+    #666;
+
+}
+
+
+</style>
+
+`;
+
 }
 
 
 // ============================================================
-// TIEMPO DE CARGA
+// GENERAR PDF
 // ============================================================
 
-function generarCarga(
-  datos
-) {
+export async function generarProtocoloPDF({
 
-  const item =
-    datos.carga?.[0];
+  plantilla,
 
-  if (!item) {
+  variables = {},
 
-    return `
-      <p class="sin-datos">
-        Sin datos registrados.
-      </p>
-    `;
-  }
+  nombreArchivo,
 
-  return `
+  formato = "A4",
 
-    <table class="tabla">
+  orientacion = "portrait"
 
-      <thead>
-
-        <tr>
-          <th>Medición</th>
-          <th>Resultado</th>
-          <th>Incertidumbre</th>
-          <th>Rango máximo</th>
-          <th>Resultado</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        <tr>
-
-          <td>
-            ${esc(item.numero_medicion)}
-          </td>
-
-          <td>
-            ${
-              item.resultado_medicion !== null
-                ? `${esc(item.resultado_medicion)} s`
-                : "-"
-            }
-          </td>
-
-          <td>
-            ${
-              item.incertidumbre !== null
-                ? `± ${esc(item.incertidumbre)}`
-                : "-"
-            }
-          </td>
-
-          <td>
-            &lt;
-            ${esc(item.rango_max)}
-            s
-          </td>
-
-          <td>
-            ${estado(item.conforme)}
-          </td>
-
-        </tr>
-
-      </tbody>
-
-    </table>
-
-  `;
-}
-
-
-// ============================================================
-// BATERÍA
-// ============================================================
-
-function generarBateria(
-  datos
-) {
-
-  if (!datos.bateria?.length) {
-
-    return `
-      <p class="sin-datos">
-        Sin datos registrados.
-      </p>
-    `;
-  }
-
-  return `
-
-    <table class="tabla">
-
-      <thead>
-
-        <tr>
-          <th>Medición</th>
-          <th>Resultado</th>
-          <th>Incertidumbre</th>
-          <th>Rango máximo</th>
-          <th>Resultado</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${
-          datos.bateria.map(item => `
-
-            <tr>
-
-              <td>
-                ${esc(item.numero_medicion)}
-              </td>
-
-              <td>
-                ${
-                  item.resultado_medicion !== null
-                    ? esc(item.resultado_medicion)
-                    : "-"
-                }
-              </td>
-
-              <td>
-                ${
-                  item.incertidumbre !== null
-                    ? `± ${esc(item.incertidumbre)}`
-                    : "-"
-                }
-              </td>
-
-              <td>
-                &lt;
-                ${esc(item.rango_max)}
-              </td>
-
-              <td>
-                ${estado(item.conforme)}
-              </td>
-
-            </tr>
-
-          `).join("")
-        }
-
-      </tbody>
-
-    </table>
-
-  `;
-}
-
-
-// ============================================================
-// SINCRONISMO
-// ============================================================
-
-function generarSincronismo(
-  datos
-) {
-
-  const item =
-    datos.sincronismo?.[0];
-
-  if (!item) {
-
-    return `
-      <p class="sin-datos">
-        Sin datos registrados.
-      </p>
-    `;
-  }
-
-  return `
-
-    <table class="tabla">
-
-      <thead>
-
-        <tr>
-          <th>Resultado</th>
-          <th>Incertidumbre</th>
-          <th>Rango máximo</th>
-          <th>Resultado</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        <tr>
-
-          <td>
-            ${
-              item.resultado_medicion !== null
-                ? `${esc(item.resultado_medicion)} ms`
-                : "-"
-            }
-          </td>
-
-          <td>
-            ${
-              item.incertidumbre !== null
-                ? `± ${esc(item.incertidumbre)} ms`
-                : "-"
-            }
-          </td>
-
-          <td>
-            &lt;
-            ${esc(item.rango_max)}
-            ms
-          </td>
-
-          <td>
-            ${estado(item.conforme)}
-          </td>
-
-        </tr>
-
-      </tbody>
-
-    </table>
-
-  `;
-}
-
-
-// ============================================================
-// MONITORIZACIÓN
-// ============================================================
-
-function generarMonitorizacion(
-  datos
-) {
-
-  if (!datos.monitorizacion?.length) {
-
-    return `
-      <p class="sin-datos">
-        Sin datos registrados.
-      </p>
-    `;
-  }
-
-  return `
-
-    <table class="tabla">
-
-      <thead>
-
-        <tr>
-          <th>Frecuencia nominal</th>
-          <th>Resultado</th>
-          <th>Incertidumbre</th>
-          <th>Rango</th>
-          <th>Resultado</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        ${
-          datos.monitorizacion.map(item => {
-
-            const nominal =
-              Number(item.frecuencia_nominal);
-
-            return `
-
-              <tr>
-
-                <td>
-                  ${esc(nominal)} BPM
-                </td>
-
-                <td>
-                  ${
-                    item.resultado_medicion !== null
-                      ? `${esc(item.resultado_medicion)} BPM`
-                      : "-"
-                  }
-                </td>
-
-                <td>
-                  ${
-                    item.incertidumbre !== null
-                      ? `± ${esc(item.incertidumbre)} BPM`
-                      : "-"
-                  }
-                </td>
-
-                <td>
-                  ${nominal - 3}
-                  -
-                  ${nominal + 3}
-                  BPM
-                </td>
-
-                <td>
-                  ${estado(item.conforme)}
-                </td>
-
-              </tr>
-
-            `;
-          }).join("")
-        }
-
-      </tbody>
-
-    </table>
-
-  `;
-}
-
-
-// ============================================================
-// ALARMAS
-// ============================================================
-
-function generarAlarmas(
-  datos
-) {
-
-  const item =
-    datos.alarmas?.[0];
-
-  if (!item) {
-
-    return `
-      <p class="sin-datos">
-        Sin datos registrados.
-      </p>
-    `;
-  }
-
-  return `
-
-    <table class="tabla">
-
-      <thead>
-
-        <tr>
-          <th>Alarma alta frecuencia</th>
-          <th>Alarma baja frecuencia</th>
-          <th>Activación de alarmas</th>
-        </tr>
-
-      </thead>
-
-      <tbody>
-
-        <tr>
-
-          <td>
-            ${esc(item.alarma_alta_frecuencia)}
-          </td>
-
-          <td>
-            ${esc(item.alarma_baja_frecuencia)}
-          </td>
-
-          <td>
-            ${esc(item.activacion_alarmas)}
-          </td>
-
-        </tr>
-
-      </tbody>
-
-    </table>
-
-    ${
-      item.observaciones
-        ? `
-          <div class="observaciones">
-            <b>Observaciones:</b>
-            ${esc(item.observaciones)}
-          </div>
-        `
-        : ""
-    }
-
-  `;
-}
-
-
-// ============================================================
-// GENERAR HTML DINÁMICO
-// ============================================================
-
-function generarContenido(
-  datos
-) {
-
-  return {
-
-    INSPECCIONES:
-      generarInspecciones(datos),
-
-    ENERGIA:
-      generarEnergia(datos),
-
-    CARGA:
-      generarCarga(datos),
-
-    BATERIA:
-      generarBateria(datos),
-
-    SINCRONISMO:
-      generarSincronismo(datos),
-
-    MONITORIZACION:
-      generarMonitorizacion(datos),
-
-    ALARMAS:
-      generarAlarmas(datos)
-
-  };
-}
-
-
-// ============================================================
-// GENERAR PDF RIC29
-// ============================================================
-
-export async function generarRIC29PDF(
-  client,
-  ric29_id
-) {
+}) {
 
   // ----------------------------------------------------------
-  // OBTENER DATOS
+  // VALIDACIONES
   // ----------------------------------------------------------
 
-  const datos =
-    await obtenerRIC29(
-      client,
-      ric29_id
+  if (!plantilla) {
+
+    throw new Error(
+      "No se indicó la plantilla del protocolo."
+    );
+
+  }
+
+
+  // ----------------------------------------------------------
+  // CARGAR HTML
+  // ----------------------------------------------------------
+
+  let html =
+    cargarPlantilla(
+      plantilla
     );
 
 
   // ----------------------------------------------------------
-  // CONTENIDO DE SECCIONES
+  // LOGO
   // ----------------------------------------------------------
 
-  const contenido =
-    generarContenido(datos);
+  const logo =
+    obtenerLogo();
 
 
   // ----------------------------------------------------------
-  // VARIABLES
+  // VARIABLES COMUNES
   // ----------------------------------------------------------
 
-  const cab =
-    datos.cabecera;
+  const variablesFinales = {
 
-  const variables = {
+    LOGO:
+      logo,
 
-    CODIGO:
-      RIC29_CONFIG.codigo,
+    HOSPITAL:
+      variables.HOSPITAL ||
+      "Sky26",
 
-    TITULO:
-      RIC29_CONFIG.titulo,
+    FECHA:
+      variables.FECHA ||
+      variables.FECHA_MANTENIMIENTO ||
+      "",
 
-    SUBTITULO:
-      RIC29_CONFIG.subtitulo,
+    VERSION:
+      variables.VERSION ||
+      "1.0",
 
-    DESCRIPCION:
-      esc(cab.descripcion || ""),
+    ANIO:
+      new Date()
+        .getFullYear(),
 
-    MARCA_MODELO:
-      esc(cab.marca_modelo || ""),
-
-    SERIE:
-      esc(cab.numero_serie || ""),
-
-    AREA:
-      esc(cab.area || ""),
-
-    SERVICIO:
-      esc(cab.servicio || ""),
-
-    SUB_SERVICIO:
-      esc(cab.sub_servicio || ""),
-
-    ENCARGADO:
-      esc(cab.encargado || ""),
-
-    TECNICO:
-      esc(cab.tecnico || ""),
-
-    FECHA_MANTENIMIENTO:
-      fecha(cab.fecha),
-
-    RESULTADO_GENERAL:
-      esc(cab.resultado_general || ""),
-
-    OBSERVACIONES:
-      esc(cab.observaciones || ""),
-
-    INSPECCIONES:
-      contenido.INSPECCIONES,
-
-    ENERGIA:
-      contenido.ENERGIA,
-
-    CARGA:
-      contenido.CARGA,
-
-    BATERIA:
-      contenido.BATERIA,
-
-    SINCRONISMO:
-      contenido.SINCRONISMO,
-
-    MONITORIZACION:
-      contenido.MONITORIZACION,
-
-    ALARMAS:
-      contenido.ALARMAS
+    ...variables
 
   };
 
 
   // ----------------------------------------------------------
-  // GENERAR PDF
+  // REEMPLAZAR VARIABLES
   // ----------------------------------------------------------
 
-  return generarProtocoloPDF({
+  html =
+    reemplazarVariables(
+      html,
+      variablesFinales
+    );
 
-    plantilla: "ric29.html",
 
-    variables,
+  // ----------------------------------------------------------
+  // AGREGAR CSS
+  // ----------------------------------------------------------
 
-    nombreArchivo:
-      `RIC29_${ric29_id}.pdf`,
+  html =
+    html.replace(
+      "</head>",
+      `${obtenerCSS()}</head>`
+    );
 
-    formato: "A4",
 
-    orientacion: "portrait"
+  // ----------------------------------------------------------
+  // PUPPETEER
+  // ----------------------------------------------------------
 
-  });
+  const browser =
+    await puppeteer.launch({
+
+      headless:
+        true,
+
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox"
+      ]
+
+    });
+
+
+  try {
+
+    const page =
+      await browser.newPage();
+
+
+    // --------------------------------------------------------
+    // CARGAR HTML
+    // --------------------------------------------------------
+
+    await page.setContent(
+      html,
+      {
+        waitUntil:
+          "networkidle0"
+      }
+    );
+
+
+    // --------------------------------------------------------
+    // CONFIGURACIÓN
+    // --------------------------------------------------------
+
+    const landscape =
+      orientacion ===
+      "landscape";
+
+
+    // --------------------------------------------------------
+    // GENERAR PDF
+    // --------------------------------------------------------
+
+    const pdf =
+      await page.pdf({
+
+        format,
+
+        landscape,
+
+        printBackground:
+          true,
+
+        margin: {
+
+          top:
+            "12mm",
+
+          right:
+            "12mm",
+
+          bottom:
+            "15mm",
+
+          left:
+            "12mm"
+
+        }
+
+      });
+
+
+    return pdf;
+
+
+  } finally {
+
+    await browser.close();
+
+  }
 
 }
