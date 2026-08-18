@@ -5,6 +5,12 @@
 
 export async function obtenerRIC29(client, ric29_id) {
 
+  console.log("========== DEBUG RIC29 ==========");
+  console.log("client es:", typeof client);
+  console.log("ric29_id es:", ric29_id);
+  console.log("ric29_id tipo:", typeof ric29_id);
+  console.log("=================================");
+
   // ==========================================================
   // 1. CABECERA
   // ==========================================================
