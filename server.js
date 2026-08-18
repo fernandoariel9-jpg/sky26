@@ -1381,10 +1381,8 @@ if (monitorizacion) {
 });
 
 app.get("/api/ric29/:id", async (req, res) => {
-    const client = await pool.connect();
     try {
         const datos = await obtenerRIC29(
-            client,
             req.params.id
         );
         res.json(datos);
@@ -1396,8 +1394,6 @@ app.get("/api/ric29/:id", async (req, res) => {
         res.status(500).json({
             error: error.message
         });
-    } finally {
-        client.release();
     }
 });
 
