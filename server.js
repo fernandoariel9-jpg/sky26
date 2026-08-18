@@ -9,6 +9,7 @@ import webpush from "web-push";
 import fetch from "node-fetch";
 import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
+import { obtenerRIC29 } from "./pdf/ric29Consultas.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1377,6 +1378,23 @@ if (monitorizacion) {
     client.release();
 
   }
+});
+
+app.get("/api/ric29/:id", async (req, res) => {
+    try {
+        const datos = await obtenerRIC29(
+            req.params.id
+        );
+        res.json(datos);
+    } catch (error) {
+        console.error(
+            "Error obteniendo RIC29:",
+            error
+        );
+        res.status(500).json({
+            error: error.message
+        });
+    }
 });
 
 app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
