@@ -1381,23 +1381,14 @@ if (monitorizacion) {
 });
 
 app.get("/api/ric29/:id", async (req, res) => {
-  const client = await pool.connect();
   try {
-    const ric29_id = Number(req.params.id);
-    console.log("========== ENDPOINT RIC29 ==========");
-    console.log("req.params.id:", req.params.id);
-    console.log("ric29_id:", ric29_id);
-    console.log("tipo:", typeof ric29_id);
-    console.log("====================================");
-    if (!Number.isInteger(ric29_id)) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) {
       return res.status(400).json({
         error: "ID RIC29 inválido"
       });
     }
-    const datos = await obtenerRIC29(
-      client,
-      ric29_id
-    );
+    const datos = await obtenerRIC29(id);
     res.json(datos);
   } catch (error) {
     console.error(
@@ -1407,8 +1398,6 @@ app.get("/api/ric29/:id", async (req, res) => {
     res.status(500).json({
       error: error.message
     });
-  } finally {
-    client.release();
   }
 });
 
