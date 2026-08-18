@@ -11,23 +11,25 @@ export async function obtenerRIC29(client, ric29_id) {
 
   const cabeceraResult = await client.query(
     `
-    SELECT
-      id,
-      ric01_id,
-      equipo_id,
-      numero_serie,
-      marca_modelo,
-      area,
-      servicio,
-      sub_servicio,
-      encargado,
-      fecha,
-      tecnico,
-      resultado_general,
-      observaciones
-    FROM ric29
-    WHERE id = $1
-    `,
+SELECT
+  r.id,
+  r.ric01_id,
+  r.equipo_id,
+  r.numero_serie,
+  r.marca_modelo,
+  r.area,
+  r.servicio,
+  r.sub_servicio,
+  r.encargado,
+  r.fecha,
+  r.tecnico,
+  r.resultado_general,
+  r.observaciones,
+  e.descripcion
+FROM ric29 r
+LEFT JOIN equipos e
+  ON e.id = r.equipo_id
+WHERE r.id = $1
     [ric29_id]
   );
 
