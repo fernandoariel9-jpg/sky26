@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>{{CODIGO}} - {{TITULO}}</title>
+
+<style>
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 9pt;
+  color: #222;
+  margin: 0;
+}
+
+.header {
+  border: 2px solid #000;
+  margin-bottom: 12px;
+}
+
+.header table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.header td {
+  padding: 8px;
+  vertical-align: middle;
+}
+
+.logo {
+  width: 95px;
+  max-height: 70px;
+  object-fit: contain;
+}
+
+.titulo {
+  font-size: 15pt;
+  font-weight: bold;
+}
+
+.subtitulo {
+  font-size: 11pt;
+  margin-top: 4px;
+}
+
+.codigo {
+  font-size: 18pt;
+  font-weight: bold;
+  text-align: center;
+}
+
+.ficha {
+  border: 1.5px solid #000;
+  margin-bottom: 12px;
+}
+
+.ficha-titulo,
+.seccion-titulo {
+  background: #e5e7eb;
+  border-bottom: 1.5px solid #000;
+  padding: 6px 8px;
+  font-weight: bold;
+  font-size: 10pt;
+}
+
+.ficha table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ficha td {
+  border-bottom: 1px solid #ccc;
+  padding: 5px 7px;
+}
+
+.ficha td:first-child {
+  width: 25%;
+  font-weight: bold;
+}
+
+.seccion {
+  border: 1.5px solid #000;
+  margin-bottom: 12px;
+  page-break-inside: avoid;
+}
+
+.contenido {
+  padding: 8px;
+}
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.tabla th,
+.tabla td {
+  border: 1px solid #888;
+  padding: 5px;
+  text-align: center;
+}
+
+.tabla th {
+  background: #f0f0f0;
+  font-weight: bold;
+}
+
+.tabla td:first-child {
+  text-align: left;
+}
+
+.conforme {
+  color: #087f23;
+  font-weight: bold;
+}
+
+.no-conforme {
+  color: #c00000;
+  font-weight: bold;
+}
+
+.na {
+  color: #666;
+  font-weight: bold;
+}
+
+.observaciones {
+  margin-top: 8px;
+  padding: 7px;
+  border: 1px solid #aaa;
+  background: #fafafa;
+}
+
+.resultado {
+  border: 2px solid #000;
+  padding: 12px;
+  text-align: center;
+  margin-top: 15px;
+  page-break-inside: avoid;
+}
+
+.resultado-conforme {
+  color: #087f23;
+  font-size: 16pt;
+  font-weight: bold;
+}
+
+.resultado-no-conforme {
+  color: #c00000;
+  font-size: 16pt;
+  font-weight: bold;
+}
+
+.footer {
+  margin-top: 20px;
+  padding-top: 8px;
+  border-top: 1px solid #999;
+  font-size: 7.5pt;
+  color: #555;
+}
+
+.sin-datos {
+  color: #777;
+  font-style: italic;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<!-- ====================================================== -->
+<!-- CABECERA -->
+<!-- ====================================================== -->
+
+<div class="header">
+
+<table>
+
+<tr>
+
+<td style="width:130px;text-align:center;">
+
+<img
+  src="{{LOGO}}"
+  class="logo"
+>
+
+</td>
+
+<td>
+
+<div class="titulo">
+{{TITULO}}
+</div>
+
+<div class="subtitulo">
+{{SUBTITULO}}
+</div>
+
+<div style="margin-top:7px;">
+Servicio de Ingeniería Clínica
+</div>
+
+<div style="margin-top:5px;">
+Fecha de mantenimiento:
+<b>{{FECHA_MANTENIMIENTO}}</b>
+</div>
+
+</td>
+
+<td style="
+width:110px;
+border-left:2px solid #000;
+">
+
+<div class="codigo">
+{{CODIGO}}
+</div>
+
+</td>
+
+</tr>
+
+</table>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- DATOS DEL EQUIPO -->
+<!-- ====================================================== -->
+
+<div class="ficha">
+
+<div class="ficha-titulo">
+DATOS DEL EQUIPO
+</div>
+
+<table>
+
+<tr>
+<td>Equipo</td>
+<td>{{DESCRIPCION}}</td>
+</tr>
+
+<tr>
+<td>Marca / Modelo</td>
+<td>{{MARCA_MODELO}}</td>
+</tr>
+
+<tr>
+<td>Número de Serie</td>
+<td>{{SERIE}}</td>
+</tr>
+
+<tr>
+<td>Área</td>
+<td>{{AREA}}</td>
+</tr>
+
+<tr>
+<td>Servicio</td>
+<td>{{SERVICIO}}</td>
+</tr>
+
+<tr>
+<td>Subservicio</td>
+<td>{{SUB_SERVICIO}}</td>
+</tr>
+
+<tr>
+<td>Encargado</td>
+<td>{{ENCARGADO}}</td>
+</tr>
+
+<tr>
+<td>Técnico</td>
+<td>{{TECNICO}}</td>
+</tr>
+
+</table>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- 1 INSPECCIONES -->
+<!-- ====================================================== -->
+
+<div class="seccion">
+
+<div class="seccion-titulo">
+1. INSPECCIÓN VISUAL
+</div>
+
+<div class="contenido">
+
+{{INSPECCIONES}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- 2 ENERGÍA -->
+<!-- ====================================================== -->
+
+<div class="seccion">
+
+<div class="seccion-titulo">
+2. ENTREGA DE ENERGÍA
+</div>
+
+<div class="contenido">
+
+{{ENERGIA}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- 3 CARGA -->
+<!-- ====================================================== -->
+
+<div class="seccion">
+
+<div class="seccion-titulo">
+3. TIEMPO DE CARGA
+</div>
+
+<div class="contenido">
+
+{{CARGA}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- 4 BATERÍA -->
+<!-- ====================================================== -->
+
+<div class="seccion">
+
+<div class="seccion-titulo">
+4. ESTADO DE BATERÍA
+</div>
+
+<div class="contenido">
+
+{{BATERIA}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- 5 SINCRONISMO -->
+<!-- ====================================================== -->
+
+<div class="seccion">
+
+<div class="seccion-titulo">
+5. SINCRONISMO
+</div>
+
+<div class="contenido">
+
+{{SINCRONISMO}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- 6 MONITORIZACIÓN -->
+<!-- ====================================================== -->
+
+<div class="seccion">
+
+<div class="seccion-titulo">
+6. MONITORIZACIÓN
+</div>
+
+<div class="contenido">
+
+{{MONITORIZACION}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- 7 ALARMAS -->
+<!-- ====================================================== -->
+
+<div class="seccion">
+
+<div class="seccion-titulo">
+7. ALARMAS
+</div>
+
+<div class="contenido">
+
+{{ALARMAS}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- RESULTADO GENERAL -->
+<!-- ====================================================== -->
+
+<div class="resultado">
+
+<div>
+RESULTADO GENERAL
+</div>
+
+<div class="resultado-conforme">
+{{RESULTADO_GENERAL}}
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- OBSERVACIONES GENERALES -->
+<!-- ====================================================== -->
+
+<div class="seccion" style="margin-top:12px;">
+
+<div class="seccion-titulo">
+OBSERVACIONES GENERALES
+</div>
+
+<div class="contenido">
+
+{{OBSERVACIONES}}
+
+</div>
+
+</div>
+
+
+<!-- ====================================================== -->
+<!-- PIE -->
+<!-- ====================================================== -->
+
+<div class="footer">
+
+<table style="width:100%;border-collapse:collapse;">
+
+<tr>
+
+<td style="width:40%;">
+<b>Sky26</b><br>
+Sistema de Gestión de Ingeniería Clínica
+</td>
+
+<td style="width:30%;text-align:center;">
+Documento generado automáticamente
+</td>
+
+<td style="width:30%;text-align:right;">
+{{CODIGO}}<br>
+© {{ANIO}}
+</td>
+
+</tr>
+
+</table>
+
+</div>
+
+</body>
+
+</html>
