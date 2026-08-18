@@ -714,13 +714,13 @@ const cab = datos;
   const variables = {
 
     CODIGO:
-      RIC29_CONFIG.codigo,
+      "RIC29"
 
     TITULO:
-      RIC29_CONFIG.titulo,
+      "Mantenimiento Preventivo"
 
     SUBTITULO:
-      RIC29_CONFIG.subtitulo,
+      "Cardiodesfibriladores"
 
     DESCRIPCION:
       esc(cab.descripcion || ""),
