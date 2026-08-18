@@ -6,6 +6,7 @@
 import fs from "fs";
 import path from "path";
 import puppeteer from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 import { fileURLToPath } from "url";
 
 
@@ -207,122 +208,114 @@ export async function generarProtocoloPDF({
       variablesCompletas
     );
 
+// ----------------------------------------------------------
+// PUPPETEER / CHROMIUM
+// ----------------------------------------------------------
 
-  // ----------------------------------------------------------
-  // 5. PUPPETEER
-  // ----------------------------------------------------------
+const browser = await puppeteer.launch({
 
-  const browser =
-    await puppeteer.launch({
+  executablePath:
+    await chromium.executablePath(),
 
-      headless: true,
+  headless:
+    chromium.headless,
 
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox"
-      ]
+  args:
+    chromium.args,
+
+  defaultViewport:
+    chromium.defaultViewport
+
+});
+
+
+try {
+
+  const page =
+    await browser.newPage();
+
+
+  // --------------------------------------------------------
+  // VIEWPORT
+  // --------------------------------------------------------
+
+  await page.setViewport({
+    width: 1240,
+    height: 1754
+  });
+
+
+  // --------------------------------------------------------
+  // CARGAR HTML
+  // --------------------------------------------------------
+
+  await page.setContent(
+    html,
+    {
+      waitUntil:
+        "networkidle0"
+    }
+  );
+
+
+  await page.emulateMediaType(
+    "screen"
+  );
+
+
+  // --------------------------------------------------------
+  // ORIENTACIÓN
+  // --------------------------------------------------------
+
+  const landscape =
+    orientacion === "landscape";
+
+
+  // --------------------------------------------------------
+  // GENERAR PDF
+  // --------------------------------------------------------
+
+  const pdf =
+    await page.pdf({
+
+      format,
+
+      landscape,
+
+      printBackground:
+        true,
+
+      preferCSSPageSize:
+        true,
+
+      displayHeaderFooter:
+        false,
+
+      margin: {
+
+        top:
+          "12mm",
+
+        right:
+          "12mm",
+
+        bottom:
+          "15mm",
+
+        left:
+          "12mm"
+
+      }
 
     });
 
 
-  try {
-
-    const page =
-      await browser.newPage();
+  return pdf;
 
 
-    // --------------------------------------------------------
-    // CONFIGURAR HTML
-    // --------------------------------------------------------
+} finally {
 
-    await page.setContent(
-      html,
-      {
-        waitUntil: "networkidle0"
-      }
-    );
+  await browser.close();
 
-
-    // --------------------------------------------------------
-    // ESPERAR FUENTES / IMÁGENES
-    // --------------------------------------------------------
-
-    await page.evaluate(
-      async () => {
-
-        if (document.fonts) {
-          await document.fonts.ready;
-        }
-
-        const imagenes =
-          Array.from(
-            document.images
-          );
-
-        await Promise.all(
-          imagenes.map(
-            imagen => {
-
-              if (imagen.complete) {
-                return Promise.resolve();
-              }
-
-              return new Promise(
-                resolve => {
-
-                  imagen.onload =
-                    resolve;
-
-                  imagen.onerror =
-                    resolve;
-
-                }
-              );
-
-            }
-          )
-        );
-
-      }
-    );
-
-
-    // --------------------------------------------------------
-    // PDF
-    // --------------------------------------------------------
-
-    const pdf =
-      await page.pdf({
-
-        format,
-
-        landscape:
-          orientacion === "landscape",
-
-        printBackground: true,
-
-        margin: {
-
-          top: "12mm",
-
-          right: "12mm",
-
-          bottom: "12mm",
-
-          left: "12mm"
-
-        }
-
-      });
-
-
-    return pdf;
-
-
-  } finally {
-
-    await browser.close();
-
-  }
-
+}
 }
