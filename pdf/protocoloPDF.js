@@ -16,6 +16,7 @@ const __dirname = path.resolve();
 
 const LOGO_PATH = path.join(
   __dirname,
+  "..",
   "templates",
   "logo_app.png"
 );
