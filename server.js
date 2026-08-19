@@ -243,14 +243,14 @@ app.get("/api/google-drive/test", async (req, res) => {
   try {
 
     const folderId =
-      process.env.GOOGLE_DRIVE_RIC29_FOLDER_ID;
+      process.env.GOOGLE_DRIVE_RIC_FOLDER_ID;
 
     if (!folderId) {
 
       return res.status(500).json({
         ok: false,
         error:
-          "No existe GOOGLE_DRIVE_RIC29_FOLDER_ID"
+          "No existe GOOGLE_DRIVE_RIC_FOLDER_ID"
       });
 
     }
