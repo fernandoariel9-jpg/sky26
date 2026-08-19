@@ -1413,18 +1413,20 @@ app.get("/api/ric29/:id/pdf", async (req, res) => {
     console.log(
       `Generando PDF RIC29: ${ric29_id}`
     );
-    const pdf = await generarRIC29PDF(
-      ric29_id
-    );
+    const resultado =
+  await generarRIC29PDF(ric29_id);
+    
     res.setHeader(
-      "Content-Type",
-      "application/pdf"
-    );
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="RIC29_${ric29_id}.pdf"`
-    );
-    res.send(pdf);
+  "Content-Type",
+  "application/pdf"
+);
+
+res.setHeader(
+  "Content-Disposition",
+  `inline; filename="${resultado.nombreArchivo}"`
+);
+
+res.send(resultado.pdf);
   } catch (error) {
     console.error(
       "Error generando PDF RIC29:",
