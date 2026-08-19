@@ -61,58 +61,37 @@ body {
   text-align: center;
 }
 
-/* ================================
-   DATOS DEL EQUIPO - DOS COLUMNAS
-================================ */
+/* ==========================================
+   DATOS DEL EQUIPO - DOS COLUMNAS IGUALES
+========================================== */
 
-.datos-dos-columnas {
+.datos-equipo-2col {
   width: 100%;
   table-layout: fixed;
   border-collapse: collapse;
 }
 
-.datos-dos-columnas > tbody > tr > td {
-  width: 50%;
-  vertical-align: top;
-  padding: 0;
-  border: 0;
-}
-
-.datos-dos-columnas .columna {
-  width: 50%;
-  padding: 0;
-}
-
-.datos-dos-columnas .columna + .columna {
-  border-left: 1px solid #999;
-}
-
-.datos-dos-columnas .columna table {
-  width: 100%;
-  table-layout: fixed;
-  border-collapse: collapse;
-}
-
-.datos-dos-columnas .columna table td {
+.datos-equipo-2col td {
   border-bottom: 1px solid #ccc;
-  padding: 2.5px 5px;
+  padding: 3px 5px;
   vertical-align: middle;
+  overflow-wrap: break-word;
 }
 
-.datos-dos-columnas .columna table tr:last-child td {
-  border-bottom: none;
-}
-
-/* Etiqueta */
-.datos-dos-columnas .columna table td:first-child {
-  width: 35%;
+/* Etiquetas */
+.datos-equipo-2col .etiqueta {
   font-weight: bold;
   background: #f5f5f5;
 }
 
-/* Valor */
-.datos-dos-columnas .columna table td:last-child {
-  width: 65%;
+/* Separación central */
+.datos-equipo-2col td:nth-child(3) {
+  border-left: 1px solid #999;
+}
+
+/* Última fila */
+.datos-equipo-2col tr:last-child td {
+  border-bottom: none;
 }
 
 /* ================================
@@ -323,72 +302,118 @@ Fecha de mantenimiento:
     DATOS DEL EQUIPO
   </div>
 
-  <table class="datos-dos-columnas">
+  <table class="datos-equipo-2col">
+
+    <colgroup>
+      <col style="width: 17.5%;">
+      <col style="width: 32.5%;">
+      <col style="width: 17.5%;">
+      <col style="width: 32.5%;">
+    </colgroup>
 
     <tr>
 
-      <!-- COLUMNA IZQUIERDA -->
-
-      <td class="columna">
-
-        <table>
-
-          <tr>
-            <td>Equipo</td>
-            <td>{{DESCRIPCION}}</td>
-          </tr>
-
-          <tr>
-            <td>Marca / Modelo</td>
-            <td>{{MARCA_MODELO}}</td>
-          </tr>
-
-          <tr>
-            <td>Número de Serie</td>
-            <td>{{SERIE}}</td>
-          </tr>
-
-        </table>
-
+      <!-- IZQUIERDA -->
+      <td class="etiqueta">
+        Equipo
       </td>
 
-      <!-- COLUMNA DERECHA -->
-
-      <td class="columna">
-
-        <table>
-
-          <tr>
-            <td>Área</td>
-            <td>{{AREA}}</td>
-          </tr>
-
-          <tr>
-            <td>Servicio</td>
-            <td>{{SERVICIO}}</td>
-          </tr>
-
-          <tr>
-            <td>Subservicio</td>
-            <td>{{SUB_SERVICIO}}</td>
-          </tr>
-
-          <tr>
-            <td>Encargado</td>
-            <td>{{ENCARGADO}}</td>
-          </tr>
-
-          <tr>
-            <td>Técnico</td>
-            <td>{{TECNICO}}</td>
-          </tr>
-          
-        </table>
+      <td>
+        {{DESCRIPCION}}
       </td>
+
+      <!-- DERECHA -->
+      <td class="etiqueta">
+        Área
+      </td>
+
+      <td>
+        {{AREA}}
+      </td>
+
     </tr>
-  </table>
-</div>
 
+    <tr>
+
+      <!-- IZQUIERDA -->
+      <td class="etiqueta">
+        Marca / Modelo
+      </td>
+
+      <td>
+        {{MARCA_MODELO}}
+      </td>
+
+      <!-- DERECHA -->
+      <td class="etiqueta">
+        Servicio
+      </td>
+
+      <td>
+        {{SERVICIO}}
+      </td>
+
+    </tr>
+
+    <tr>
+
+      <!-- IZQUIERDA -->
+      <td class="etiqueta">
+        Número de Serie
+      </td>
+
+      <td>
+        {{SERIE}}
+      </td>
+
+      <!-- DERECHA -->
+      <td class="etiqueta">
+        Subservicio
+      </td>
+
+      <td>
+        {{SUB_SERVICIO}}
+      </td>
+
+    </tr>
+
+    <tr>
+
+      <!-- IZQUIERDA VACÍA -->
+      <td></td>
+      <td></td>
+
+      <!-- DERECHA -->
+      <td class="etiqueta">
+        Encargado
+      </td>
+
+      <td>
+        {{ENCARGADO}}
+      </td>
+
+    </tr>
+
+    <tr>
+
+      <!-- IZQUIERDA VACÍA -->
+      <td></td>
+      <td></td>
+
+      <!-- DERECHA -->
+      <td class="etiqueta">
+        Técnico
+      </td>
+
+      <td>
+        {{TECNICO}}
+      </td>
+
+    </tr>
+
+  </table>
+
+</div>
 
 <!-- ====================================================== -->
 <!-- 1 INSPECCIONES -->
