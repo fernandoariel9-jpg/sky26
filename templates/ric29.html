@@ -11,7 +11,7 @@
 
 @page {
   size: A4;
-  margin: 12mm;
+  margin: 7mm;
 }
 
 * {
@@ -20,60 +20,63 @@
 
 body {
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 9pt;
+  font-size: 7.5pt;
   color: #222;
   margin: 0;
 }
 
-.header {
-  border: 2px solid #000;
-  margin-bottom: 12px;
-}
+/* ================================
+   CABECERA
+================================ */
 
-.header table {
-  width: 100%;
-  border-collapse: collapse;
+.header {
+  border: 1.5px solid #000;
+  margin-bottom: 6px;
 }
 
 .header td {
-  padding: 8px;
+  padding: 4px;
   vertical-align: middle;
 }
 
 .logo {
-  width: 95px;
-  max-height: 70px;
+  width: 75px;
+  max-height: 48px;
   object-fit: contain;
 }
 
 .titulo {
-  font-size: 15pt;
+  font-size: 12pt;
   font-weight: bold;
 }
 
 .subtitulo {
-  font-size: 11pt;
-  margin-top: 4px;
+  font-size: 8.5pt;
+  margin-top: 2px;
 }
 
 .codigo {
-  font-size: 18pt;
+  font-size: 15pt;
   font-weight: bold;
   text-align: center;
 }
 
+/* ================================
+   FICHA EQUIPO
+================================ */
+
 .ficha {
-  border: 1.5px solid #000;
-  margin-bottom: 12px;
+  border: 1px solid #000;
+  margin-bottom: 6px;
 }
 
 .ficha-titulo,
 .seccion-titulo {
   background: #e5e7eb;
-  border-bottom: 1.5px solid #000;
-  padding: 6px 8px;
+  border-bottom: 1px solid #000;
+  padding: 3px 5px;
   font-weight: bold;
-  font-size: 10pt;
+  font-size: 8pt;
 }
 
 .ficha table {
@@ -83,23 +86,31 @@ body {
 
 .ficha td {
   border-bottom: 1px solid #ccc;
-  padding: 5px 7px;
+  padding: 2.5px 5px;
 }
 
 .ficha td:first-child {
-  width: 25%;
+  width: 20%;
   font-weight: bold;
 }
 
+/* ================================
+   SECCIONES
+================================ */
+
 .seccion {
-  border: 1.5px solid #000;
-  margin-bottom: 12px;
+  border: 1px solid #000;
+  margin-bottom: 5px;
   page-break-inside: avoid;
 }
 
 .contenido {
-  padding: 8px;
+  padding: 4px;
 }
+
+/* ================================
+   TABLAS
+================================ */
 
 .tabla {
   width: 100%;
@@ -109,8 +120,9 @@ body {
 .tabla th,
 .tabla td {
   border: 1px solid #888;
-  padding: 5px;
+  padding: 2.5px 4px;
   text-align: center;
+  font-size: 7pt;
 }
 
 .tabla th {
@@ -121,6 +133,10 @@ body {
 .tabla td:first-child {
   text-align: left;
 }
+
+/* ================================
+   RESULTADOS
+================================ */
 
 .conforme {
   color: #087f23;
@@ -138,43 +154,49 @@ body {
 }
 
 .observaciones {
-  margin-top: 8px;
-  padding: 7px;
+  margin-top: 3px;
+  padding: 3px;
   border: 1px solid #aaa;
   background: #fafafa;
+  font-size: 7pt;
 }
 
 .resultado {
-  border: 2px solid #000;
-  padding: 12px;
+  border: 1.5px solid #000;
+  padding: 5px;
   text-align: center;
-  margin-top: 15px;
+  margin-top: 6px;
   page-break-inside: avoid;
 }
 
 .resultado-conforme {
   color: #087f23;
-  font-size: 16pt;
+  font-size: 11pt;
   font-weight: bold;
 }
 
 .resultado-no-conforme {
   color: #c00000;
-  font-size: 16pt;
+  font-size: 11pt;
   font-weight: bold;
 }
 
+/* ================================
+   PIE
+================================ */
+
 .footer {
-  margin-top: 20px;
-  padding-top: 8px;
+  margin-top: 7px;
+  padding-top: 3px;
   border-top: 1px solid #999;
-  font-size: 7.5pt;
+  font-size: 6.5pt;
   color: #555;
 }
 
 .sin-datos {
   color: #777;
   font-style: italic;
+  margin: 2px 0;
 }
 
 </style>
@@ -193,7 +215,7 @@ body {
 
 <tr>
 
-<td style="width:130px;text-align:center;">
+<td style="width:95px;text-align:center;">
 
 <img
   src="{{LOGO}}"
@@ -212,21 +234,18 @@ body {
 {{SUBTITULO}}
 </div>
 
-<div style="margin-top:7px;">
+<div style="margin-top:3px;">
 Servicio de Ingeniería Clínica
 </div>
 
-<div style="margin-top:5px;">
+<div style="margin-top:2px;">
 Fecha de mantenimiento:
 <b>{{FECHA_MANTENIMIENTO}}</b>
 </div>
 
 </td>
 
-<td style="
-width:110px;
-border-left:2px solid #000;
-">
+<td style="width:85px;border-left:1.5px solid #000;">
 
 <div class="codigo">
 {{CODIGO}}
