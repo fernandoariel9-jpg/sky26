@@ -61,6 +61,50 @@ body {
   text-align: center;
 }
 
+  /* ================================
+   DATOS DEL EQUIPO - DOS COLUMNAS
+================================ */
+
+.datos-dos-columnas {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.datos-dos-columnas > tbody > tr > td {
+  width: 50%;
+  vertical-align: top;
+  padding: 0;
+  border: 0;
+}
+
+.datos-dos-columnas .columna {
+  border: 0;
+}
+
+.datos-dos-columnas .columna + .columna {
+  border-left: 1px solid #999;
+}
+
+.datos-dos-columnas .columna table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.datos-dos-columnas .columna table td {
+  border-bottom: 1px solid #ccc;
+  padding: 2.5px 5px;
+}
+
+.datos-dos-columnas .columna table tr:last-child td {
+  border-bottom: none;
+}
+
+.datos-dos-columnas .columna table td:first-child {
+  width: 32%;
+  font-weight: bold;
+  background: #f5f5f5;
+}
+
 /* ================================
    FICHA EQUIPO
 ================================ */
@@ -259,61 +303,80 @@ Fecha de mantenimiento:
 
 </div>
 
-
 <!-- ====================================================== -->
 <!-- DATOS DEL EQUIPO -->
 <!-- ====================================================== -->
 
 <div class="ficha">
 
-<div class="ficha-titulo">
-DATOS DEL EQUIPO
-</div>
+  <div class="ficha-titulo">
+    DATOS DEL EQUIPO
+  </div>
 
-<table>
+  <table class="datos-dos-columnas">
 
-<tr>
-<td>Equipo</td>
-<td>{{DESCRIPCION}}</td>
-</tr>
+    <tr>
 
-<tr>
-<td>Marca / Modelo</td>
-<td>{{MARCA_MODELO}}</td>
-</tr>
+      <!-- COLUMNA IZQUIERDA -->
 
-<tr>
-<td>Número de Serie</td>
-<td>{{SERIE}}</td>
-</tr>
+      <td class="columna">
 
-<tr>
-<td>Área</td>
-<td>{{AREA}}</td>
-</tr>
+        <table>
 
-<tr>
-<td>Servicio</td>
-<td>{{SERVICIO}}</td>
-</tr>
+          <tr>
+            <td>Equipo</td>
+            <td>{{DESCRIPCION}}</td>
+          </tr>
 
-<tr>
-<td>Subservicio</td>
-<td>{{SUB_SERVICIO}}</td>
-</tr>
+          <tr>
+            <td>Marca / Modelo</td>
+            <td>{{MARCA_MODELO}}</td>
+          </tr>
 
-<tr>
-<td>Encargado</td>
-<td>{{ENCARGADO}}</td>
-</tr>
+          <tr>
+            <td>Número de Serie</td>
+            <td>{{SERIE}}</td>
+          </tr>
 
-<tr>
-<td>Técnico</td>
-<td>{{TECNICO}}</td>
-</tr>
+        </table>
 
-</table>
+      </td>
 
+      <!-- COLUMNA DERECHA -->
+
+      <td class="columna">
+
+        <table>
+
+          <tr>
+            <td>Área</td>
+            <td>{{AREA}}</td>
+          </tr>
+
+          <tr>
+            <td>Servicio</td>
+            <td>{{SERVICIO}}</td>
+          </tr>
+
+          <tr>
+            <td>Subservicio</td>
+            <td>{{SUB_SERVICIO}}</td>
+          </tr>
+
+          <tr>
+            <td>Encargado</td>
+            <td>{{ENCARGADO}}</td>
+          </tr>
+
+          <tr>
+            <td>Técnico</td>
+            <td>{{TECNICO}}</td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
 </div>
 
 
