@@ -707,8 +707,34 @@ export async function generarRIC29PDF(
   // ----------------------------------------------------------
 
   const cab = datos;
+  function limpiarNombreArchivo(valor) {
 
+  return String(valor || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
 
+  const descripcion =
+  limpiarNombreArchivo(
+    cab.descripcion
+  );
+
+const numeroSerie =
+  limpiarNombreArchivo(
+    cab.numero_serie
+  );
+
+const fechaPDF =
+  cab.fecha
+    ? new Date(cab.fecha)
+        .toLocaleDateString("es-AR")
+        .replace(/\//g, "-")
+    : "";
+
+const nombrePDF =
+  `RIC29_${descripcion}_${numeroSerie}_${ric29_id}_${fechaPDF}.pdf`;
   // ----------------------------------------------------------
   // CONTENIDO DE SECCIONES
   // ----------------------------------------------------------
@@ -795,22 +821,24 @@ export async function generarRIC29PDF(
   // GENERAR PDF
   // ----------------------------------------------------------
 
-  return generarProtocoloPDF({
+  const pdf = await generarProtocoloPDF({
 
-    plantilla:
-      "ric29.html",
+  plantilla: "ric29.html",
 
-    variables,
+  variables,
 
-    nombreArchivo:
-      `RIC29_${ric29_id}.pdf`,
+  nombreArchivo:
+    nombrePDF,
 
-    formato:
-      "A4",
+  formato: "A4",
 
-    orientacion:
-      "portrait"
+  orientacion: "portrait"
 
-  });
+});
+
+return {
+  pdf,
+  nombreArchivo: nombrePDF
+};
 
 }
