@@ -294,16 +294,16 @@ try {
     margin: {
 
       top:
-        "12mm",
+        "7mm",
 
       right:
-        "12mm",
+        "7mm",
 
       bottom:
-        "15mm",
+        "7mm",
 
       left:
-        "12mm"
+        "7mm"
 
     }
 
