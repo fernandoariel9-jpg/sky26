@@ -11,6 +11,7 @@ import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
 import { obtenerRIC29 } from "./pdf/protocolosConsultas.js";
 import { generarRIC29PDF } from "./pdf/ric29PDF.js";
+import drive from "./googleDrive.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -236,6 +237,70 @@ async function enviarNotificacion(userId, payload) {
 }
 
 // ----------------- RUTAS -----------------
+
+app.get("/api/google-drive/test", async (req, res) => {
+
+  try {
+
+    const folderId =
+      process.env.GOOGLE_DRIVE_RIC29_FOLDER_ID;
+
+    if (!folderId) {
+
+      return res.status(500).json({
+        ok: false,
+        error:
+          "No existe GOOGLE_DRIVE_RIC29_FOLDER_ID"
+      });
+
+    }
+
+    const respuesta =
+      await drive.files.get({
+
+        fileId: folderId,
+
+        fields:
+          "id,name,mimeType"
+
+      });
+
+    console.log(
+      "Google Drive conectado:",
+      respuesta.data
+    );
+
+    res.json({
+
+      ok: true,
+
+      mensaje:
+        "Conexión con Google Drive correcta",
+
+      carpeta:
+        respuesta.data
+
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Error probando Google Drive:",
+      error
+    );
+
+    res.status(500).json({
+
+      ok: false,
+
+      error:
+        error.message
+
+    });
+
+  }
+
+});
 
 app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   try {
