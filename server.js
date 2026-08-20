@@ -268,6 +268,21 @@ app.get("/api/ric29/:id/drive-test", async (req, res) => {
         ric29_id
       );
 
+    console.log(
+  "TIPO PDF:",
+  typeof pdf
+);
+
+console.log(
+  "ES BUFFER:",
+  Buffer.isBuffer(pdf)
+);
+
+console.log(
+  "PDF:",
+  pdf
+);
+
     // Obtener datos
     const datos =
       await obtenerRIC29(
