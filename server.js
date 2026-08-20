@@ -14,7 +14,8 @@ import { generarRIC29PDF } from "./pdf/ric29PDF.js";
 import {
   obtenerCarpetaRIC29,
   subirPDFDrive,
-  obtenerURLAutorizacionGoogle
+  obtenerURLAutorizacionGoogle,
+  procesarCallbackGoogle
 } from "./googleDrive.js";
 
 const app = express();
@@ -263,6 +264,59 @@ app.get("/api/google-drive/auth", (req, res) => {
     });
   }
 });
+
+app.get("/api/google-drive/oauth2callback", async (req, res) => {
+    try {
+      const code =
+        req.query.code;
+      if (!code) {
+        return res.status(400).send(
+          "No se recibió el código de autorización de Google"
+        );
+      }
+      const tokens =
+        await procesarCallbackGoogle(
+          code
+        );
+res.send(`
+  <html>
+    <body style="font-family: Arial; padding: 40px;">
+
+      <h2>✅ Google Drive autorizado</h2>
+
+      <p>
+        Copiá el siguiente Refresh Token y guardalo
+        en Render como GOOGLE_REFRESH_TOKEN.
+      </p>
+
+      <textarea
+        style="
+          width: 100%;
+          height: 150px;
+          font-family: monospace;
+        "
+      >${tokens.refresh_token}</textarea>
+
+      <p>
+        ⚠️ No compartas este token con nadie.
+      </p>
+
+    </body>
+  </html>
+`);
+
+    } catch (error) {
+      console.error(
+        "Error en callback Google:",
+        error
+      );
+      res.status(500).send(
+        "Error autorizando Google Drive: " +
+        error.message
+      );
+    }
+  }
+);
 
 app.get("/api/ric29/:id/drive-test", async (req, res) => {
 
