@@ -206,8 +206,10 @@ export async function subirPDFDrive({
     );
   }
 
-  const stream =
-    Readable.from(pdf);
+  const buffer = Buffer.from(pdf);
+
+const stream =
+  Readable.from([buffer]);
 
   const respuesta =
     await drive.files.create({
