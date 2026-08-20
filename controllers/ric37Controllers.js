@@ -3,9 +3,7 @@ import pool from "../db.js";
 export async function guardarRIC37(req, res) {
 
   const client = await pool.connect();
-
   try {
-
     await client.query("BEGIN");
 
     const {
