@@ -11,9 +11,10 @@ import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
 import { obtenerRIC29 } from "./pdf/protocolosConsultas.js";
 import { generarRIC29PDF } from "./pdf/ric29PDF.js";
-import drive, {
+import {
   obtenerCarpetaRIC29,
-  subirPDFDrive
+  subirPDFDrive,
+  obtenerURLAutorizacionGoogle
 } from "./googleDrive.js";
 
 const app = express();
@@ -240,6 +241,28 @@ async function enviarNotificacion(userId, payload) {
 }
 
 // ----------------- RUTAS -----------------
+
+// ============================================================
+// INICIAR AUTORIZACIÓN GOOGLE DRIVE
+// ============================================================
+
+app.get("/api/google-drive/auth", (req, res) => {
+  try {
+    const url =
+      obtenerURLAutorizacionGoogle();
+    res.redirect(url);
+  } catch (error) {
+    console.error(
+      "Error iniciando autorización Google:",
+      error
+    );
+    res.status(500).json({
+      ok: false,
+      error:
+        error.message
+    });
+  }
+});
 
 app.get("/api/ric29/:id/drive-test", async (req, res) => {
 
