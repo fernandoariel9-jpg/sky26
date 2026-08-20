@@ -1731,18 +1731,15 @@ res.send(resultado.pdf);
 });
 
 // ============================================================
-// SUBIR RIC29 A GOOGLE DRIVE
+// ENVIAR RIC29 A GOOGLE DRIVE
 // ============================================================
 
 app.post("/api/ric29/:id/drive", async (req, res) => {
 
   try {
-
     const ric29_id =
       Number(req.params.id);
-
     if (!Number.isInteger(ric29_id)) {
-
       return res.status(400).json({
         ok: false,
         error: "ID RIC29 inválido"
@@ -1750,12 +1747,12 @@ app.post("/api/ric29/:id/drive", async (req, res) => {
     }
 
     console.log(
-      "Subiendo RIC29 a Google Drive:",
+      "Enviando RIC29 a Google Drive:",
       ric29_id
     );
 
     // --------------------------------------------------------
-    // 1. OBTENER DATOS DEL RIC29
+    // OBTENER DATOS DEL RIC29
     // --------------------------------------------------------
 
     const datos =
@@ -1763,76 +1760,34 @@ app.post("/api/ric29/:id/drive", async (req, res) => {
         ric29_id
       );
 
-    if (!datos) {
-
-      return res.status(404).json({
-        ok: false,
-        error: "RIC29 no encontrado"
-      });
-
-    }
-
     // --------------------------------------------------------
-    // 2. GENERAR PDF
+    // GENERAR PDF
     // --------------------------------------------------------
 
-    const pdf =
+    const resultadoPDF =
       await generarRIC29PDF(
         ric29_id
       );
 
-    // --------------------------------------------------------
-    // 3. OBTENER SERVICIO Y SUBSERVICIO
-    // --------------------------------------------------------
+    const pdf =
+      resultadoPDF.pdf;
 
-    const servicio =
-      datos.servicio;
-
-    const subservicio =
-      datos.sub_servicio;
-
-    console.log(
-      "Destino Google Drive:",
-      {
-        servicio,
-        subservicio
-      }
-    );
+    const nombreArchivo =
+      resultadoPDF.nombreArchivo;
 
     // --------------------------------------------------------
-    // 4. BUSCAR CARPETA
+    // OBTENER CARPETA
+    // Servicio → Subservicio
     // --------------------------------------------------------
 
     const carpeta =
       await obtenerCarpetaRIC29(
-        servicio,
-        subservicio
+        datos.servicio,
+        datos.sub_servicio
       );
 
     // --------------------------------------------------------
-    // 5. NOMBRE DEL PDF
-    // --------------------------------------------------------
-
-    const descripcion =
-      datos.descripcion ||
-      "Equipo";
-
-    const numeroSerie =
-      datos.numero_serie ||
-      "SN";
-
-    const fecha =
-      datos.fecha
-        ? new Date(datos.fecha)
-            .toISOString()
-            .slice(0, 10)
-        : "SIN_FECHA";
-
-    const nombreArchivo =
-      `RIC29_${descripcion}_${numeroSerie}_${ric29_id}_${fecha}.pdf`;
-
-    // --------------------------------------------------------
-    // 6. SUBIR PDF
+    // SUBIR PDF
     // --------------------------------------------------------
 
     const archivo =
@@ -1843,23 +1798,29 @@ app.post("/api/ric29/:id/drive", async (req, res) => {
           carpeta.id
       });
 
-    // --------------------------------------------------------
-    // 7. RESPUESTA
-    // --------------------------------------------------------
+    console.log(
+      "RIC29 enviado correctamente a Google Drive:",
+      {
+        ric29_id,
+        nombreArchivo,
+        carpeta: carpeta.name
+      }
+    );
 
     res.json({
       ok: true,
       mensaje:
         "RIC29 enviado correctamente a Google Drive",
+      ric29_id,
       archivo: {
         id:
           archivo.id,
-        nombre:
+        name:
           archivo.name,
-        enlace:
+        webViewLink:
           archivo.webViewLink
-      },
 
+      },
       carpeta: {
         id:
           carpeta.id,
@@ -1871,10 +1832,9 @@ app.post("/api/ric29/:id/drive", async (req, res) => {
 
   catch (error) {
     console.error(
-      "Error subiendo RIC29 a Google Drive:",
+      "Error enviando RIC29 a Google Drive:",
       error
     );
-
     res.status(500).json({
       ok: false,
       error:
