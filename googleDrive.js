@@ -18,19 +18,33 @@ const oauth2Client =
   );
 
 export function obtenerURLAutorizacionGoogle() {
-
   return oauth2Client.generateAuthUrl({
-
     access_type: "offline",
-
     prompt: "consent",
-
     scope: [
       "https://www.googleapis.com/auth/drive"
     ]
-
   });
+}
 
+export async function procesarCallbackGoogle(
+  code
+) {
+  const { tokens } =
+    await oauth2Client.getToken(
+      code
+    );
+  oauth2Client.setCredentials(
+    tokens
+  );
+  console.log(
+    "TOKENS GOOGLE OBTENIDOS"
+  );
+  console.log(
+    "Refresh token disponible:",
+    !!tokens.refresh_token
+  );
+  return tokens;
 }
 
 // ============================================================
