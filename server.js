@@ -280,25 +280,24 @@ app.get("/api/google-drive/oauth2callback", async (req, res) => {
         );
 res.send(`
   <html>
-    <body style="font-family: Arial; padding: 40px;">
+    <body
+      style="
+        font-family: Arial;
+        padding: 40px;
+      "
+    >
 
-      <h2>✅ Google Drive autorizado</h2>
+      <h2>
+        ✅ Google Drive autorizado
+      </h2>
 
       <p>
-        Copiá el siguiente Refresh Token y guardalo
-        en Render como GOOGLE_REFRESH_TOKEN.
+        La autorización de Google Drive
+        se realizó correctamente.
       </p>
 
-      <textarea
-        style="
-          width: 100%;
-          height: 150px;
-          font-family: monospace;
-        "
-      >${tokens.refresh_token}</textarea>
-
       <p>
-        ⚠️ No compartas este token con nadie.
+        Ya podés cerrar esta ventana.
       </p>
 
     </body>
