@@ -263,25 +263,16 @@ app.get("/api/ric29/:id/drive-test", async (req, res) => {
     );
 
     // Generar PDF
-    const pdf =
-      await generarRIC29PDF(
-        ric29_id
-      );
+    const resultadoPDF =
+  await generarRIC29PDF(
+    ric29_id
+  );
 
-    console.log(
-  "TIPO PDF:",
-  typeof pdf
-);
+const pdf =
+  resultadoPDF.pdf;
 
-console.log(
-  "ES BUFFER:",
-  Buffer.isBuffer(pdf)
-);
-
-console.log(
-  "PDF:",
-  pdf
-);
+const nombreArchivo =
+  resultadoPDF.nombreArchivo;
 
     // Obtener datos
     const datos =
@@ -295,25 +286,6 @@ console.log(
         datos.servicio,
         datos.sub_servicio
       );
-
-    // Nombre
-    const descripcion =
-      datos.descripcion ||
-      "Equipo";
-
-    const numeroSerie =
-      datos.numero_serie ||
-      "SN";
-
-    const fecha =
-      datos.fecha
-        ? new Date(datos.fecha)
-            .toISOString()
-            .slice(0, 10)
-        : "SIN_FECHA";
-
-    const nombreArchivo =
-      `RIC29_${descripcion}_${numeroSerie}_${ric29_id}_${fecha}.pdf`;
 
     // Subir
     const archivo =
