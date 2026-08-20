@@ -11,7 +11,9 @@ import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
 import { obtenerRIC29 } from "./pdf/protocolosConsultas.js";
 import { generarRIC29PDF } from "./pdf/ric29PDF.js";
-import drive from "./googleDrive.js";
+import drive, {
+  obtenerCarpetaRIC29
+} from "./googleDrive.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -237,6 +239,52 @@ async function enviarNotificacion(userId, payload) {
 }
 
 // ----------------- RUTAS -----------------
+
+app.get("/api/google-drive/test-ric29/:servicio/:subservicio", async (req, res) => {
+
+  try {
+
+    const { servicio, subservicio } = req.params;
+
+    const carpeta =
+      await obtenerCarpetaRIC29(
+        servicio,
+        subservicio
+      );
+
+    res.json({
+
+      ok: true,
+
+      servicio,
+
+      subservicio,
+
+      carpeta: {
+        id: carpeta.id,
+        nombre: carpeta.name
+      }
+
+    });
+
+  } catch (error) {
+
+    console.error(
+      "Error buscando carpeta RIC29:",
+      error
+    );
+
+    res.status(500).json({
+
+      ok: false,
+
+      error: error.message
+
+    });
+
+  }
+
+});
 
 app.get("/api/google-drive/test", async (req, res) => {
 
