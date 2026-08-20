@@ -132,5 +132,4 @@ export async function guardarRIC37(req, res) {
     client.release();
 
   }
-
 }
