@@ -241,6 +241,121 @@ async function enviarNotificacion(userId, payload) {
 
 // ----------------- RUTAS -----------------
 
+app.get("/api/ric29/:id/drive-test", async (req, res) => {
+
+  try {
+
+    const ric29_id =
+      Number(req.params.id);
+
+    if (!Number.isInteger(ric29_id)) {
+
+      return res.status(400).json({
+        ok: false,
+        error: "ID RIC29 inválido"
+      });
+
+    }
+
+    console.log(
+      "PRUEBA GOOGLE DRIVE RIC29:",
+      ric29_id
+    );
+
+    // Generar PDF
+    const pdf =
+      await generarRIC29PDF(
+        ric29_id
+      );
+
+    // Obtener datos
+    const datos =
+      await obtenerRIC29(
+        ric29_id
+      );
+
+    // Buscar carpeta
+    const carpeta =
+      await obtenerCarpetaRIC29(
+        datos.servicio,
+        datos.sub_servicio
+      );
+
+    // Nombre
+    const descripcion =
+      datos.descripcion ||
+      "Equipo";
+
+    const numeroSerie =
+      datos.numero_serie ||
+      "SN";
+
+    const fecha =
+      datos.fecha
+        ? new Date(datos.fecha)
+            .toISOString()
+            .slice(0, 10)
+        : "SIN_FECHA";
+
+    const nombreArchivo =
+      `RIC29_${descripcion}_${numeroSerie}_${ric29_id}_${fecha}.pdf`;
+
+    // Subir
+    const archivo =
+      await subirPDFDrive({
+
+        pdf,
+
+        nombreArchivo,
+
+        carpetaId:
+          carpeta.id
+
+      });
+
+    res.json({
+
+      ok: true,
+
+      mensaje:
+        "PDF subido correctamente",
+
+      archivo,
+
+      carpeta: {
+
+        id:
+          carpeta.id,
+
+        nombre:
+          carpeta.name
+
+      }
+
+    });
+
+  }
+
+  catch (error) {
+
+    console.error(
+      "ERROR PRUEBA GOOGLE DRIVE:",
+      error
+    );
+
+    res.status(500).json({
+
+      ok: false,
+
+      error:
+        error.message
+
+    });
+
+  }
+
+});
+
 app.get("/api/google-drive/test-ric29/:servicio/:subservicio", async (req, res) => {
 
   try {
