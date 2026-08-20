@@ -5,6 +5,12 @@
 import { google } from "googleapis";
 
 // ============================================================
+// SUBIR PDF A GOOGLE DRIVE
+// ============================================================
+
+import { Readable } from "stream";
+
+// ============================================================
 // AUTENTICACIÓN
 // ============================================================
 
@@ -169,5 +175,77 @@ export async function obtenerCarpetaRIC29(
   );
 
   return carpetaSubservicio;
+
+}
+
+// ============================================================
+// SUBIR PDF A GOOGLE DRIVE
+// ============================================================
+
+export async function subirPDFDrive({
+  pdf,
+  nombreArchivo,
+  carpetaId
+}) {
+
+  if (!pdf) {
+    throw new Error(
+      "No se recibió el PDF para subir a Google Drive"
+    );
+  }
+
+  if (!nombreArchivo) {
+    throw new Error(
+      "No se indicó el nombre del archivo"
+    );
+  }
+
+  if (!carpetaId) {
+    throw new Error(
+      "No se indicó la carpeta de Google Drive"
+    );
+  }
+
+  const stream =
+    Readable.from(pdf);
+
+  const respuesta =
+    await drive.files.create({
+
+      requestBody: {
+
+        name:
+          nombreArchivo,
+
+        parents: [
+          carpetaId
+        ],
+
+        mimeType:
+          "application/pdf"
+
+      },
+
+      media: {
+
+        mimeType:
+          "application/pdf",
+
+        body:
+          stream
+
+      },
+
+      fields:
+        "id,name,webViewLink"
+
+    });
+
+  console.log(
+    "PDF RIC29 subido correctamente:",
+    respuesta.data
+  );
+
+  return respuesta.data;
 
 }
