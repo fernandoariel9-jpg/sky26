@@ -17,6 +17,11 @@ const oauth2Client =
     process.env.GOOGLE_REDIRECT_URI
   );
 
+oauth2Client.setCredentials({
+  refresh_token:
+    process.env.GOOGLE_REFRESH_TOKEN
+});
+
 export function obtenerURLAutorizacionGoogle() {
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
@@ -45,40 +50,11 @@ export async function procesarCallbackGoogle(code) {
 // AUTENTICACIÓN
 // ============================================================
 
-const auth = new google.auth.GoogleAuth({
-
-  credentials: {
-
-    client_email:
-      process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-
-    private_key:
-      process.env.GOOGLE_PRIVATE_KEY
-        ?.replace(/\\n/g, "\n")
-
-  },
-
-  scopes: [
-    "https://www.googleapis.com/auth/drive"
-  ]
-
-});
-
-// ============================================================
-// CLIENTE GOOGLE DRIVE
-// ============================================================
-
 const drive =
   google.drive({
     version: "v3",
-    auth
+    auth: oauth2Client
   });
-
-// ============================================================
-// EXPORTAR
-// ============================================================
-
-export default drive;
 
 // ============================================================
 // BUSCAR CARPETA DENTRO DE OTRA CARPETA
