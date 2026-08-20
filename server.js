@@ -12,7 +12,8 @@ import generarHistorialPDF from "./pdf/historialEquipo.js";
 import { obtenerRIC29 } from "./pdf/protocolosConsultas.js";
 import { generarRIC29PDF } from "./pdf/ric29PDF.js";
 import drive, {
-  obtenerCarpetaRIC29
+  obtenerCarpetaRIC29,
+  subirPDFDrive
 } from "./googleDrive.js";
 
 const app = express();
@@ -1547,6 +1548,159 @@ res.send(resultado.pdf);
     );
     res.status(500).json({
       error: error.message
+    });
+  }
+});
+
+// ============================================================
+// SUBIR RIC29 A GOOGLE DRIVE
+// ============================================================
+
+app.post("/api/ric29/:id/drive", async (req, res) => {
+
+  try {
+
+    const ric29_id =
+      Number(req.params.id);
+
+    if (!Number.isInteger(ric29_id)) {
+
+      return res.status(400).json({
+        ok: false,
+        error: "ID RIC29 inválido"
+      });
+    }
+
+    console.log(
+      "Subiendo RIC29 a Google Drive:",
+      ric29_id
+    );
+
+    // --------------------------------------------------------
+    // 1. OBTENER DATOS DEL RIC29
+    // --------------------------------------------------------
+
+    const datos =
+      await obtenerRIC29(
+        ric29_id
+      );
+
+    if (!datos) {
+
+      return res.status(404).json({
+        ok: false,
+        error: "RIC29 no encontrado"
+      });
+
+    }
+
+    // --------------------------------------------------------
+    // 2. GENERAR PDF
+    // --------------------------------------------------------
+
+    const pdf =
+      await generarRIC29PDF(
+        ric29_id
+      );
+
+    // --------------------------------------------------------
+    // 3. OBTENER SERVICIO Y SUBSERVICIO
+    // --------------------------------------------------------
+
+    const servicio =
+      datos.servicio;
+
+    const subservicio =
+      datos.sub_servicio;
+
+    console.log(
+      "Destino Google Drive:",
+      {
+        servicio,
+        subservicio
+      }
+    );
+
+    // --------------------------------------------------------
+    // 4. BUSCAR CARPETA
+    // --------------------------------------------------------
+
+    const carpeta =
+      await obtenerCarpetaRIC29(
+        servicio,
+        subservicio
+      );
+
+    // --------------------------------------------------------
+    // 5. NOMBRE DEL PDF
+    // --------------------------------------------------------
+
+    const descripcion =
+      datos.descripcion ||
+      "Equipo";
+
+    const numeroSerie =
+      datos.numero_serie ||
+      "SN";
+
+    const fecha =
+      datos.fecha
+        ? new Date(datos.fecha)
+            .toISOString()
+            .slice(0, 10)
+        : "SIN_FECHA";
+
+    const nombreArchivo =
+      `RIC29_${descripcion}_${numeroSerie}_${ric29_id}_${fecha}.pdf`;
+
+    // --------------------------------------------------------
+    // 6. SUBIR PDF
+    // --------------------------------------------------------
+
+    const archivo =
+      await subirPDFDrive({
+        pdf,
+        nombreArchivo,
+        carpetaId:
+          carpeta.id
+      });
+
+    // --------------------------------------------------------
+    // 7. RESPUESTA
+    // --------------------------------------------------------
+
+    res.json({
+      ok: true,
+      mensaje:
+        "RIC29 enviado correctamente a Google Drive",
+      archivo: {
+        id:
+          archivo.id,
+        nombre:
+          archivo.name,
+        enlace:
+          archivo.webViewLink
+      },
+
+      carpeta: {
+        id:
+          carpeta.id,
+        nombre:
+          carpeta.name
+      }
+    });
+  }
+
+  catch (error) {
+    console.error(
+      "Error subiendo RIC29 a Google Drive:",
+      error
+    );
+
+    res.status(500).json({
+      ok: false,
+      error:
+        error.message
     });
   }
 });
