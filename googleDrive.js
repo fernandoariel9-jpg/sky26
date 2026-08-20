@@ -27,21 +27,15 @@ export function obtenerURLAutorizacionGoogle() {
   });
 }
 
-export async function procesarCallbackGoogle(
-  code
-) {
+export async function procesarCallbackGoogle(code) {
   const { tokens } =
-    await oauth2Client.getToken(
-      code
-    );
-  oauth2Client.setCredentials(
-    tokens
+    await oauth2Client.getToken(code);
+  oauth2Client.setCredentials(tokens);
+  console.log(
+    "AUTORIZACIÓN GOOGLE COMPLETADA"
   );
   console.log(
-    "TOKENS GOOGLE OBTENIDOS"
-  );
-  console.log(
-    "Refresh token disponible:",
+    "Refresh token recibido:",
     !!tokens.refresh_token
   );
   return tokens;
