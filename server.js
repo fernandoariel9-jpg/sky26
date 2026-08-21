@@ -2393,7 +2393,7 @@ app.get("/buscar-equipos", async (req, res) => {
           ELSE 2
         END,
         descripcion
-      LIMIT 20
+      LIMIT 100
       `,
       [texto]
     );
