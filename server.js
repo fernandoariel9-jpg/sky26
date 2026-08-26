@@ -1674,6 +1674,36 @@ app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
   }
 });
 
+app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        area,
+        ultimo_mant,
+        periodo,
+        (ultimo_mant + periodo * INTERVAL '1 day') AS proximo_mant
+      FROM equipos
+      WHERE ultimo_mant IS NOT NULL
+        AND periodo IS NOT NULL
+        AND (ultimo_mant + periodo * INTERVAL '1 day') < CURRENT_DATE
+      ORDER BY proximo_mant ASC
+    `);
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Error equipos vencidos:", error);
+    res.status(500).json({
+      ok: false,
+      error: "Error al obtener equipos con mantenimiento vencido"
+    });
+  }
+});
+
 app.post("/api/ric01", async (req, res) => {
   try {
 
