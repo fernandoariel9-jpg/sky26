@@ -1686,17 +1686,63 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
         area,
         ultimo_mant,
         periodo,
-        (TO_DATE(ultimo_mant, 'DD/MM/YYYY') + periodo::integer * INTERVAL '1 day') AS proximo_mant
+
+        CASE
+          -- Formato nuevo: 2026-08-24 10:05
+          WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+            THEN TRIM(ultimo_mant)::timestamp::date
+
+          -- Formato anterior: 2/1/2025, 5/3/2025, 22/10/2024
+          WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+            THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+          ELSE NULL
+        END AS fecha_ultimo_mant,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+            THEN (
+              TRIM(ultimo_mant)::timestamp::date
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+            THEN (
+              TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          ELSE NULL
+        END AS proximo_mant
+
       FROM equipos
-      WHERE ultimo_mant IS NOT NULL
-        AND periodo IS NOT NULL
-        AND (TO_DATE(ultimo_mant, 'DD/MM/YYYY') + periodo::integer * INTERVAL '1 day') < CURRENT_DATE
+
+      WHERE NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
+        AND NULLIF(TRIM(periodo), '') IS NOT NULL
+        AND TRIM(periodo) ~ '^[0-9]+$'
+        AND TRIM(periodo)::integer > 0
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date < CURRENT_DATE
+
       ORDER BY proximo_mant ASC
     `);
 
     res.json(rows);
+
   } catch (error) {
     console.error("Error equipos vencidos:", error);
+
     res.status(500).json({
       ok: false,
       error: "Error al obtener equipos con mantenimiento vencido"
