@@ -1686,11 +1686,11 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
         area,
         ultimo_mant,
         periodo,
-        (ultimo_mant + periodo * INTERVAL '1 day') AS proximo_mant
+        (ultimo_mant + periodo::integer * INTERVAL '1 day') AS proximo_mant
       FROM equipos
       WHERE ultimo_mant IS NOT NULL
         AND periodo IS NOT NULL
-        AND (ultimo_mant + periodo * INTERVAL '1 day') < CURRENT_DATE
+        AND (ultimo_mant + periodo::integer * INTERVAL '1 day') < CURRENT_DATE
       ORDER BY proximo_mant ASC
     `);
 
