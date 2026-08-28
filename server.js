@@ -1717,6 +1717,8 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
 
       FROM equipos
 
+      WHERE LOWER(TRIM(area)) = LOWER(TRIM($1))
+
       WHERE NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
         AND NULLIF(TRIM(periodo), '') IS NOT NULL
         AND TRIM(periodo) ~ '^[0-9]+$'
