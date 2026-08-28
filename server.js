@@ -1676,6 +1676,8 @@ app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
 
 app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
   try {
+    const { area } = req.query;
+
     const { rows } = await pool.query(`
       SELECT
         id,
@@ -1688,11 +1690,9 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
         periodo,
 
         CASE
-          -- Formato nuevo: 2026-08-24 10:05
           WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
             THEN TRIM(ultimo_mant)::timestamp::date
 
-          -- Formato anterior: 2/1/2025, 5/3/2025, 22/10/2024
           WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
             THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
 
@@ -1735,8 +1735,10 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
           + (TRIM(periodo)::integer * INTERVAL '1 day')
         )::date < CURRENT_DATE
 
+        AND area = $1
+
       ORDER BY proximo_mant ASC
-    `);
+    `, [area]);
 
     res.json(rows);
 
