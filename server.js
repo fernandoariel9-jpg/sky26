@@ -1747,7 +1747,11 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
       ORDER BY proximo_mant ASC
     `, [area]);
 
-    res.json(rows);
+    res.json({
+  ok: true,
+  total: rows.length,
+  equipos: rows
+});
 
   } catch (error) {
     console.error("Error equipos vencidos:", error);
