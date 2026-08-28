@@ -1678,6 +1678,13 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
   try {
     const { area } = req.query;
 
+    if (!area) {
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió el área del usuario"
+      });
+    }
+
     const { rows } = await pool.query(`
       SELECT
         id,
@@ -1719,7 +1726,7 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
 
       WHERE LOWER(TRIM(area)) = LOWER(TRIM($1))
 
-      WHERE NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
+        AND NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
         AND NULLIF(TRIM(periodo), '') IS NOT NULL
         AND TRIM(periodo) ~ '^[0-9]+$'
         AND TRIM(periodo)::integer > 0
@@ -1736,8 +1743,6 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
           END
           + (TRIM(periodo)::integer * INTERVAL '1 day')
         )::date < CURRENT_DATE
-
-        AND area = $1
 
       ORDER BY proximo_mant ASC
     `, [area]);
