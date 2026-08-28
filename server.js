@@ -1692,6 +1692,7 @@ app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
         marca_modelo,
         numero_serie,
         servicio,
+        sub_servicio
         area,
         ultimo_mant,
         periodo,
