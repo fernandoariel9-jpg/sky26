@@ -1674,6 +1674,108 @@ app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
   }
 });
 
+app.get("/api/equipos/mantenimiento-proximo", async (req, res) => {
+  try {
+    const { area } = req.query;
+
+    if (!area) {
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió el área del usuario"
+      });
+    }
+
+    const { rows } = await pool.query(`
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        area,
+        ultimo_mant,
+        periodo,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+            THEN TRIM(ultimo_mant)::timestamp::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+            THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+          ELSE NULL
+        END AS fecha_ultimo_mant,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+            THEN (
+              TRIM(ultimo_mant)::timestamp::date
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+            THEN (
+              TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          ELSE NULL
+        END AS proximo_mant
+
+      FROM equipos
+
+      WHERE LOWER(TRIM(area)) = LOWER(TRIM($1))
+
+        AND NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
+        AND NULLIF(TRIM(periodo), '') IS NOT NULL
+        AND TRIM(periodo) ~ '^[0-9]+$'
+        AND TRIM(periodo)::integer > 0
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date >= CURRENT_DATE
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date <= CURRENT_DATE + INTERVAL '30 days'
+
+      ORDER BY proximo_mant ASC
+    `, [area]);
+
+    res.json({
+      ok: true,
+      total: rows.length,
+      equipos: rows
+    });
+
+  } catch (error) {
+    console.error("Error equipos con mantenimiento próximo:", error);
+
+    res.status(500).json({
+      ok: false,
+      error: "Error al obtener equipos con mantenimiento próximo"
+    });
+  }
+});
+
 app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
   try {
     const { area } = req.query;
