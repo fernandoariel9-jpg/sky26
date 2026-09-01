@@ -18,6 +18,12 @@ import {
   procesarCallbackGoogle
 } from "./googleDrive.js";
 import { guardarRIC37 } from "./controllers/ric37Controller.js";
+import {
+  guardarRIC44,
+  obtenerRIC44,
+  listarRIC44,
+  obtenerEstadisticasRIC44
+} from "./controllers/ric44Controller.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1632,7 +1638,21 @@ app.post("/api/ric29/:id/drive", async (req, res) => {
   }
 });
 
+    // --------------------------------------------------------
+    // RUTAS DE ARCHIVOS CONTROLLERS
+    // --------------------------------------------------------
+
+app.post("/api/ric44", guardarRIC44);
+
+app.get("/api/ric44", listarRIC44);
+
+app.get("/api/ric44/estadisticas/:numero_serie", obtenerEstadisticasRIC44);
+
+app.get("/api/ric44/:id", obtenerRIC44);
+
 app.post("/api/ric37", guardarRIC37);
+
+
 
 app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
   const { id } = req.params;
