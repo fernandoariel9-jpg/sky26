@@ -95,20 +95,25 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     const historial = historialResult.rows;
 
     // ---------------------------------------------------------
-    // 4. CÁLCULO DE DÍAS FUERA DE SERVICIO
+    // 4. CÁLCULO DE TIEMPO POR ESTADO
     //
-    // Cada estado comienza en "fecha" y termina cuando
-    // comienza el siguiente estado.
+    // Se acumula el tiempo de cada estado y recién al final
+    // se convierte cada categoría a días completos.
     //
-    // Todo estado diferente de "Activo" cuenta como
-    // fuera de servicio.
+    // Reglas:
+    //   - Activo              -> activo
+    //   - Activo Restringido  -> activo_restringido
+    //   - Cualquier otro      -> fuera_de_servicio
+    //
+    // Por lo tanto, estados como "Ingresado" también cuentan
+    // como fuera de servicio.
     // ---------------------------------------------------------
 
     const ahora = new Date();
 
+    let segundosActivo = 0;
+    let segundosActivoRestringido = 0;
     let segundosFueraServicio = 0;
-
-    const detalleEstados = {};
 
     for (let i = 0; i < historial.length; i++) {
       const registro = historial[i];
@@ -136,35 +141,30 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
 
       const estado = String(
         registro.estado_nuevo || ""
-      ).trim();
+      ).trim().toLowerCase();
 
-      if (estado.toLowerCase() !== "activo") {
+      if (estado === "activo") {
+        segundosActivo += segundos;
+      } else if (estado === "activo restringido") {
+        segundosActivoRestringido += segundos;
+      } else {
         segundosFueraServicio += segundos;
-
-        if (!detalleEstados[estado]) {
-          detalleEstados[estado] = 0;
-        }
-
-        detalleEstados[estado] += segundos;
       }
     }
 
     // ---------------------------------------------------------
     // 5. CONVERTIR A DÍAS
-    //
-    // Se utilizan días completos transcurridos.
     // ---------------------------------------------------------
 
-    const diasFueraServicio = Math.floor(
-      segundosFueraServicio / 86400
-    );
-
-    const detalleEstadosArray = Object.entries(
-      detalleEstados
-    ).map(([estado, segundos]) => ({
-      estado,
-      dias: Math.floor(segundos / 86400)
-    }));
+    const disponibilidad = {
+      activo: Math.floor(segundosActivo / 86400),
+      activo_restringido: Math.floor(
+        segundosActivoRestringido / 86400
+      ),
+      fuera_de_servicio: Math.floor(
+        segundosFueraServicio / 86400
+      )
+    };
 
     // ---------------------------------------------------------
     // 6. EQUIPOS SIMILARES
@@ -213,10 +213,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
 
       mantenimientos,
 
-      disponibilidad: {
-        dias_fuera_servicio: diasFueraServicio,
-        detalle_estados: detalleEstadosArray
-      },
+      disponibilidad,
 
       equipos_similares: equiposSimilares
     });
