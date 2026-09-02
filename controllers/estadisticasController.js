@@ -31,7 +31,8 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
         estado,
         servicio,
         area,
-        sub_servicio
+        sub_servicio,
+        fecha_alta
       FROM equipos
       WHERE numero_serie = $1
       LIMIT 1
@@ -48,7 +49,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     const equipo = equipoResult.rows[0];
 
     // ---------------------------------------------------------
-    // 2. CANTIDAD DE MANTENIMIENTOS
+    // 2. CANTIDAD DE MANTENIMIENTOS / INGRESOS
     // ---------------------------------------------------------
 
     const mantenimientosResult = await pool.query(
@@ -172,7 +173,55 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     };
 
     // ---------------------------------------------------------
-    // 6. EQUIPOS SIMILARES
+    // 6. TIEMPO MEDIO ENTRE FALLAS (TMF)
+    //
+    // Fórmula definida:
+    //
+    // ((hoy - fecha_alta) - días fuera de servicio)
+    // / cantidad de ingresos
+    //
+    // Los ingresos se consideran los mantenimientos correctivos.
+    // Si no existen ingresos, el TMF queda en null.
+    // ---------------------------------------------------------
+
+    let tmfDias = null;
+    let diasDesdeAlta = null;
+    let diasOperativosParaTmf = null;
+
+    if (equipo.fecha_alta && mantenimientos.correctivos > 0) {
+      const fechaAlta = new Date(equipo.fecha_alta);
+
+      if (!Number.isNaN(fechaAlta.getTime())) {
+        const milisegundosDesdeAlta = Math.max(
+          0,
+          ahora.getTime() - fechaAlta.getTime()
+        );
+
+        diasDesdeAlta = Math.floor(
+          milisegundosDesdeAlta / 86400000
+        );
+
+        diasOperativosParaTmf = Math.max(
+          0,
+          diasDesdeAlta - diasFueraServicio
+        );
+
+        tmfDias = Number(
+          (diasOperativosParaTmf / mantenimientos.correctivos).toFixed(1)
+        );
+      }
+    }
+
+    const tmf = {
+      dias: tmfDias,
+      ingresos: mantenimientos.correctivos,
+      dias_desde_alta: diasDesdeAlta,
+      dias_fuera_servicio: diasFueraServicio,
+      dias_operativos: diasOperativosParaTmf
+    };
+
+    // ---------------------------------------------------------
+    // 7. EQUIPOS SIMILARES
     //
     // Se consideran similares los equipos que coinciden
     // en descripción y marca/modelo.
@@ -200,7 +249,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
       Number(similaresResult.rows[0].total) || 0;
 
     // ---------------------------------------------------------
-    // 7. RESPUESTA
+    // 8. RESPUESTA
     // ---------------------------------------------------------
 
     return res.json({
@@ -212,7 +261,8 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
         estado: equipo.estado,
         servicio: equipo.servicio,
         area: equipo.area,
-        sub_servicio: equipo.sub_servicio
+        sub_servicio: equipo.sub_servicio,
+        fecha_alta: equipo.fecha_alta
       },
 
       mantenimientos,
@@ -224,6 +274,10 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
       dias_fuera_servicio: diasFueraServicio,
       dias_activo: diasActivo,
       dias_activo_restringido: diasActivoRestringido,
+
+      // Tiempo Medio entre Fallas.
+      // null cuando no existe fecha de alta válida o no hay ingresos.
+      tmf,
 
       equipos_similares: equiposSimilares,
 
