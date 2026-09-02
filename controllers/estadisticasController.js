@@ -77,7 +77,35 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     };
 
     // ---------------------------------------------------------
-    // 3. HISTORIAL DE ESTADOS
+    // 3. EVOLUCIÓN DE INGRESOS
+    //
+    // Para esta estadística, un ingreso equivale a un mantenimiento
+    // correctivo. Se agrupan por año para poder visualizar la
+    // tendencia de reparaciones a lo largo del tiempo.
+    // ---------------------------------------------------------
+
+    const evolucionIngresosResult = await pool.query(
+      `
+      SELECT
+        EXTRACT(YEAR FROM fecha)::integer AS anio,
+        COUNT(*) AS ingresos
+      FROM ric01
+      WHERE numero_serie = $1
+        AND LOWER(TRIM(COALESCE(tipo_mantenimiento, ''))) = 'correctivo'
+        AND fecha IS NOT NULL
+      GROUP BY EXTRACT(YEAR FROM fecha)
+      ORDER BY anio ASC
+      `,
+      [numero_serie]
+    );
+
+    const evolucionIngresos = evolucionIngresosResult.rows.map((registro) => ({
+      periodo: String(registro.anio),
+      ingresos: Number(registro.ingresos) || 0
+    }));
+
+    // ---------------------------------------------------------
+    // 4. HISTORIAL DE ESTADOS
     // ---------------------------------------------------------
 
     const historialResult = await pool.query(
@@ -98,7 +126,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     const historial = historialResult.rows;
 
     // ---------------------------------------------------------
-    // 4. CÁLCULO DE TIEMPO POR ESTADO
+    // 5. CÁLCULO DE TIEMPO POR ESTADO
     //
     // Cada registro representa el comienzo del estado_nuevo.
     // Ese estado permanece hasta el siguiente cambio o hasta
@@ -155,7 +183,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     }
 
     // ---------------------------------------------------------
-    // 5. CONVERTIR A DÍAS COMPLETOS
+    // 6. CONVERTIR A DÍAS COMPLETOS
     // ---------------------------------------------------------
 
     const diasActivo = Math.floor(segundosActivo / 86400);
@@ -173,7 +201,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     };
 
     // ---------------------------------------------------------
-    // 6. TIEMPO MEDIO ENTRE FALLAS (TMF)
+    // 7. TIEMPO MEDIO ENTRE FALLAS (TMF)
     //
     // Fórmula definida:
     //
@@ -221,7 +249,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     };
 
     // ---------------------------------------------------------
-    // 7. EQUIPOS SIMILARES
+    // 8. EQUIPOS SIMILARES
     //
     // Se consideran similares los equipos que coinciden
     // en descripción y marca/modelo.
@@ -249,7 +277,7 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
       Number(similaresResult.rows[0].total) || 0;
 
     // ---------------------------------------------------------
-    // 8. RESPUESTA
+    // 9. RESPUESTA
     // ---------------------------------------------------------
 
     return res.json({
@@ -266,6 +294,8 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
       },
 
       mantenimientos,
+
+      evolucion_ingresos: evolucionIngresos,
 
       disponibilidad,
 
