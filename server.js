@@ -558,15 +558,30 @@ app.put("/api/equipos/:id/estado", async (req, res) => {
     const numeroSerie = equipoActual.rows[0].numero_serie;
 
     // Actualizar estado
-    const result = await pool.query(
-      `UPDATE equipos
-       SET estado = $1
-       WHERE id = $2
-       RETURNING *`,
-      [estado, id]
-    );
+ await pool.query("BEGIN");
 
-    res.json(result.rows[0]);
+try {
+  await pool.query(
+    `SELECT set_config('app.usuario', $1, true)`,
+    [usuario || "Sistema"]
+  );
+
+  const result = await pool.query(
+    `UPDATE equipos
+     SET estado = $1
+     WHERE id = $2
+     RETURNING *`,
+    [estado, id]
+  );
+
+  await pool.query("COMMIT");
+
+  res.json(result.rows[0]);
+
+} catch (error) {
+  await pool.query("ROLLBACK");
+  throw error;
+}
 
   } catch (error) {
     console.error("Error actualizando estado:", error);
