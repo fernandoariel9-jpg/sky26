@@ -538,59 +538,51 @@ app.put("/api/equipos/:id/estado", async (req, res) => {
   const { id } = req.params;
   const { estado, usuario } = req.body;
 
-  try {
+  const client = await pool.connect();
 
-    // Obtener datos actuales
-    const equipoActual = await pool.query(
-      `SELECT estado, numero_serie
-       FROM equipos
-       WHERE id = $1`,
-      [id]
+  try {
+    await client.query("BEGIN");
+
+    // Guardar el usuario en el contexto de la transacción
+    await client.query(
+      `SELECT set_config('app.usuario', $1, true)`,
+      [usuario || "Sistema"]
     );
 
-    if (equipoActual.rowCount === 0) {
+    // Actualizar estado
+    const result = await client.query(
+      `UPDATE equipos
+       SET estado = $1
+       WHERE id = $2
+       RETURNING *`,
+      [estado, id]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+
       return res.status(404).json({
         error: "Equipo no encontrado"
       });
     }
 
-    const estadoAnterior = equipoActual.rows[0].estado;
-    const numeroSerie = equipoActual.rows[0].numero_serie;
+    await client.query("COMMIT");
 
-    // Actualizar estado
- await pool.query("BEGIN");
-
-try {
-  await pool.query(
-    `SELECT set_config('app.usuario', $1, true)`,
-    [usuario || "Sistema"]
-  );
-
-  const result = await pool.query(
-    `UPDATE equipos
-     SET estado = $1
-     WHERE id = $2
-     RETURNING *`,
-    [estado, id]
-  );
-
-  await pool.query("COMMIT");
-
-  res.json(result.rows[0]);
-
-} catch (error) {
-  await pool.query("ROLLBACK");
-  throw error;
-}
+    res.json(result.rows[0]);
 
   } catch (error) {
+    await client.query("ROLLBACK");
+
     console.error("Error actualizando estado:", error);
+
     res.status(500).json({
       error: "Error del servidor"
     });
+
+  } finally {
+    client.release();
   }
 });
-
 app.put("/api/equipos/:serie/imagen", async (req, res) => {
 
   try {
