@@ -102,7 +102,7 @@ const verificarToken = (req, res, next) => {
   next();
 };
 
-app.use(cors());
+.use(cors());
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.json());
 app.use((req, res, next) => {
@@ -565,27 +565,6 @@ app.put("/api/equipos/:id/estado", async (req, res) => {
        RETURNING *`,
       [estado, id]
     );
-
-    // Guardar historial solamente si cambió
-    if (estadoAnterior !== estado) {
-      await pool.query(
-        `INSERT INTO historial_estados (
-          equipo_id,
-          numero_serie,
-          estado_anterior,
-          estado_nuevo,
-          usuario
-        )
-        VALUES ($1,$2,$3,$4,$5)`,
-        [
-          id,
-          numeroSerie,
-          estadoAnterior,
-          estado,
-          usuario || "Sistema"
-        ]
-      );
-    }
 
     res.json(result.rows[0]);
 
@@ -2379,24 +2358,6 @@ app.put("/ric01/finalizar/:id", async (req, res) => {
          SET estado = $1
          WHERE numero_serie = $2`,
         [estado, numero_serie]
-      );
-
-      await pool.query(
-        `INSERT INTO historial_estados(
-          equipo_id,
-          numero_serie,
-          estado_anterior,
-          estado_nuevo,
-          usuario
-        )
-        VALUES ($1,$2,$3,$4,$5)`,
-        [
-          equipoId,
-          numero_serie,
-          estadoAnterior,
-          estado,
-          usuario
-        ]
       );
     }
 
