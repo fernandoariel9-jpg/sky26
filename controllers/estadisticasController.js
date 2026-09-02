@@ -55,11 +55,11 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
       `
       SELECT
         COUNT(*) FILTER (
-          WHERE LOWER(COALESCE(tipo_mantenimiento, '')) = 'correctivo'
+          WHERE LOWER(TRIM(COALESCE(tipo_mantenimiento, ''))) = 'correctivo'
         ) AS correctivos,
 
         COUNT(*) FILTER (
-          WHERE LOWER(COALESCE(tipo_mantenimiento, '')) = 'preventivo'
+          WHERE LOWER(TRIM(COALESCE(tipo_mantenimiento, ''))) = 'preventivo'
         ) AS preventivos,
 
         COUNT(*) AS total
@@ -82,9 +82,11 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     const historialResult = await pool.query(
       `
       SELECT
+        id,
         estado_anterior,
         estado_nuevo,
-        fecha
+        fecha,
+        usuario
       FROM historial_estados
       WHERE numero_serie = $1
       ORDER BY fecha ASC, id ASC
@@ -97,16 +99,17 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     // ---------------------------------------------------------
     // 4. CÁLCULO DE TIEMPO POR ESTADO
     //
-    // Se acumula el tiempo de cada estado y recién al final
-    // se convierte cada categoría a días completos.
+    // Cada registro representa el comienzo del estado_nuevo.
+    // Ese estado permanece hasta el siguiente cambio o hasta
+    // el momento actual si es el último registro.
     //
     // Reglas:
     //   - Activo              -> activo
     //   - Activo Restringido  -> activo_restringido
     //   - Cualquier otro      -> fuera_de_servicio
     //
-    // Por lo tanto, estados como "Ingresado" también cuentan
-    // como fuera de servicio.
+    // Estados como "Ingresado" también cuentan como fuera de
+    // servicio.
     // ---------------------------------------------------------
 
     const ahora = new Date();
@@ -117,14 +120,12 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
 
     for (let i = 0; i < historial.length; i++) {
       const registro = historial[i];
-
       const inicio = new Date(registro.fecha);
+      const siguiente = historial[i + 1];
 
       if (Number.isNaN(inicio.getTime())) {
         continue;
       }
-
-      const siguiente = historial[i + 1];
 
       const fin = siguiente
         ? new Date(siguiente.fecha)
@@ -153,17 +154,21 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     }
 
     // ---------------------------------------------------------
-    // 5. CONVERTIR A DÍAS
+    // 5. CONVERTIR A DÍAS COMPLETOS
     // ---------------------------------------------------------
 
+    const diasActivo = Math.floor(segundosActivo / 86400);
+    const diasActivoRestringido = Math.floor(
+      segundosActivoRestringido / 86400
+    );
+    const diasFueraServicio = Math.floor(
+      segundosFueraServicio / 86400
+    );
+
     const disponibilidad = {
-      activo: Math.floor(segundosActivo / 86400),
-      activo_restringido: Math.floor(
-        segundosActivoRestringido / 86400
-      ),
-      fuera_de_servicio: Math.floor(
-        segundosFueraServicio / 86400
-      )
+      activo: diasActivo,
+      activo_restringido: diasActivoRestringido,
+      fuera_de_servicio: diasFueraServicio
     };
 
     // ---------------------------------------------------------
@@ -171,7 +176,6 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     //
     // Se consideran similares los equipos que coinciden
     // en descripción y marca/modelo.
-    //
     // El propio equipo no se cuenta.
     // ---------------------------------------------------------
 
@@ -215,7 +219,23 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
 
       disponibilidad,
 
-      equipos_similares: equiposSimilares
+      // Alias directos para facilitar el consumo desde
+      // componentes frontend que necesiten métricas puntuales.
+      dias_fuera_servicio: diasFueraServicio,
+      dias_activo: diasActivo,
+      dias_activo_restringido: diasActivoRestringido,
+
+      equipos_similares: equiposSimilares,
+
+      // El historial queda disponible para mostrarlo en el
+      // componente sin necesidad de realizar otra consulta.
+      historial_estados: historial.map((registro) => ({
+        id: registro.id,
+        estado_anterior: registro.estado_anterior,
+        estado_nuevo: registro.estado_nuevo,
+        fecha: registro.fecha,
+        usuario: registro.usuario
+      }))
     });
 
   } catch (error) {
