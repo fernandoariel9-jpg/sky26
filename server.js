@@ -24,6 +24,9 @@ import {
   listarRIC44,
   obtenerEstadisticasRIC44
 } from "./controllers/ric44Controller.js";
+import {
+  obtenerEstadisticasEquipo
+} from "./controllers/estadisticasController.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1652,7 +1655,9 @@ app.get("/api/ric44/:id", obtenerRIC44);
 
 app.post("/api/ric37", guardarRIC37);
 
+app.get("/api/estadisticas/equipo/:numero_serie", obtenerEstadisticasEquipo);
 
+// --------------------------------------------------------
 
 app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
   const { id } = req.params;
