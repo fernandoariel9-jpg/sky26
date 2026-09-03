@@ -35,7 +35,9 @@ export function obtenerURLAutorizacionGoogle() {
 export async function procesarCallbackGoogle(code) {
   const { tokens } =
     await oauth2Client.getToken(code);
+
   oauth2Client.setCredentials(tokens);
+
   console.log(
     "AUTORIZACIÓN GOOGLE COMPLETADA"
   );
@@ -43,6 +45,10 @@ export async function procesarCallbackGoogle(code) {
     "Refresh token recibido:",
     !!tokens.refresh_token
   );
+
+  // El refresh token no se guarda en el repositorio ni se escribe en logs.
+  // Se devuelve al callback para poder actualizar manualmente
+  // GOOGLE_REFRESH_TOKEN en Render.
   return tokens;
 }
 
@@ -215,8 +221,8 @@ export async function subirPDFDrive({
 
   const buffer = Buffer.from(pdf);
 
-const stream =
-  Readable.from([buffer]);
+  const stream =
+    Readable.from([buffer]);
 
   const respuesta =
     await drive.files.create({
