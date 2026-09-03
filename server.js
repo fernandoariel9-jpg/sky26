@@ -31,6 +31,7 @@ import {
   obtenerHistorialEquipo,
   obtenerDetalleRIC37
 } from "./controllers/historialEquipoController.js";
+import historialEquipoRoutes from "./routes/historialEquipoRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
