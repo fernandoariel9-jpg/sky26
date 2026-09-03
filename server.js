@@ -27,6 +27,10 @@ import {
 import {
   obtenerEstadisticasEquipo
 } from "./controllers/estadisticasController.js";
+import {
+  obtenerHistorialEquipo,
+  obtenerDetalleRIC37
+} from "./controllers/historialEquipoController.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -1641,7 +1645,16 @@ app.get("/api/ric44/:id", obtenerRIC44);
 
 app.post("/api/ric37", guardarRIC37);
 
+app.get("/api/ric37/:id", obtenerDetalleRIC37);
+
 app.get("/api/estadisticas/equipo/:numero_serie", obtenerEstadisticasEquipo);
+
+app.use("/equipos", historialEquipoRoutes);
+
+app.get("/equipos/:numero_serie/historial", obtenerHistorialEquipo);
+
+app.get("/equipos/:serie/historial/pdf", generarHistorialPDF);
+
 
 // --------------------------------------------------------
 
