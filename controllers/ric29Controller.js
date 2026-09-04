@@ -2,6 +2,7 @@ import pool from "../db.js";
 
 import { obtenerRIC29 } from "../pdf/protocolosConsultas.js";
 import { generarRIC29PDF } from "../pdf/ric29PDF.js";
+import { crearNotificacionesMantenimiento } from "./notificacionesMantenimientoController.js";
 
 import {
   obtenerCarpetaRIC29,
@@ -539,6 +540,34 @@ export async function enviarRIC29Drive(req, res) {
       }
     );
 
+    // --------------------------------------------------------
+    // NOTIFICACIONES INTERNAS
+    // Se generan solamente después de obtener el webViewLink.
+    // --------------------------------------------------------
+    let notificaciones = { creadas: 0, usuarios: [] };
+
+    if (archivo.webViewLink) {
+      try {
+        notificaciones = await crearNotificacionesMantenimiento({
+          protocolo: "RIC29",
+          protocoloId: ric29_id,
+          equipoId: datos.equipo_id,
+          fechaMantenimiento: datos.fecha,
+          resultado: datos.resultado_general,
+          observaciones: datos.observaciones,
+          linkDrive: archivo.webViewLink
+        });
+
+        console.log(
+          `Notificaciones internas RIC29 creadas/actualizadas: ${notificaciones.creadas}`
+        );
+      } catch (notificacionError) {
+        console.error(
+          "Error creando notificaciones internas RIC29:",
+          notificacionError
+        );
+      }
+    }
 
     res.json({
       ok: true,
@@ -564,6 +593,10 @@ export async function enviarRIC29Drive(req, res) {
 
         nombre:
           carpeta.name
+      },
+
+      notificaciones: {
+        creadas: notificaciones.creadas
       }
 
     });
