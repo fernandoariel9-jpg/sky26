@@ -1,7 +1,22 @@
 import pool from "../db.js";
 
 /**
- * Calcula y guarda el promedio histórico acumulado
+ * Obtiene la fecha actual de Argentina en formato YYYY-MM-DD.
+ */
+function fechaArgentina() {
+  const ahora = new Date();
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(ahora);
+}
+
+
+/**
+ * Calcula y guarda los promedios históricos acumulados
  * hasta la fecha indicada.
  *
  * promedio_solucion:
@@ -15,7 +30,7 @@ import pool from "../db.js";
  */
 export async function guardarResumenTiempos(fechaObjetivo = null) {
   try {
-    const fecha = fechaObjetivo || new Date().toISOString().slice(0, 10);
+    const fecha = fechaObjetivo || fechaArgentina();
 
     console.log(
       `⏳ Calculando promedios históricos acumulados hasta ${fecha}...`
@@ -24,6 +39,7 @@ export async function guardarResumenTiempos(fechaObjetivo = null) {
     const { rows } = await pool.query(
       `
       SELECT
+
         AVG(
           EXTRACT(EPOCH FROM (fecha_comp - fecha)) / 3600
         ) FILTER (
@@ -91,15 +107,21 @@ export async function guardarResumenTiempos(fechaObjetivo = null) {
 
     console.log(
       `✅ Resumen histórico guardado para ${fecha}:`,
-      `Solución=${promedio_solucion !== null
-        ? Number(promedio_solucion).toFixed(2)
-        : "sin datos"}h |`,
-      `Finalización=${promedio_finalizacion !== null
-        ? Number(promedio_finalizacion).toFixed(2)
-        : "sin datos"}h |`,
-      `Administración=${promedio_adm !== null
-        ? Number(promedio_adm).toFixed(2)
-        : "sin datos"}h`
+      `Solución=${
+        promedio_solucion !== null
+          ? Number(promedio_solucion).toFixed(2)
+          : "sin datos"
+      }h |`,
+      `Finalización=${
+        promedio_finalizacion !== null
+          ? Number(promedio_finalizacion).toFixed(2)
+          : "sin datos"
+      }h |`,
+      `Administración=${
+        promedio_adm !== null
+          ? Number(promedio_adm).toFixed(2)
+          : "sin datos"
+      }h`
     );
 
     return {
@@ -122,7 +144,7 @@ export async function guardarResumenTiempos(fechaObjetivo = null) {
 
 
 /**
- * Obtener la serie histórica de promedios.
+ * Obtener la serie histórica completa.
  */
 export async function obtenerResumenTiempos(req, res) {
   try {
@@ -156,9 +178,15 @@ export async function obtenerResumenTiempos(req, res) {
 
 
 /**
- * Generar/recalcular manualmente un día.
+ * Generar o recalcular manualmente un día.
  *
- * Útil para reconstruir datos históricos.
+ * Ejemplo:
+ * POST /api/resumen_tiempos/generar
+ *
+ * body:
+ * {
+ *   "fecha": "2026-09-07"
+ * }
  */
 export async function generarResumenTiempos(req, res) {
   try {
