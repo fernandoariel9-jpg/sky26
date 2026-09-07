@@ -9,6 +9,11 @@ import webpush from "web-push";
 import fetch from "node-fetch";
 import cron from "node-cron";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
+import {
+  guardarResumenTiempos
+} from "./controllers/promediosController.js";
+
+import promediosRoutes from "./routes/promediosRoutes.js";
 
 import {
   obtenerCarpetaRIC29,
@@ -125,69 +130,16 @@ app.use((req, res, next) => {
 
 });
 
-app.use("/api/ric29", ric29Routes);
-
-async function guardarResumenTiempos() {
+cron.schedule("0 14 * * *", async () => {
   try {
-    console.log("⏳ Calculando promedios diarios...");
-
-    // 📌 Promedio tiempo de SOLUCIÓN (en horas)
-    const promedioSolucionQuery = await pool.query(`
-      SELECT AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha)) / 3600) AS horas
-      FROM ric01
-      WHERE fecha_comp IS NOT NULL
-    `);
-    const promedio_solucion = Number(promedioSolucionQuery.rows[0].horas) || 0;
-
-    // 📌 Promedio tiempo de FINALIZACIÓN (en horas)
-    const promedioFinQuery = await pool.query(`
-      SELECT AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_comp)) / 3600) AS horas
-      FROM ric01
-      WHERE fecha_fin IS NOT NULL
-        AND fecha_comp IS NOT NULL
-    `);
-    const promedio_finalizacion = Number(promedioFinQuery.rows[0].horas) || 0;
-
-    // 📌 Promedio tiempo ADMINISTRACIÓN (fecha_adm → fecha_fin)
-    const promedioAdmQuery = await pool.query(`
-      SELECT AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_adm)) / 3600) AS horas
-      FROM ric01
-      WHERE fecha_adm IS NOT NULL
-        AND fecha_fin IS NOT NULL
-    `);
-    const promedio_adm = Number(promedioAdmQuery.rows[0].horas) || 0;
-
-    // 📌 Guardar en resumen_tiempos
-    await pool.query(
-      `
-      INSERT INTO resumen_tiempos (
-        fecha,
-        promedio_solucion,
-        promedio_finalizacion,
-        promedio_adm
-      )
-      VALUES (CURRENT_DATE, $1, $2, $3)
-      ON CONFLICT (fecha)
-      DO UPDATE SET
-        promedio_solucion     = EXCLUDED.promedio_solucion,
-        promedio_finalizacion = EXCLUDED.promedio_finalizacion,
-        promedio_adm          = EXCLUDED.promedio_adm
-      `,
-      [promedio_solucion, promedio_finalizacion, promedio_adm]
+    await guardarResumenTiempos();
+  } catch (error) {
+    console.error(
+      "❌ Error ejecutando cron de promedios históricos:",
+      error
     );
-
-    console.log(
-      `✅ Resumen guardado:
-       Solución=${promedio_solucion.toFixed(2)}h |
-       Finalización=${promedio_finalizacion.toFixed(2)}h |
-       Administración=${promedio_adm.toFixed(2)}h`
-    );
-  } catch (err) {
-    console.error("❌ Error al guardar resumen de tiempos:", err.message);
   }
-}
-
-cron.schedule("0 14 * * *", guardarResumenTiempos, {
+}, {
   timezone: "America/Argentina/Buenos_Aires",
 });
 
@@ -1140,6 +1092,8 @@ app.put("/api/equipos/:id", async (req, res) => {
     // RUTAS DE ARCHIVOS CONTROLLERS
     // --------------------------------------------------------
 
+app.use("/api/ric29", ric29Routes);
+
 app.post("/api/ric44", guardarRIC44);
 
 app.get("/api/ric44", listarRIC44);
@@ -1159,6 +1113,8 @@ app.use("/equipos", historialEquipoRoutes);
 app.get("/equipos/:numero_serie/historial", obtenerHistorialEquipo);
 
 app.get("/equipos/:serie/historial/pdf", generarHistorialPDF);
+
+app.use("/api/resumen_tiempos", promediosRoutes);
 
 
 // --------------------------------------------------------
