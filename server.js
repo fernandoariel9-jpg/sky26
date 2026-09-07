@@ -810,27 +810,33 @@ LEFT JOIN usuarios u ON r.usuario = u.mail
     // 👤 USUARIO COMÚN / SUPERVISOR
     else if (usuario) {
       const userResult = await pool.query(
-        `SELECT tipo, servicio
-         FROM usuarios
-         WHERE mail = $1 OR nombre = $1
-         LIMIT 1`,
-        [usuario]
-      );
+  `SELECT nombre, mail, tipo, servicio
+   FROM usuarios
+   WHERE TRIM(LOWER(mail)) = TRIM(LOWER($1))
+      OR TRIM(LOWER(nombre)) = TRIM(LOWER($1))
+   LIMIT 1`,
+  [usuario]
+);
 
       if (userResult.rows.length === 0) {
         return res.status(404).json({ error: "Usuario no encontrado" });
       }
 
-      const { tipo, servicio } = userResult.rows[0];
-
+      const { nombre, mail, tipo, servicio } = userResult.rows[0];
+      
       if (tipo === "supervisor") {
         // 👔 Supervisor → tareas de su servicio
         query += ` WHERE r.servicio = $1 `;
         params.push(servicio);
       } else {
   // 👤 Común → ve lo que creó Y lo que solicitó
-  query += ` WHERE r.usuario = $1 OR r.solicitado_por = $1 `;
-  params.push(usuario);
+  query += `
+  WHERE TRIM(LOWER(r.usuario)) = TRIM(LOWER($1))
+     OR TRIM(LOWER(r.solicitado_por)) = TRIM(LOWER($1))
+     OR TRIM(LOWER(r.usuario)) = TRIM(LOWER($2))
+     OR TRIM(LOWER(r.solicitado_por)) = TRIM(LOWER($2))
+`;
+params.push(nombre, usuario);
 }
     } else {
       // ❌ ni usuario ni panel
