@@ -7,10 +7,8 @@ import {
 
 const router = express.Router();
 
-// Obtener toda la serie histórica
 router.get("/", obtenerResumenTiempos);
 
-// Generar/recalcular un día
 router.post("/generar", generarResumenTiempos);
 
 export default router;
