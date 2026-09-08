@@ -8,6 +8,7 @@ import bcrypt from "bcryptjs";
 import webpush from "web-push";
 import fetch from "node-fetch";
 import cron from "node-cron";
+import jwt from "jsonwebtoken";
 import generarHistorialPDF from "./pdf/historialEquipo.js";
 import {
   guardarResumenTiempos
@@ -2828,27 +2829,44 @@ app.post("/personal", async (req, res) => {
 
 app.post("/personal/login", async (req, res) => {
   const { mail, password } = req.body;
-  try {
-    const result = await pool.query(`SELECT id, nombre, movil, mail, area, rol
- FROM personal
- WHERE mail=$1 AND password=$2`, [mail, password]);
-    if (result.rows.length === 0) return res.status(401).json({ error: "Credenciales inválidas" });
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Error en login personal" });
-  }
-});
 
-app.get("/personal", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT id, nombre, movil, area FROM personal ORDER BY nombre"
+      `SELECT id, nombre, movil, mail, area, rol
+       FROM personal
+       WHERE mail=$1 AND password=$2`,
+      [mail, password]
     );
-    res.json(result.rows);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        error: "Credenciales inválidas"
+      });
+    }
+
+    const personal = result.rows[0];
+
+    const token = jwt.sign(
+      {
+        personal_id: personal.id
+      },
+      process.env.PERSONAL_JWT_SECRET,
+      {
+        expiresIn: "12h"
+      }
+    );
+
+    res.json({
+      ...personal,
+      token
+    });
+
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error obteniendo personal" });
+
+    res.status(500).json({
+      error: "Error en login personal"
+    });
   }
 });
 
