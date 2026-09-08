@@ -164,6 +164,50 @@ const autenticarPersonal = async (req, res, next) => {
   }
 };
 
+const identificarPersonalOpcional = async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+
+  // Si no hay token, sigue funcionando como siempre
+  if (!authHeader) {
+    return next();
+  }
+
+  const partes = authHeader.split(" ");
+
+  // Si el formato no es Bearer token, no bloqueamos
+  if (partes.length !== 2 || partes[0] !== "Bearer") {
+    return next();
+  }
+
+  try {
+    const decoded = jwt.verify(
+      partes[1],
+      process.env.PERSONAL_JWT_SECRET
+    );
+
+    const result = await pool.query(
+      `SELECT id, nombre, movil, mail, area, rol
+       FROM personal
+       WHERE id = $1`,
+      [decoded.personal_id]
+    );
+
+    if (result.rows.length > 0) {
+      req.personal = result.rows[0];
+    }
+
+  } catch (error) {
+    // Token inválido o vencido:
+    // no bloqueamos la petición para mantener compatibilidad
+    console.warn(
+      "Token de personal opcional no válido:",
+      error.message
+    );
+  }
+
+  next();
+};
+
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.json());
