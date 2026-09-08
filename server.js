@@ -2829,7 +2829,9 @@ app.post("/personal", async (req, res) => {
 app.post("/personal/login", async (req, res) => {
   const { mail, password } = req.body;
   try {
-    const result = await pool.query("SELECT * FROM personal WHERE mail=$1 AND password=$2", [mail, password]);
+    const result = await pool.query(`SELECT id, nombre, movil, mail, area, rol
+ FROM personal
+ WHERE mail=$1 AND password=$2`, [mail, password]);
     if (result.rows.length === 0) return res.status(401).json({ error: "Credenciales inválidas" });
     res.json(result.rows[0]);
   } catch (err) {
