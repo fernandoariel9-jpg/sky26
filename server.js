@@ -113,6 +113,57 @@ const verificarToken = (req, res, next) => {
   next();
 };
 
+const autenticarPersonal = async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+
+  if (!authHeader) {
+    return res.status(401).json({
+      error: "Token de personal requerido"
+    });
+  }
+
+  const partes = authHeader.split(" ");
+
+  if (partes.length !== 2 || partes[0] !== "Bearer") {
+    return res.status(401).json({
+      error: "Formato de token inválido"
+    });
+  }
+
+  const token = partes[1];
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.PERSONAL_JWT_SECRET
+    );
+
+    const result = await pool.query(
+      `SELECT id, nombre, movil, mail, area, rol
+       FROM personal
+       WHERE id = $1`,
+      [decoded.personal_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        error: "Personal no encontrado"
+      });
+    }
+
+    req.personal = result.rows[0];
+
+    next();
+
+  } catch (error) {
+    console.error("Error autenticando personal:", error.message);
+
+    return res.status(401).json({
+      error: "Token inválido o vencido"
+    });
+  }
+};
+
 app.use(cors());
 app.use(bodyParser.json({ limit: "5mb" }));
 app.use(express.json());
