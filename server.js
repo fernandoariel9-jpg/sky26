@@ -783,45 +783,79 @@ app.get("/api/tiempos_analitica", async (req, res) => {
 });
 
 // ---------- TAREAS ----------
-app.get("/tareas/:area", async (req, res) => {
+app.get("/tareas/:area", identificarPersonalOpcional, async (req, res) => {
   const { area } = req.params;
   const { personal } = req.query;
 
   try {
-    const result = await pool.query(
-      `
-      SELECT
-        r.*,
-        u.movil AS movil,
+    let result;
 
-        CASE
-          WHEN r.diagnostico IS NOT NULL
-           AND TRIM(r.diagnostico) <> ''
-          THEN (
-            SELECT json_agg(DISTINCT solucion)
-            FROM rics
-            WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
-              AND solucion IS NOT NULL
-              AND TRIM(solucion) <> ''
-          )
-          ELSE NULL
-        END AS soluciones_posibles
+if (req.personal?.rol === "superusuario") {
 
-      FROM ric01 r
-      LEFT JOIN usuarios u
-        ON r.usuario = u.mail
-        OR r.usuario = u.nombre
+  result = await pool.query(`
+    SELECT
+      r.*,
+      u.movil AS movil,
 
-      WHERE (
-        (r.area = $1 AND r.reasignado_a IS NULL)
-        OR r.reasignado_a = $1
-        OR (r.origen = 'interno' AND r.usuario = $2)
-      )
+      CASE
+        WHEN r.diagnostico IS NOT NULL
+         AND TRIM(r.diagnostico) <> ''
+        THEN (
+          SELECT json_agg(DISTINCT solucion)
+          FROM rics
+          WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+            AND solucion IS NOT NULL
+            AND TRIM(solucion) <> ''
+        )
+        ELSE NULL
+      END AS soluciones_posibles
 
-      ORDER BY r.fecha DESC
-      `,
-      [area, personal]
-    );
+    FROM ric01 r
+    LEFT JOIN usuarios u
+      ON r.usuario = u.mail
+      OR r.usuario = u.nombre
+
+    ORDER BY r.fecha DESC
+  `);
+
+} else {
+
+  result = await pool.query(
+    `
+    SELECT
+      r.*,
+      u.movil AS movil,
+
+      CASE
+        WHEN r.diagnostico IS NOT NULL
+         AND TRIM(r.diagnostico) <> ''
+        THEN (
+          SELECT json_agg(DISTINCT solucion)
+          FROM rics
+          WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+            AND solucion IS NOT NULL
+            AND TRIM(solucion) <> ''
+        )
+        ELSE NULL
+      END AS soluciones_posibles
+
+    FROM ric01 r
+    LEFT JOIN usuarios u
+      ON r.usuario = u.mail
+      OR r.usuario = u.nombre
+
+    WHERE (
+      (r.area = $1 AND r.reasignado_a IS NULL)
+      OR r.reasignado_a = $1
+      OR (r.origen = 'interno' AND r.usuario = $2)
+    )
+
+    ORDER BY r.fecha DESC
+    `,
+    [area, personal]
+  );
+
+}
 
     res.json(result.rows);
   } catch (err) {
