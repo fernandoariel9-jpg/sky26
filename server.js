@@ -2076,7 +2076,7 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
   FROM ric01 m
   WHERE m.numero_serie = e.numero_serie
     AND COALESCE(m.fin, false) = false
-) AS mantenimientos_abiertos
+) AS mantenimientos_abiertos,
 
         -- Estadísticas
         (
