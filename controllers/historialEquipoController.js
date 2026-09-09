@@ -3,7 +3,7 @@ import pool from "../db.js";
 /**
  * Historial de mantenimientos de un equipo.
  *
- * La relación con RIC37 se realiza exclusivamente mediante ric01_id.
+ * Las relaciones con RIC29 y RIC37 se realizan exclusivamente mediante ric01_id.
  */
 export async function obtenerHistorialEquipo(req, res) {
   const { numero_serie } = req.params;
@@ -31,6 +31,20 @@ export async function obtenerHistorialEquipo(req, res) {
         r.solucion,
         r.observacion,
         r.calificacion,
+        (
+          SELECT json_build_object(
+            'id', p.id,
+            'ric01_id', p.ric01_id,
+            'resultado_general', p.resultado_general,
+            'observaciones', p.observaciones,
+            'fecha', p.fecha,
+            'tecnico', p.tecnico
+          )
+          FROM ric29 p
+          WHERE p.ric01_id = r.id
+          ORDER BY p.id DESC
+          LIMIT 1
+        ) AS ric29,
         (
           SELECT json_build_object(
             'id', x.id,
