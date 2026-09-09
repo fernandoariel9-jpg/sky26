@@ -1903,7 +1903,7 @@ app.put("/ric01/:id/iniciar-mantenimiento", async (req, res) => {
 app.put("/ric01/finalizar/:id", async (req, res) => {
 
   const { id } = req.params;
-  
+
   const {
     fecha_fin,
     estado,
@@ -1911,49 +1911,109 @@ app.put("/ric01/finalizar/:id", async (req, res) => {
     usuario
   } = req.body;
 
+  const client = await pool.connect();
+
   try {
 
-    await pool.query(
-      `UPDATE ric01
-       SET fin = true,
-           fecha_fin = $1,
-       WHERE id = $2`,
+    await client.query("BEGIN");
+
+    // 1️⃣ Verificar que el mantenimiento exista
+    const mantenimientoActual = await client.query(
+      `
+      SELECT id, numero_serie, fin
+      FROM ric01
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    if (mantenimientoActual.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado"
+      });
+    }
+
+    const mantenimiento =
+      mantenimientoActual.rows[0];
+
+    const numeroSerie =
+      mantenimiento.numero_serie || numero_serie;
+
+    // 2️⃣ Finalizar SOLO este mantenimiento
+    await client.query(
+      `
+      UPDATE ric01
+      SET
+        fin = true,
+        fecha_fin = $1
+      WHERE id = $2
+      `,
       [fecha_fin, id]
     );
 
-    const equipoActual = await pool.query(
-      `SELECT id, estado
-       FROM equipos
-       WHERE numero_serie = $1`,
-      [numero_serie]
+    // 3️⃣ Verificar si quedan otros mantenimientos abiertos
+    const abiertos = await client.query(
+      `
+      SELECT COUNT(*)::integer AS cantidad
+      FROM ric01
+      WHERE numero_serie = $1
+        AND COALESCE(fin, false) = false
+      `,
+      [numeroSerie]
     );
 
-    if (equipoActual.rows.length > 0) {
+    const cantidadAbiertos =
+      abiertos.rows[0].cantidad;
 
-      const estadoAnterior =
-        equipoActual.rows[0].estado;
+    // 4️⃣ Solo cambiar el estado del equipo
+    // cuando ya NO quedan mantenimientos abiertos
+    if (
+      cantidadAbiertos === 0 &&
+      estado &&
+      numeroSerie
+    ) {
 
-      const equipoId =
-        equipoActual.rows[0].id;
-
-      await pool.query(
-        `UPDATE equipos
-         SET estado = $1
-         WHERE numero_serie = $2`,
-        [estado, numero_serie]
+      await client.query(
+        `
+        UPDATE equipos
+        SET estado = $1
+        WHERE numero_serie = $2
+        `,
+        [estado, numeroSerie]
       );
+
     }
 
+    await client.query("COMMIT");
+
     res.json({
-      ok: true
+      ok: true,
+      mantenimiento_id: Number(id),
+      mantenimientos_abiertos: cantidadAbiertos,
+      estado_actualizado: cantidadAbiertos === 0
     });
 
   } catch (error) {
-    console.error(error);
+
+    await client.query("ROLLBACK");
+
+    console.error(
+      "Error finalizando mantenimiento:",
+      error
+    );
+
     res.status(500).json({
       error: error.message
     });
+
+  } finally {
+
+    client.release();
+
   }
+
 });
 
 app.get("/equipos/:numero_serie/historial", async (req, res) => {
