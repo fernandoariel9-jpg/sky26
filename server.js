@@ -1758,19 +1758,19 @@ app.put("/ric01/:id", async (req, res) => {
     const result = await pool.query(
   `UPDATE ric01
    SET diagnostico = CASE
-                        WHEN $1 IS NULL OR TRIM($1) = ''
-                        THEN diagnostico
-                        ELSE $1
-                      END,
-       descripcion = CASE
-                        WHEN $2 IS NULL OR TRIM($2) = ''
-                        THEN descripcion
-                        ELSE $2
-                      END,
-       solucion = $3,
-       fecha_comp = $4
-   WHERE id = $5
-   RETURNING *`,
+                   WHEN $1::text IS NULL OR TRIM($1::text) = ''
+                   THEN diagnostico
+                   ELSE $1::text
+                 END,
+    descripcion = CASE
+                   WHEN $2::text IS NULL OR TRIM($2::text) = ''
+                   THEN descripcion
+                   ELSE $2::text
+                 END,
+    solucion = $3,
+    fecha_comp = $4
+WHERE id = $5
+RETURNING *`,
   [
     diagnostico,
     descripcion,
