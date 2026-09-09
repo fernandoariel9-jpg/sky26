@@ -2054,6 +2054,30 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
         r.fecha_comp,
         r.solucion,
 
+        (
+  SELECT COALESCE(
+    json_agg(
+      json_build_object(
+        'id', m.id,
+        'tipo_mantenimiento', m.tipo_mantenimiento,
+        'diagnostico', m.diagnostico,
+        'fecha', m.fecha,
+        'fecha_comp', m.fecha_comp,
+        'fecha_fin', m.fecha_fin,
+        'solucion', m.solucion,
+        'observacion', m.observacion,
+        'asignado', m.asignado,
+        'fin', m.fin
+      )
+      ORDER BY m.fecha DESC
+    ),
+    '[]'::json
+  )
+  FROM ric01 m
+  WHERE m.numero_serie = e.numero_serie
+    AND COALESCE(m.fin, false) = false
+) AS mantenimientos_abiertos
+
         -- Estadísticas
         (
           SELECT COUNT(*)
