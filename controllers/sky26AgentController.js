@@ -5,6 +5,8 @@
 
 import pool from "../db.js";
 
+const MAX_ANTIGUEDAD_MS = 15000;
+
 function obtenerToken(req) {
   return req.headers["x-agent-token"] || "";
 }
@@ -29,6 +31,25 @@ function validarToken(req, res) {
   }
 
   return true;
+}
+
+function calcularEstado(recibidoEn) {
+  if (!recibidoEn) {
+    return {
+      conectado: false,
+      antiguedadMs: null
+    };
+  }
+
+  const antiguedadMs = Math.max(
+    0,
+    Date.now() - new Date(recibidoEn).getTime()
+  );
+
+  return {
+    conectado: antiguedadMs <= MAX_ANTIGUEDAD_MS,
+    antiguedadMs
+  };
 }
 
 export async function publicarSnapshot(req, res) {
@@ -110,12 +131,15 @@ export async function obtenerUltimoSnapshot(req, res) {
     }
 
     const row = result.rows[0];
+    const estado = calcularEstado(row.recibido_en);
 
     return res.json({
       ok: true,
       agente: row.agente,
       instrumento: row.instrumento,
       recibidoEn: row.recibido_en,
+      conectado: estado.conectado,
+      antiguedadMs: estado.antiguedadMs,
       datos: row.datos
     });
   } catch (error) {
@@ -145,13 +169,15 @@ export async function estadoAgent(req, res) {
     );
 
     const row = result.rows[0];
+    const estado = calcularEstado(row?.recibido_en);
 
     return res.json({
       ok: true,
-      conectado: Boolean(row),
+      conectado: estado.conectado,
       agente,
       instrumento,
-      ultimaLectura: row?.recibido_en || null
+      ultimaLectura: row?.recibido_en || null,
+      antiguedadMs: estado.antiguedadMs
     });
   } catch (error) {
     console.error("Error consultando estado del agente:", error);
