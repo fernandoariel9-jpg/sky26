@@ -13,7 +13,14 @@ import {
   marcarTodasNotificacionesMantenimientoLeidas
 } from "../controllers/notificacionesMantenimientoController.js";
 
+import sky26AgentRoutes from "./sky26AgentRoutes.js";
+
 const router = express.Router();
+
+// ============================================================
+// SKY26 AGENT (montaje temporal para validar integración)
+// ============================================================
+router.use("/agent", sky26AgentRoutes);
 
 // ============================================================
 // NOTIFICACIONES INTERNAS DE MANTENIMIENTO
