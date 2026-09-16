@@ -209,3 +209,158 @@ export async function registrarEntradaStock(req, res) {
     client.release();
   }
 }
+
+export async function registrarSalidaStock(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const {
+      item_id,
+      area,
+      cantidad,
+      tipo = "SALIDA",
+      ric01_id = null,
+      personal_id = null,
+      personal_nombre = null,
+      observacion = null
+    } = req.body;
+
+    const cantidadNumerica = Number(cantidad);
+    const tipoNormalizado = String(tipo || "SALIDA").toUpperCase();
+
+    if (!item_id) {
+      return res.status(400).json({ error: "item_id es obligatorio" });
+    }
+
+    if (!area?.trim()) {
+      return res.status(400).json({ error: "El área es obligatoria" });
+    }
+
+    if (!Number.isFinite(cantidadNumerica) || cantidadNumerica <= 0) {
+      return res.status(400).json({ error: "La cantidad debe ser mayor que cero" });
+    }
+
+    if (!["SALIDA", "CONSUMO"].includes(tipoNormalizado)) {
+      return res.status(400).json({ error: "tipo debe ser SALIDA o CONSUMO" });
+    }
+
+    if (tipoNormalizado === "CONSUMO" && !ric01_id) {
+      return res.status(400).json({ error: "ric01_id es obligatorio para un consumo" });
+    }
+
+    await client.query("BEGIN");
+
+    const existencia = await client.query(
+      `
+      SELECT id, cantidad
+      FROM stock_existencias
+      WHERE item_id = $1 AND area = $2
+      FOR UPDATE
+      `,
+      [item_id, area.trim()]
+    );
+
+    if (existencia.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "No existe stock de ese artículo en el área indicada" });
+    }
+
+    const disponible = Number(existencia.rows[0].cantidad);
+
+    if (disponible < cantidadNumerica) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: "Stock insuficiente",
+        disponible,
+        solicitado: cantidadNumerica
+      });
+    }
+
+    const nuevaExistencia = await client.query(
+      `
+      UPDATE stock_existencias
+      SET
+        cantidad = cantidad - $1,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+      `,
+      [cantidadNumerica, existencia.rows[0].id]
+    );
+
+    let consumo = null;
+
+    if (tipoNormalizado === "CONSUMO") {
+      const consumoResult = await client.query(
+        `
+        INSERT INTO stock_consumos (
+          ric01_id,
+          item_id,
+          cantidad,
+          area,
+          personal_id,
+          personal_nombre,
+          observacion
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+        `,
+        [
+          ric01_id,
+          item_id,
+          cantidadNumerica,
+          area.trim(),
+          personal_id,
+          personal_nombre?.trim() || null,
+          observacion?.trim() || null
+        ]
+      );
+
+      consumo = consumoResult.rows[0];
+    }
+
+    const movimiento = await client.query(
+      `
+      INSERT INTO stock_movimientos (
+        item_id,
+        tipo,
+        cantidad,
+        area_origen,
+        personal_id,
+        personal_nombre,
+        referencia_tipo,
+        referencia_id,
+        observacion
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+      `,
+      [
+        item_id,
+        tipoNormalizado,
+        cantidadNumerica,
+        area.trim(),
+        personal_id,
+        personal_nombre?.trim() || null,
+        ric01_id ? "ric01" : null,
+        ric01_id,
+        observacion?.trim() || null
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      ok: true,
+      existencia: nuevaExistencia.rows[0],
+      movimiento: movimiento.rows[0],
+      consumo
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error al registrar salida de stock:", error);
+    res.status(500).json({ error: "Error al registrar la salida de stock" });
+  } finally {
+    client.release();
+  }
+}
