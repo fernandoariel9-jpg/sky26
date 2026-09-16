@@ -120,12 +120,19 @@ export async function resolverTransferenciaStock(req, res) {
       accion,
       aprobado_por_id = null,
       aprobado_por_nombre = null,
+      aprobado_por_area = null,
       observacion = null
     } = req.body;
 
     const accionNormalizada = String(accion || "").toUpperCase();
+    const areaAprobador = String(aprobado_por_area || "").trim().toUpperCase();
+
     if (!["APROBAR", "RECHAZAR"].includes(accionNormalizada)) {
       return res.status(400).json({ error: "accion debe ser APROBAR o RECHAZAR" });
+    }
+
+    if (!areaAprobador) {
+      return res.status(400).json({ error: "El área del personal que resuelve es obligatoria" });
     }
 
     await client.query("BEGIN");
@@ -141,9 +148,17 @@ export async function resolverTransferenciaStock(req, res) {
     }
 
     const t = transferencia.rows[0];
+
     if (t.estado !== "PENDIENTE") {
       await client.query("ROLLBACK");
       return res.status(409).json({ error: "La transferencia ya fue resuelta" });
+    }
+
+    if (String(t.area_origen || "").trim().toUpperCase() !== areaAprobador) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({
+        error: "Solo el personal del área origen puede aprobar o rechazar esta transferencia"
+      });
     }
 
     if (accionNormalizada === "RECHAZAR") {
