@@ -394,6 +394,43 @@ export async function registrarSalidaStock(req, res) {
       );
 
       consumo = consumoResult.rows[0];
+
+      // El consumo también queda registrado dentro de la tarea/intervención RIC01.
+      // Se hace en la misma transacción para no descontar stock sin dejar trazabilidad.
+      const tareaActualizada = await client.query(
+        `
+        UPDATE ric01 r
+        SET observacion = CASE
+          WHEN r.observacion IS NULL OR TRIM(r.observacion) = '' THEN
+            '[' || TO_CHAR(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') ||
+            '] 🔩 Repuesto utilizado: ' ||
+            CASE WHEN i.codigo IS NOT NULL AND TRIM(i.codigo) <> '' THEN i.codigo || ' - ' ELSE '' END ||
+            i.descripcion || ' — ' || $1::text || ' ' || COALESCE(i.unidad, 'unidad') ||
+            CASE WHEN $2::text IS NOT NULL AND TRIM($2::text) <> '' THEN ' · Técnico: ' || $2::text ELSE '' END
+          ELSE
+            r.observacion || E'\n' ||
+            '[' || TO_CHAR(CURRENT_TIMESTAMP AT TIME ZONE 'America/Argentina/Buenos_Aires', 'YYYY-MM-DD HH24:MI') ||
+            '] 🔩 Repuesto utilizado: ' ||
+            CASE WHEN i.codigo IS NOT NULL AND TRIM(i.codigo) <> '' THEN i.codigo || ' - ' ELSE '' END ||
+            i.descripcion || ' — ' || $1::text || ' ' || COALESCE(i.unidad, 'unidad') ||
+            CASE WHEN $2::text IS NOT NULL AND TRIM($2::text) <> '' THEN ' · Técnico: ' || $2::text ELSE '' END
+        END
+        FROM stock_items i
+        WHERE r.id = $3
+          AND i.id = $4
+        RETURNING r.id, r.observacion
+        `,
+        [
+          cantidadNumerica,
+          personal_nombre?.trim() || null,
+          ric01_id,
+          item_id
+        ]
+      );
+
+      if (tareaActualizada.rowCount === 0) {
+        throw new Error("No se pudo asociar el consumo a la tarea RIC01");
+      }
     }
 
     const movimiento = await client.query(
