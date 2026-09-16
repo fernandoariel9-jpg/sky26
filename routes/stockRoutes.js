@@ -1,6 +1,7 @@
 import express from "express";
 
 import {
+  listarStockCategorias,
   listarStockItems,
   crearStockItem,
   listarExistencias,
@@ -10,6 +11,9 @@ import {
 } from "../controllers/stockController.js";
 
 const router = express.Router();
+
+// Categorías
+router.get("/categorias", listarStockCategorias);
 
 // Catálogo
 router.get("/items", listarStockItems);
