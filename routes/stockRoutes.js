@@ -4,6 +4,7 @@ import {
   listarStockCategorias,
   listarStockItems,
   crearStockItem,
+  eliminarStockItem,
   listarExistencias,
   registrarEntradaStock,
   registrarSalidaStock,
@@ -18,6 +19,7 @@ router.get("/categorias", listarStockCategorias);
 // Catálogo
 router.get("/items", listarStockItems);
 router.post("/items", crearStockItem);
+router.delete("/items/:id", eliminarStockItem);
 
 // Existencias
 router.get("/existencias", listarExistencias);
