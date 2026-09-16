@@ -91,6 +91,64 @@ export async function crearStockItem(req, res) {
   }
 }
 
+export async function eliminarStockItem(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params;
+
+    await client.query("BEGIN");
+
+    const item = await client.query(
+      `SELECT id, codigo, descripcion FROM stock_items WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+
+    if (item.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Artículo no encontrado" });
+    }
+
+    const uso = await client.query(
+      `
+      SELECT
+        EXISTS(SELECT 1 FROM stock_movimientos WHERE item_id = $1) AS movimientos,
+        EXISTS(SELECT 1 FROM stock_consumos WHERE item_id = $1) AS consumos,
+        EXISTS(SELECT 1 FROM stock_transferencias WHERE item_id = $1) AS transferencias
+      `,
+      [id]
+    );
+
+    const tieneHistorial =
+      uso.rows[0].movimientos ||
+      uso.rows[0].consumos ||
+      uso.rows[0].transferencias;
+
+    if (tieneHistorial) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({
+        error: "No se puede eliminar porque el artículo tiene historial de movimientos, consumos o transferencias"
+      });
+    }
+
+    await client.query(`DELETE FROM stock_existencias WHERE item_id = $1`, [id]);
+    await client.query(`DELETE FROM stock_items WHERE id = $1`, [id]);
+
+    await client.query("COMMIT");
+
+    res.json({
+      ok: true,
+      eliminado: item.rows[0]
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error al eliminar artículo de stock:", error);
+    res.status(500).json({ error: "Error al eliminar el artículo de stock" });
+  } finally {
+    client.release();
+  }
+}
+
 // ============================================================
 // EXISTENCIAS
 // ============================================================
