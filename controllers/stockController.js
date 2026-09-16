@@ -117,3 +117,95 @@ export async function listarExistencias(req, res) {
     res.status(500).json({ error: "Error al obtener las existencias" });
   }
 }
+
+export async function registrarEntradaStock(req, res) {
+  const client = await pool.connect();
+
+  try {
+    const {
+      item_id,
+      area,
+      cantidad,
+      personal_id = null,
+      personal_nombre = null,
+      observacion = null
+    } = req.body;
+
+    const cantidadNumerica = Number(cantidad);
+
+    if (!item_id) {
+      return res.status(400).json({ error: "item_id es obligatorio" });
+    }
+
+    if (!area?.trim()) {
+      return res.status(400).json({ error: "El área es obligatoria" });
+    }
+
+    if (!Number.isFinite(cantidadNumerica) || cantidadNumerica <= 0) {
+      return res.status(400).json({ error: "La cantidad debe ser mayor que cero" });
+    }
+
+    await client.query("BEGIN");
+
+    const item = await client.query(
+      `SELECT id FROM stock_items WHERE id = $1 AND activo = TRUE`,
+      [item_id]
+    );
+
+    if (item.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Artículo de stock no encontrado" });
+    }
+
+    const existencia = await client.query(
+      `
+      INSERT INTO stock_existencias (item_id, area, cantidad, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (item_id, area)
+      DO UPDATE SET
+        cantidad = stock_existencias.cantidad + EXCLUDED.cantidad,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+      `,
+      [item_id, area.trim(), cantidadNumerica]
+    );
+
+    const movimiento = await client.query(
+      `
+      INSERT INTO stock_movimientos (
+        item_id,
+        tipo,
+        cantidad,
+        area_destino,
+        personal_id,
+        personal_nombre,
+        observacion
+      )
+      VALUES ($1, 'ENTRADA', $2, $3, $4, $5, $6)
+      RETURNING *
+      `,
+      [
+        item_id,
+        cantidadNumerica,
+        area.trim(),
+        personal_id,
+        personal_nombre?.trim() || null,
+        observacion?.trim() || null
+      ]
+    );
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      ok: true,
+      existencia: existencia.rows[0],
+      movimiento: movimiento.rows[0]
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error al registrar entrada de stock:", error);
+    res.status(500).json({ error: "Error al registrar la entrada de stock" });
+  } finally {
+    client.release();
+  }
+}
