@@ -11,6 +11,12 @@ import {
   listarMovimientosStock
 } from "../controllers/stockController.js";
 
+import {
+  listarTransferenciasStock,
+  solicitarTransferenciaStock,
+  resolverTransferenciaStock
+} from "../controllers/stockTransferenciasController.js";
+
 const router = express.Router();
 
 // Categorías
@@ -28,5 +34,10 @@ router.post("/salidas", registrarSalidaStock);
 
 // Movimientos
 router.get("/movimientos", listarMovimientosStock);
+
+// Transferencias
+router.get("/transferencias", listarTransferenciasStock);
+router.post("/transferencias", solicitarTransferenciaStock);
+router.put("/transferencias/:id/resolver", resolverTransferenciaStock);
 
 export default router;
