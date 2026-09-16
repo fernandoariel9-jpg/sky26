@@ -40,6 +40,7 @@ export async function obtenerEquipo(numeroSerie) {
 
 // -----------------------------------------------------
 // Historial completo del equipo
+// Incluye consumos/repuestos asociados a cada RIC01
 // -----------------------------------------------------
 
 export async function obtenerHistorial(numeroSerie) {
@@ -47,21 +48,43 @@ export async function obtenerHistorial(numeroSerie) {
     const result = await pool.query(
         `
         SELECT
-            id,
-            fecha,
-            fecha_comp,
-            fecha_fin,
-            tipo_mantenimiento,
-            diagnostico,
-            solucion,
-            observacion,
-            usuario,
-            asignado,
-            solicitado_por,
-            fin
-        FROM ric01
-        WHERE numero_serie = $1
-        ORDER BY fecha DESC
+            r.id,
+            r.fecha,
+            r.fecha_comp,
+            r.fecha_fin,
+            r.tipo_mantenimiento,
+            r.diagnostico,
+            r.solucion,
+            r.observacion,
+            r.usuario,
+            r.asignado,
+            r.solicitado_por,
+            r.fin,
+            COALESCE(
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'id', c.id,
+                            'item_id', c.item_id,
+                            'codigo', i.codigo,
+                            'descripcion', i.descripcion,
+                            'unidad', i.unidad,
+                            'cantidad', c.cantidad,
+                            'area', c.area,
+                            'personal_nombre', c.personal_nombre,
+                            'observacion', c.observacion
+                        )
+                        ORDER BY c.id ASC
+                    )
+                    FROM stock_consumos c
+                    INNER JOIN stock_items i ON i.id = c.item_id
+                    WHERE c.ric01_id = r.id
+                ),
+                '[]'::json
+            ) AS consumos
+        FROM ric01 r
+        WHERE r.numero_serie = $1
+        ORDER BY r.fecha DESC
         `,
         [numeroSerie]
     );
@@ -69,10 +92,6 @@ export async function obtenerHistorial(numeroSerie) {
     return result.rows;
 
 }
-
-// -----------------------------------------------------
-// Resumen estadístico
-// -----------------------------------------------------
 
 // -----------------------------------------------------
 // Resumen estadístico ampliado
