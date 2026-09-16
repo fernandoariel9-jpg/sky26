@@ -3,7 +3,7 @@ import pool from "../db.js";
 /**
  * Historial de mantenimientos de un equipo.
  *
- * Las relaciones con RIC29 y RIC37 se realizan exclusivamente mediante ric01_id.
+ * Las relaciones con RIC29, RIC37 y consumos de stock se realizan mediante ric01_id.
  */
 export async function obtenerHistorialEquipo(req, res) {
   const { numero_serie } = req.params;
@@ -31,6 +31,29 @@ export async function obtenerHistorialEquipo(req, res) {
         r.solucion,
         r.observacion,
         r.calificacion,
+        COALESCE(
+          (
+            SELECT json_agg(
+              json_build_object(
+                'id', c.id,
+                'item_id', c.item_id,
+                'codigo', i.codigo,
+                'descripcion', i.descripcion,
+                'unidad', i.unidad,
+                'cantidad', c.cantidad,
+                'area', c.area,
+                'personal_id', c.personal_id,
+                'personal_nombre', c.personal_nombre,
+                'observacion', c.observacion
+              )
+              ORDER BY c.id ASC
+            )
+            FROM stock_consumos c
+            INNER JOIN stock_items i ON i.id = c.item_id
+            WHERE c.ric01_id = r.id
+          ),
+          '[]'::json
+        ) AS consumos,
         (
           SELECT json_build_object(
             'id', p.id,
