@@ -125,14 +125,30 @@ export async function resolverTransferenciaStock(req, res) {
     } = req.body;
 
     const accionNormalizada = String(accion || "").toUpperCase();
-    const areaAprobador = String(aprobado_por_area || "").trim().toUpperCase();
 
     if (!["APROBAR", "RECHAZAR"].includes(accionNormalizada)) {
       return res.status(400).json({ error: "accion debe ser APROBAR o RECHAZAR" });
     }
 
+    if (!aprobado_por_id) {
+      return res.status(400).json({ error: "El personal que resuelve es obligatorio" });
+    }
+
+    const personalResult = await client.query(
+      `SELECT id, nombre, area FROM personal WHERE id = $1`,
+      [aprobado_por_id]
+    );
+
+    if (personalResult.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
+    const personalDB = personalResult.rows[0];
+    const areaAprobador = String(personalDB.area || aprobado_por_area || "").trim().toUpperCase();
+    const nombreAprobador = personalDB.nombre?.trim() || aprobado_por_nombre?.trim() || null;
+
     if (!areaAprobador) {
-      return res.status(400).json({ error: "El área del personal que resuelve es obligatoria" });
+      return res.status(400).json({ error: "El personal no tiene un área asignada" });
     }
 
     await client.query("BEGIN");
@@ -173,7 +189,7 @@ export async function resolverTransferenciaStock(req, res) {
         WHERE id = $1
         RETURNING *
         `,
-        [id, aprobado_por_id, aprobado_por_nombre?.trim() || null, observacion?.trim().toUpperCase() || null]
+        [id, aprobado_por_id, nombreAprobador, observacion?.trim().toUpperCase() || null]
       );
 
       await client.query("COMMIT");
@@ -221,7 +237,7 @@ export async function resolverTransferenciaStock(req, res) {
         personal_id, personal_nombre, referencia_tipo, referencia_id, observacion
       ) VALUES ($1, 'TRANSFER_OUT', $2, $3, $4, $5, 'TRANSFERENCIA', $6, $7)
       `,
-      [t.item_id, cantidad, t.area_origen, aprobado_por_id, aprobado_por_nombre?.trim() || null, t.id, observacion?.trim().toUpperCase() || t.observacion]
+      [t.item_id, cantidad, t.area_origen, aprobado_por_id, nombreAprobador, t.id, observacion?.trim().toUpperCase() || t.observacion]
     );
 
     await client.query(
@@ -231,7 +247,7 @@ export async function resolverTransferenciaStock(req, res) {
         personal_id, personal_nombre, referencia_tipo, referencia_id, observacion
       ) VALUES ($1, 'TRANSFER_IN', $2, $3, $4, $5, 'TRANSFERENCIA', $6, $7)
       `,
-      [t.item_id, cantidad, t.area_destino, aprobado_por_id, aprobado_por_nombre?.trim() || null, t.id, observacion?.trim().toUpperCase() || t.observacion]
+      [t.item_id, cantidad, t.area_destino, aprobado_por_id, nombreAprobador, t.id, observacion?.trim().toUpperCase() || t.observacion]
     );
 
     const resuelto = await client.query(
@@ -245,7 +261,7 @@ export async function resolverTransferenciaStock(req, res) {
       WHERE id = $1
       RETURNING *
       `,
-      [id, aprobado_por_id, aprobado_por_nombre?.trim() || null, observacion?.trim().toUpperCase() || null]
+      [id, aprobado_por_id, nombreAprobador, observacion?.trim().toUpperCase() || null]
     );
 
     await client.query("COMMIT");
