@@ -38,6 +38,7 @@ import {
   obtenerDetalleRIC37
 } from "./controllers/historialEquipoController.js";
 import historialEquipoRoutes from "./routes/historialEquipoRoutes.js";
+import stockRoutes from "./routes/stockRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -217,6 +218,7 @@ app.get("/personal/me", autenticarPersonal, async (req, res) => {
     personal: req.personal
   });
 });
+app.use("/api/stock", stockRoutes);
 app.use((req, res, next) => {
 
   res.setHeader(
