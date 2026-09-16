@@ -5,7 +5,8 @@ import {
   crearStockItem,
   listarExistencias,
   registrarEntradaStock,
-  registrarSalidaStock
+  registrarSalidaStock,
+  listarMovimientosStock
 } from "../controllers/stockController.js";
 
 const router = express.Router();
@@ -18,5 +19,8 @@ router.post("/items", crearStockItem);
 router.get("/existencias", listarExistencias);
 router.post("/entradas", registrarEntradaStock);
 router.post("/salidas", registrarSalidaStock);
+
+// Movimientos
+router.get("/movimientos", listarMovimientosStock);
 
 export default router;
