@@ -1,6 +1,25 @@
 import pool from "../db.js";
 
 // ============================================================
+// CATEGORÍAS
+// ============================================================
+export async function listarStockCategorias(req, res) {
+  try {
+    const { rows } = await pool.query(`
+      SELECT id, nombre, activo, created_at
+      FROM stock_categorias
+      WHERE activo = TRUE
+      ORDER BY nombre ASC
+    `);
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al listar stock_categorias:", error);
+    res.status(500).json({ error: "Error al obtener las categorías de stock" });
+  }
+}
+
+// ============================================================
 // CATÁLOGO
 // ============================================================
 export async function listarStockItems(req, res) {
