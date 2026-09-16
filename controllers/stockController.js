@@ -364,3 +364,68 @@ export async function registrarSalidaStock(req, res) {
     client.release();
   }
 }
+
+// ============================================================
+// MOVIMIENTOS / HISTORIAL
+// ============================================================
+export async function listarMovimientosStock(req, res) {
+  try {
+    const { item_id, area, tipo, ric01_id } = req.query;
+    const condiciones = [];
+    const valores = [];
+
+    if (item_id) {
+      valores.push(item_id);
+      condiciones.push(`m.item_id = $${valores.length}`);
+    }
+
+    if (area) {
+      valores.push(area);
+      condiciones.push(`(m.area_origen = $${valores.length} OR m.area_destino = $${valores.length})`);
+    }
+
+    if (tipo) {
+      valores.push(String(tipo).toUpperCase());
+      condiciones.push(`m.tipo = $${valores.length}`);
+    }
+
+    if (ric01_id) {
+      valores.push(ric01_id);
+      condiciones.push(`m.referencia_tipo = 'ric01' AND m.referencia_id = $${valores.length}`);
+    }
+
+    const where = condiciones.length ? `WHERE ${condiciones.join(" AND ")}` : "";
+
+    const { rows } = await pool.query(
+      `
+      SELECT
+        m.id,
+        m.item_id,
+        i.codigo,
+        i.descripcion,
+        i.categoria,
+        i.unidad,
+        m.tipo,
+        m.cantidad,
+        m.area_origen,
+        m.area_destino,
+        m.personal_id,
+        m.personal_nombre,
+        m.referencia_tipo,
+        m.referencia_id,
+        m.observacion,
+        m.fecha
+      FROM stock_movimientos m
+      INNER JOIN stock_items i ON i.id = m.item_id
+      ${where}
+      ORDER BY m.fecha DESC, m.id DESC
+      `,
+      valores
+    );
+
+    res.json(rows);
+  } catch (error) {
+    console.error("Error al listar movimientos de stock:", error);
+    res.status(500).json({ error: "Error al obtener el historial de movimientos" });
+  }
+}
