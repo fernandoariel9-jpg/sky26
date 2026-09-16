@@ -799,6 +799,30 @@ if (req.personal?.rol === "superusuario") {
       r.*,
       u.movil AS movil,
 
+      COALESCE(
+  (
+    SELECT json_agg(
+      json_build_object(
+        'id', c.id,
+        'item_id', c.item_id,
+        'codigo', i.codigo,
+        'descripcion', i.descripcion,
+        'unidad', i.unidad,
+        'cantidad', c.cantidad,
+        'area', c.area,
+        'personal_nombre', c.personal_nombre,
+        'observacion', c.observacion
+      )
+      ORDER BY c.id ASC
+    )
+    FROM stock_consumos c
+    INNER JOIN stock_items i
+      ON i.id = c.item_id
+    WHERE c.ric01_id = r.id
+  ),
+  '[]'::json
+) AS consumos,
+
       CASE
         WHEN r.diagnostico IS NOT NULL
          AND TRIM(r.diagnostico) <> ''
@@ -827,6 +851,30 @@ if (req.personal?.rol === "superusuario") {
     SELECT
       r.*,
       u.movil AS movil,
+
+      COALESCE(
+  (
+    SELECT json_agg(
+      json_build_object(
+        'id', c.id,
+        'item_id', c.item_id,
+        'codigo', i.codigo,
+        'descripcion', i.descripcion,
+        'unidad', i.unidad,
+        'cantidad', c.cantidad,
+        'area', c.area,
+        'personal_nombre', c.personal_nombre,
+        'observacion', c.observacion
+      )
+      ORDER BY c.id ASC
+    )
+    FROM stock_consumos c
+    INNER JOIN stock_items i
+      ON i.id = c.item_id
+    WHERE c.ric01_id = r.id
+  ),
+  '[]'::json
+) AS consumos,
 
       CASE
         WHEN r.diagnostico IS NOT NULL
