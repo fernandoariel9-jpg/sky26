@@ -1,0 +1,15 @@
+{
+  "backend": "https://sky26.onrender.com",
+  "token": "CAMBIAR_POR_EL_MISMO_PRINT_SERVER_TOKEN_DE_RENDER",
+  "equipo": "pc-ingenieria-clinica",
+  "intervalo_ms": 5000,
+  "sumatra": "C:/Program Files/SumatraPDF/SumatraPDF.exe",
+  "impresoras": {
+    "laser": {
+      "nombre": "HP LaserJet Pro M404-M405 PCL"
+    },
+    "etiquetas": {
+      "nombre": "Honeywell PC42T Plus"
+    }
+  }
+}
