@@ -17,6 +17,14 @@ import {
   resolverTransferenciaStock
 } from "../controllers/stockTransferenciasController.js";
 
+import {
+  crearImpresion,
+  listarImpresiones,
+  tomarSiguienteImpresion,
+  finalizarImpresion,
+  heartbeatImpresora
+} from "../controllers/impresionesController.js";
+
 const router = express.Router();
 
 // Categorías
@@ -39,5 +47,12 @@ router.get("/movimientos", listarMovimientosStock);
 router.get("/transferencias", listarTransferenciasStock);
 router.post("/transferencias", solicitarTransferenciaStock);
 router.put("/transferencias/:id/resolver", resolverTransferenciaStock);
+
+// Cola de impresiones
+router.post("/impresiones", crearImpresion);
+router.get("/impresiones", listarImpresiones);
+router.get("/impresiones/siguiente", tomarSiguienteImpresion);
+router.put("/impresiones/:id/finalizar", finalizarImpresion);
+router.post("/impresiones/heartbeat", heartbeatImpresora);
 
 export default router;
