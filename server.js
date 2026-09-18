@@ -39,6 +39,7 @@ import {
 } from "./controllers/historialEquipoController.js";
 import historialEquipoRoutes from "./routes/historialEquipoRoutes.js";
 import stockRoutes from "./routes/stockRoutes.js";
+import ric39Routes from "./routes/ric39Routes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -219,6 +220,7 @@ app.get("/personal/me", autenticarPersonal, async (req, res) => {
   });
 });
 app.use("/api/stock", stockRoutes);
+app.use("/api/ric39", ric39Routes);
 app.use((req, res, next) => {
 
   res.setHeader(
