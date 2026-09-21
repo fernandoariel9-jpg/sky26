@@ -56,5 +56,15 @@ CREATE TABLE IF NOT EXISTS ric64_temperaturas (
   observaciones TEXT
 );
 
+-- Compatibilidad si ya se ejecutó una versión anterior del esquema.
+ALTER TABLE ric64_temperaturas
+  ADD COLUMN IF NOT EXISTS rango_min NUMERIC;
+
+ALTER TABLE ric64_temperaturas
+  ADD COLUMN IF NOT EXISTS rango_max NUMERIC;
+
+ALTER TABLE ric64_temperaturas
+  ADD COLUMN IF NOT EXISTS rango_aceptacion TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_ric64_temperaturas_ric64_id
   ON ric64_temperaturas(ric64_id, orden);
