@@ -294,7 +294,7 @@ export async function obtenerRIC64(id) {
 
     const ric64 = cabecera[0];
 
-    const [inspecciones, temperaturas, ric37] = await Promise.all([
+    const [inspecciones, temperaturas] = await Promise.all([
         pool.query(
             `SELECT *
              FROM ric64_inspecciones
@@ -308,26 +308,12 @@ export async function obtenerRIC64(id) {
              WHERE ric64_id = $1
              ORDER BY orden, id`,
             [idNumerico]
-        ),
-        ric64.ric37_id
-            ? pool.query(`SELECT * FROM ric37 WHERE id = $1`, [ric64.ric37_id])
-            : Promise.resolve({ rows: [] })
+        )
     ]);
-
-    let determinacionesRic37 = [];
-    if (ric64.ric37_id) {
-        const resultado = await pool.query(
-            `SELECT * FROM ric37_determinaciones WHERE ric37_id = $1 ORDER BY id`,
-            [ric64.ric37_id]
-        );
-        determinacionesRic37 = resultado.rows;
-    }
 
     return {
         ...ric64,
         inspecciones: inspecciones.rows,
-        temperaturas: temperaturas.rows,
-        ric37: ric37.rows[0] || null,
-        ric37_determinaciones: determinacionesRic37
+        temperaturas: temperaturas.rows
     };
 }
