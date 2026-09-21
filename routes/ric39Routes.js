@@ -14,13 +14,25 @@ import {
   enviarRIC48Drive
 } from "../controllers/ric48Controller.js";
 
+import {
+  guardarRIC64,
+  obtenerDetalleRIC64,
+  generarPDFRIC64,
+  enviarRIC64Drive
+} from "../controllers/ric64Controller.js";
+
 const router = express.Router();
 
-// RIC48 se monta antes de /:id para evitar colisiones con el detalle RIC39.
+// Protocolos específicos se montan antes de /:id para evitar colisiones.
 router.post("/ric48", guardarRIC48);
 router.get("/ric48/:id", obtenerDetalleRIC48);
 router.get("/ric48/:id/pdf", generarPDFRIC48);
 router.post("/ric48/:id/drive", enviarRIC48Drive);
+
+router.post("/ric64", guardarRIC64);
+router.get("/ric64/:id", obtenerDetalleRIC64);
+router.get("/ric64/:id/pdf", generarPDFRIC64);
+router.post("/ric64/:id/drive", enviarRIC64Drive);
 
 router.post("/", guardarRIC39);
 router.get("/:id", obtenerDetalleRIC39);
