@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>{{CODIGO}} - {{TITULO}}</title>
+<style>
+@page { size: A4; margin: 6mm; }
+* { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; font-size: 7pt; color: #111; margin: 0; }
+.header { border: 1.5px solid #000; margin-bottom: 4px; }
+.header table { width:100%; border-collapse:collapse; }
+.header td { padding: 3px 4px; vertical-align: middle; }
+.logo { width: 68px; max-height: 42px; object-fit: contain; }
+.titulo { font-size: 11pt; font-weight: bold; text-align:center; }
+.codigo { font-size: 16pt; font-weight:bold; text-align:center; }
+.ficha, .seccion { border:1px solid #000; margin-bottom:4px; page-break-inside:avoid; }
+.ficha-titulo, .seccion-titulo { background:#e5e7eb; border-bottom:1px solid #000; padding:2px 4px; font-weight:bold; font-size:7.4pt; }
+.datos-equipo { width:100%; table-layout:fixed; border-collapse:collapse; }
+.datos-equipo td { border-bottom:1px solid #bbb; padding:2px 4px; overflow-wrap:break-word; }
+.datos-equipo .etiqueta { font-weight:bold; background:#f7f7f7; width:16%; }
+.contenido { padding:3px; }
+.tabla { width:100%; border-collapse:collapse; }
+.tabla th, .tabla td { border:1px solid #888; padding:2px 3px; font-size:6.6pt; text-align:center; vertical-align:middle; }
+.tabla th { background:#f0f0f0; font-weight:bold; }
+.tabla td:first-child { text-align:left; }
+.tabla-mediciones th:nth-child(1) { width:22%; }
+.tabla-mediciones th:nth-child(2) { width:13%; }
+.tabla-mediciones th:nth-child(3) { width:13%; }
+.tabla-mediciones th:nth-child(4) { width:22%; }
+.tabla-mediciones th:nth-child(5) { width:15%; }
+.tabla-mediciones th:nth-child(6) { width:15%; }
+.escenario { margin-bottom:3px; page-break-inside:avoid; }
+.escenario:last-child { margin-bottom:0; }
+.escenario-titulo { font-weight:bold; background:#d9d9d9; border:1px solid #888; border-bottom:none; text-align:center; padding:2px; }
+.conforme { color:#087f23; font-weight:bold; }
+.no-conforme { color:#c00000; font-weight:bold; }
+.na { color:#666; font-weight:bold; }
+.observaciones { margin-top:2px; border:1px solid #aaa; padding:3px; background:#fafafa; }
+.sin-datos { color:#777; font-style:italic; text-align:center; }
+.resultado { border:1.5px solid #000; padding:4px; text-align:center; margin:4px 0; font-weight:bold; }
+.resultado-valor { font-size:10pt; }
+.firmas { display:flex; gap:30px; margin-top:10px; page-break-inside:avoid; }
+.firma { width:50%; text-align:center; }
+.firma-espacio { height:22px; }
+.firma-linea { border-top:1px solid #000; width:78%; margin:0 auto 3px; }
+.footer { margin-top:5px; border-top:1px solid #999; padding-top:2px; font-size:6pt; color:#555; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <table>
+    <tr>
+      <td style="width:85px;text-align:center;"><img src="{{LOGO}}" class="logo"></td>
+      <td>
+        <div class="titulo">SISTEMA DE GESTIÓN DE LA CALIDAD</div>
+        <div class="titulo">{{TITULO}}</div>
+        <div style="text-align:center;margin-top:2px;">Fecha: <b>{{FECHA_MANTENIMIENTO}}</b></div>
+      </td>
+      <td style="width:85px;border-left:1.5px solid #000;"><div class="codigo">{{CODIGO}}</div></td>
+    </tr>
+  </table>
+</div>
+
+<div class="ficha">
+  <div class="ficha-titulo">DATOS DEL EQUIPO</div>
+  <table class="datos-equipo">
+    <tr><td class="etiqueta">Equipo</td><td>{{DESCRIPCION}}</td><td class="etiqueta">Área</td><td>{{AREA}}</td></tr>
+    <tr><td class="etiqueta">Marca / Modelo</td><td>{{MARCA_MODELO}}</td><td class="etiqueta">Servicio</td><td>{{SERVICIO}}</td></tr>
+    <tr><td class="etiqueta">Nº de Serie</td><td>{{SERIE}}</td><td class="etiqueta">Subservicio</td><td>{{SUB_SERVICIO}}</td></tr>
+    <tr><td class="etiqueta">Técnico</td><td>{{TECNICO}}</td><td class="etiqueta">Encargado</td><td>{{ENCARGADO}}</td></tr>
+  </table>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">1. INSPECCIONES PREVIAS</div>
+  <div class="contenido">{{INSPECCIONES}}</div>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">2. VERIFICACIÓN DE PARÁMETROS</div>
+  <div class="contenido">{{MEDICIONES}}</div>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">EQUIPO VERIFICADOR</div>
+  <div class="contenido">{{VERIFICADOR}}</div>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">3. ENSAYO DE SEGURIDAD ELÉCTRICA - RIC 37</div>
+  <div class="contenido">{{SEGURIDAD_ELECTRICA}}</div>
+</div>
+
+<div class="resultado">
+  RESULTADO GENERAL<br>
+  <span class="resultado-valor">{{RESULTADO_GENERAL}}</span>
+</div>
+
+<div class="seccion">
+  <div class="seccion-titulo">OBSERVACIONES</div>
+  <div class="contenido">{{OBSERVACIONES}}</div>
+</div>
+
+<div class="firmas">
+  <div class="firma">
+    <div class="firma-espacio"></div>
+    <div class="firma-linea"></div>
+    <div><b>{{TECNICO}}</b></div>
+  </div>
+  <div class="firma">
+    <div class="firma-espacio"></div>
+    <div class="firma-linea"></div>
+    <div><b>Firma y aclaración en conformidad</b></div>
+  </div>
+</div>
+
+<div class="footer">
+  NOTA: CONFORME IMPLICA LA VERIFICACIÓN DEL PARÁMETRO - ASOCIADO A INSTRUCTIVO PO-IC<br>
+  Documento generado automáticamente por Sky26 · {{CODIGO}} · © {{ANIO}}
+</div>
+
+</body>
+</html>
