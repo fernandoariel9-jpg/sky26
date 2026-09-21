@@ -25,6 +25,10 @@ import {
   heartbeatImpresora
 } from "../controllers/impresionesController.js";
 
+import {
+  ajustarExistenciaStock
+} from "../controllers/stockAjustesController.js";
+
 const router = express.Router();
 
 // Categorías
@@ -39,6 +43,7 @@ router.delete("/items/:id", eliminarStockItem);
 router.get("/existencias", listarExistencias);
 router.post("/entradas", registrarEntradaStock);
 router.post("/salidas", registrarSalidaStock);
+router.put("/existencias/ajustar", ajustarExistenciaStock);
 
 // Movimientos
 router.get("/movimientos", listarMovimientosStock);
