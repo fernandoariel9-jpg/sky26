@@ -35,7 +35,7 @@ function generarInspecciones(datos) {
   ];
   return `
     <table class="tabla">
-      <thead><tr><th>Acción preventiva</th><th>Resultado</th></tr></thead>
+      <thead><tr><th>Inspecciones previas</th><th>Conformidad</th></tr></thead>
       <tbody>
         ${filas.map(([nombre, valor]) => `<tr><td>${esc(nombre)}</td><td>${esc(valor || "-")}</td></tr>`).join("")}
       </tbody>
@@ -54,9 +54,8 @@ function generarTemperaturas(datos) {
           <th>Temp. seteada</th>
           <th>Temp. sensada</th>
           <th>Temp. medida</th>
-          <th>Error %</th>
-          <th>Rango de aceptación</th>
-          <th>Valoración</th>
+          <th>Rango de aceptación 5%</th>
+          <th>Conformidad</th>
         </tr>
       </thead>
       <tbody>
@@ -66,11 +65,10 @@ function generarTemperaturas(datos) {
             <td>${esc(item.temp_seteada ?? "-")}</td>
             <td>${esc(item.temp_sensada ?? "-")}</td>
             <td>${esc(item.temp_medida ?? "-")}</td>
-            <td>${esc(item.error_porcentaje ?? "-")}</td>
-            <td>${esc(item.rango_aceptacion || "5%")}</td>
+            <td>${esc(item.rango_aceptacion || "-")}</td>
             <td>${estado(item.conforme, item.no_aplica)}</td>
           </tr>
-        `).join("") : '<tr><td colspan="7" class="sin-datos">Sin datos registrados.</td></tr>'}
+        `).join("") : '<tr><td colspan="6" class="sin-datos">Sin datos registrados.</td></tr>'}
       </tbody>
     </table>
   `;
@@ -90,38 +88,6 @@ function generarVerificador(datos) {
         </tr>
       </tbody>
     </table>
-  `;
-}
-
-function generarSeguridadElectrica(datos) {
-  const ric37 = datos.ric37;
-  if (!ric37) return '<p class="sin-datos">No se vinculó un ensayo de seguridad eléctrica RIC37.</p>';
-  const determinaciones = datos.ric37_determinaciones || [];
-  return `
-    <table class="tabla tabla-seguridad">
-      <tbody>
-        <tr>
-          <td><b>Clase</b></td><td>${esc(ric37.clase || "-")}</td>
-          <td><b>Tipo de protección</b></td><td>${esc(ric37.tipo_proteccion || "-")}</td>
-          <td><b>Tensión</b></td><td>${esc(ric37.medicion_tension || "-")}</td>
-          <td><b>Corriente</b></td><td>${esc(ric37.medicion_corriente || "-")}</td>
-        </tr>
-      </tbody>
-    </table>
-    <table class="tabla tabla-seguridad">
-      <thead><tr><th>Determinación</th><th>Valor</th><th>R. aceptación</th><th>Apto / No Apto</th></tr></thead>
-      <tbody>
-        ${determinaciones.map((item) => `
-          <tr>
-            <td>${esc(item.nombre || item.determinacion || "")}</td>
-            <td>${esc(item.medicion ?? "-")}</td>
-            <td>${esc(item.rango_aceptacion ?? "-")}</td>
-            <td>${estado(item.conforme, item.no_aplica)}</td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
-    ${ric37.observaciones ? `<div class="observaciones"><b>Observaciones RIC37:</b> ${esc(ric37.observaciones)}</div>` : ""}
   `;
 }
 
@@ -152,11 +118,9 @@ export async function generarRIC64PDF(ric64_id) {
     ENCARGADO: esc(datos.encargado || datos.encargado_equipo || ""),
     TECNICO: esc(datos.tecnico || ""),
     FECHA_MANTENIMIENTO: fecha(datos.fecha),
-    EN_USO: datos.en_uso === true ? "Sí" : datos.en_uso === false ? "No" : "-",
     INSPECCIONES: generarInspecciones(datos),
     MEDICIONES: generarTemperaturas(datos),
     VERIFICADOR: generarVerificador(datos),
-    SEGURIDAD_ELECTRICA: generarSeguridadElectrica(datos),
     RESULTADO_GENERAL: esc(datos.resultado_general || ""),
     OBSERVACIONES: esc(datos.observaciones || "")
   };
