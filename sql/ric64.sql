@@ -1,11 +1,11 @@
 -- =====================================================
 -- RIC64 - VERIFICACION DE BAÑO TERMOSTATICO
+-- Modelo corregido
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS ric64 (
   id SERIAL PRIMARY KEY,
   ric01_id INTEGER REFERENCES ric01(id) ON DELETE SET NULL,
-  ric37_id INTEGER REFERENCES ric37(id) ON DELETE SET NULL,
   equipo_id INTEGER REFERENCES equipos(id) ON DELETE SET NULL,
   numero_serie TEXT,
   descripcion TEXT,
@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS ric64 (
   encargado TEXT,
   fecha TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires'),
   tecnico TEXT,
-  en_uso BOOLEAN,
   resultado_general TEXT,
   observaciones TEXT,
   verificador_equipo TEXT,
@@ -49,8 +48,9 @@ CREATE TABLE IF NOT EXISTS ric64_temperaturas (
   temp_seteada NUMERIC,
   temp_sensada NUMERIC,
   temp_medida NUMERIC,
-  error_porcentaje NUMERIC,
-  rango_aceptacion TEXT DEFAULT '5%',
+  rango_min NUMERIC,
+  rango_max NUMERIC,
+  rango_aceptacion TEXT,
   conforme BOOLEAN,
   no_aplica BOOLEAN NOT NULL DEFAULT FALSE,
   observaciones TEXT
