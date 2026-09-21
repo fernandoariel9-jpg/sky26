@@ -11,7 +11,6 @@ export async function guardarRIC64(req, res) {
 
     const {
       ric01_id,
-      ric37_id,
       equipo_id,
       numero_serie,
       descripcion,
@@ -22,7 +21,6 @@ export async function guardarRIC64(req, res) {
       encargado,
       fecha,
       tecnico,
-      en_uso,
       resultado_general,
       observaciones,
       verificador_equipo,
@@ -36,20 +34,19 @@ export async function guardarRIC64(req, res) {
     const result = await client.query(
       `
       INSERT INTO ric64 (
-        ric01_id, ric37_id, equipo_id, numero_serie, descripcion,
+        ric01_id, equipo_id, numero_serie, descripcion,
         marca_modelo, area, servicio, sub_servicio, encargado,
-        fecha, tecnico, en_uso, resultado_general, observaciones,
+        fecha, tecnico, resultado_general, observaciones,
         verificador_equipo, verificador_numero_serie,
         verificador_certificado, verificador_vigencia
       )
       VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17
       )
       RETURNING id
       `,
       [
         ric01_id || null,
-        ric37_id || null,
         equipo_id || null,
         numero_serie || null,
         descripcion || null,
@@ -60,7 +57,6 @@ export async function guardarRIC64(req, res) {
         encargado || null,
         fecha || new Date(),
         tecnico || null,
-        typeof en_uso === "boolean" ? en_uso : null,
         resultado_general || null,
         observaciones || null,
         verificador_equipo || "MULTIMETRO FLUKE 87V",
@@ -96,10 +92,10 @@ export async function guardarRIC64(req, res) {
         `
         INSERT INTO ric64_temperaturas (
           ric64_id, orden, temp_seteada, temp_sensada,
-          temp_medida, error_porcentaje, rango_aceptacion,
+          temp_medida, rango_min, rango_max, rango_aceptacion,
           conforme, no_aplica, observaciones
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         `,
         [
           ric64_id,
@@ -107,8 +103,9 @@ export async function guardarRIC64(req, res) {
           item.temp_seteada === "" ? null : item.temp_seteada,
           item.temp_sensada === "" ? null : item.temp_sensada,
           item.temp_medida === "" ? null : item.temp_medida,
-          item.error_porcentaje === "" || item.error_porcentaje == null ? null : item.error_porcentaje,
-          item.rango_aceptacion || "5%",
+          item.rango_min == null ? null : item.rango_min,
+          item.rango_max == null ? null : item.rango_max,
+          item.rango_aceptacion || null,
           item.no_aplica ? null : item.conforme ?? null,
           item.no_aplica ?? false,
           item.observaciones || null
