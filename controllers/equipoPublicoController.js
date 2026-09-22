@@ -6,43 +6,19 @@ function normalizarFecha(valor) {
   return Number.isNaN(fecha.getTime()) ? null : fecha;
 }
 
-function obtenerMesesPeriodo(periodo) {
+function obtenerDiasPeriodo(periodo) {
   if (periodo === null || periodo === undefined || periodo === "") return null;
 
-  if (typeof periodo === "number" || /^\d+(?:\.\d+)?$/.test(String(periodo).trim())) {
-    const meses = Number(periodo);
-    return Number.isFinite(meses) && meses > 0 ? meses : null;
-  }
-
-  const texto = String(periodo).trim().toUpperCase();
-
-  if (texto.includes("ANUAL")) return 12;
-  if (texto.includes("SEMESTRAL")) return 6;
-  if (texto.includes("TRIMESTRAL")) return 3;
-  if (texto.includes("BIMESTRAL")) return 2;
-  if (texto.includes("MENSUAL")) return 1;
-
-  const numero = Number((texto.match(/\d+(?:[.,]\d+)?/) || [])[0]?.replace(",", "."));
-  if (!Number.isFinite(numero) || numero <= 0) return null;
-
-  if (texto.includes("DIA")) return { dias: numero };
-  if (texto.includes("AÑO") || texto.includes("ANIO")) return numero * 12;
-
-  return numero;
+  const dias = Number(String(periodo).trim().replace(",", "."));
+  return Number.isFinite(dias) && dias > 0 ? dias : null;
 }
 
 function sumarPeriodo(fecha, periodo) {
-  const parsed = obtenerMesesPeriodo(periodo);
-  if (!parsed) return null;
+  const dias = obtenerDiasPeriodo(periodo);
+  if (!dias) return null;
 
   const resultado = new Date(fecha);
-
-  if (typeof parsed === "object" && parsed.dias) {
-    resultado.setDate(resultado.getDate() + parsed.dias);
-  } else {
-    resultado.setMonth(resultado.getMonth() + parsed);
-  }
-
+  resultado.setDate(resultado.getDate() + dias);
   return resultado;
 }
 
