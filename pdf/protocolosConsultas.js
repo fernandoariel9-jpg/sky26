@@ -261,6 +261,41 @@ export async function obtenerRIC48(id) {
 }
 
 // =====================================================
+// RIC56
+// =====================================================
+
+export async function obtenerRIC56(id) {
+    const idNumerico = Number(id);
+    if (!Number.isInteger(idNumerico)) throw new Error(`ID RIC56 inválido: ${id}`);
+
+    const { rows: cabecera } = await pool.query(`
+        SELECT
+            r.*,
+            e.estado,
+            e.descripcion AS descripcion_equipo,
+            e.marca_modelo AS marca_modelo_equipo,
+            e.numero_serie AS numero_serie_equipo,
+            e.area AS area_equipo,
+            e.servicio AS servicio_equipo,
+            e.sub_servicio AS sub_servicio_equipo,
+            e.encargado AS encargado_equipo
+        FROM ric56 r
+        LEFT JOIN equipos e ON e.id = r.equipo_id
+        WHERE r.id = $1
+    `, [idNumerico]);
+
+    if (!cabecera.length) throw new Error(`RIC56 no encontrado para id=${idNumerico}`);
+
+    const verificaciones = await pool.query(`
+        SELECT * FROM ric56_verificaciones
+        WHERE ric56_id = $1
+        ORDER BY orden, id
+    `, [idNumerico]);
+
+    return { ...cabecera[0], verificaciones: verificaciones.rows };
+}
+
+// =====================================================
 // RIC64
 // =====================================================
 
