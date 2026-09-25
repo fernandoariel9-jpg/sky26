@@ -96,6 +96,22 @@ export async function obtenerDetalleRIC56(req, res) {
   }
 }
 
+export async function eliminarRIC56(req, res) {
+  try {
+    await asegurarTablasRIC56();
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ ok: false, error: "ID RIC56 inválido" });
+
+    const result = await pool.query("DELETE FROM ric56 WHERE id = $1 RETURNING id", [id]);
+    if (!result.rowCount) return res.status(404).json({ ok: false, error: "RIC56 no encontrado" });
+
+    res.json({ ok: true, mensaje: "RIC56 eliminado correctamente", ric56_id: id });
+  } catch (error) {
+    console.error("Error eliminando RIC56:", error);
+    res.status(500).json({ ok: false, error: error.message });
+  }
+}
+
 export async function generarPDFRIC56(req, res) {
   try {
     await asegurarTablasRIC56();
