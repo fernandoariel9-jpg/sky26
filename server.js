@@ -341,56 +341,62 @@ app.get("/api/google-drive/auth", (req, res) => {
 });
 
 app.get("/api/google-drive/oauth2callback", async (req, res) => {
-    try {
-      const code =
-        req.query.code;
-      if (!code) {
-        return res.status(400).send(
-          "No se recibió el código de autorización de Google"
-        );
-      }
-      const tokens =
-        await procesarCallbackGoogle(
-          code
-        );
-res.send(`
-  <html>
-    <body
-      style="
-        font-family: Arial;
-        padding: 40px;
-      "
-    >
+  try {
+    const code = req.query.code;
 
-      <h2>
-        ✅ Google Drive autorizado
-      </h2>
-
-      <p>
-        La autorización de Google Drive
-        se realizó correctamente.
-      </p>
-
-      <p>
-        Ya podés cerrar esta ventana.
-      </p>
-
-    </body>
-  </html>
-`);
-
-    } catch (error) {
-      console.error(
-        "Error en callback Google:",
-        error
-      );
-      res.status(500).send(
-        "Error autorizando Google Drive: " +
-        error.message
+    if (!code) {
+      return res.status(400).send(
+        "No se recibió el código de autorización de Google"
       );
     }
+
+    const tokens = await procesarCallbackGoogle(code);
+    const refreshToken = tokens.refresh_token;
+
+    res.setHeader("Cache-Control", "no-store");
+
+    res.send(`
+      <html>
+        <body style="font-family: Arial; padding: 40px; max-width: 900px; margin: auto;">
+          <h2>✅ Google Drive autorizado</h2>
+          <p>La autorización de Google Drive se realizó correctamente.</p>
+
+          ${
+            refreshToken
+              ? `
+                <p><strong>Refresh token nuevo:</strong></p>
+                <textarea
+                  readonly
+                  style="width: 100%; min-height: 140px; padding: 12px; box-sizing: border-box;"
+                >${refreshToken}</textarea>
+                <p>
+                  Copiá este valor directamente en la variable
+                  <strong>GOOGLE_REFRESH_TOKEN</strong> de Render.
+                  No lo compartas ni lo guardes en el repositorio.
+                </p>
+              `
+              : `
+                <p style="color: #b45309;">
+                  Google no devolvió un refresh token nuevo.
+                  Volvé a iniciar la autorización desde /api/google-drive/auth.
+                </p>
+              `
+          }
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    console.error(
+      "Error en callback Google:",
+      error
+    );
+
+    res.status(500).send(
+      "Error autorizando Google Drive: " +
+      error.message
+    );
   }
-);
+});
 
 app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   try {
