@@ -1,6 +1,5 @@
 import pool from "../db.js";
-import { obtenerRIC59 } from "../pdf/protocolosConsultas.js";
-import { generarRIC59PDF } from "../pdf/ric59PDF.js";
+import { obtenerRIC59, generarRIC59PDF } from "../pdf/ric59PDF.js";
 import { obtenerCarpetaRIC29, subirPDFDrive } from "../googleDrive.js";
 
 async function asegurarTablasRIC59(client = pool) {
