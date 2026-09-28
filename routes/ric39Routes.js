@@ -22,6 +22,13 @@ import {
 } from "../controllers/ric56Controller.js";
 
 import {
+  guardarRIC59,
+  obtenerDetalleRIC59,
+  generarPDFRIC59,
+  enviarRIC59Drive
+} from "../controllers/ric59Controller.js";
+
+import {
   guardarRIC64,
   obtenerDetalleRIC64,
   generarPDFRIC64,
@@ -40,6 +47,11 @@ router.post("/ric56", guardarRIC56);
 router.get("/ric56/:id", obtenerDetalleRIC56);
 router.get("/ric56/:id/pdf", generarPDFRIC56);
 router.post("/ric56/:id/drive", enviarRIC56Drive);
+
+router.post("/ric59", guardarRIC59);
+router.get("/ric59/:id", obtenerDetalleRIC59);
+router.get("/ric59/:id/pdf", generarPDFRIC59);
+router.post("/ric59/:id/drive", enviarRIC59Drive);
 
 router.post("/ric64", guardarRIC64);
 router.get("/ric64/:id", obtenerDetalleRIC64);
