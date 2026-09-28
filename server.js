@@ -350,38 +350,16 @@ app.get("/api/google-drive/oauth2callback", async (req, res) => {
       );
     }
 
-    const tokens = await procesarCallbackGoogle(code);
-    const refreshToken = tokens.refresh_token;
+    await procesarCallbackGoogle(code);
 
     res.setHeader("Cache-Control", "no-store");
 
     res.send(`
       <html>
-        <body style="font-family: Arial; padding: 40px; max-width: 900px; margin: auto;">
+        <body style="font-family: Arial; padding: 40px;">
           <h2>✅ Google Drive autorizado</h2>
           <p>La autorización de Google Drive se realizó correctamente.</p>
-
-          ${
-            refreshToken
-              ? `
-                <p><strong>Refresh token nuevo:</strong></p>
-                <textarea
-                  readonly
-                  style="width: 100%; min-height: 140px; padding: 12px; box-sizing: border-box;"
-                >${refreshToken}</textarea>
-                <p>
-                  Copiá este valor directamente en la variable
-                  <strong>GOOGLE_REFRESH_TOKEN</strong> de Render.
-                  No lo compartas ni lo guardes en el repositorio.
-                </p>
-              `
-              : `
-                <p style="color: #b45309;">
-                  Google no devolvió un refresh token nuevo.
-                  Volvé a iniciar la autorización desde /api/google-drive/auth.
-                </p>
-              `
-          }
+          <p>Ya podés cerrar esta ventana.</p>
         </body>
       </html>
     `);
