@@ -71,13 +71,13 @@ async function enviarNotificacionTarea(area, tarea) {
 // ============================================================
 // TAREAS DE USUARIOS
 // ============================================================
-// Para tareas nuevas:
+// Nuevas tareas:
 //   ric01.usuario         = nombre visible
 //   ric01.solicitado_por  = mail único
 //
-// Para tareas históricas se conserva compatibilidad con filas que
-// solo tienen el nombre en ric01.usuario, de modo que no desaparezcan
-// al comenzar a identificar usuarios por mail.
+// Históricas:
+//   pueden tener solo el nombre en ric01.usuario.
+//   Se mantienen visibles por compatibilidad.
 router.get("/tareas-usuario", async (req, res) => {
   try {
     const mail = String(req.query.mail || "").trim();
@@ -101,24 +101,43 @@ router.get("/tareas-usuario", async (req, res) => {
     const usuarioActual = userResult.rows[0];
     const nombre = String(usuarioActual.nombre || "").trim();
     const mailNormalizado = String(usuarioActual.mail || mail).trim();
+    const esSupervisor = String(usuarioActual.tipo || "").trim().toLowerCase() === "supervisor";
 
     let where = "";
     let params = [];
 
-    if (String(usuarioActual.tipo || "").trim().toLowerCase() === "supervisor") {
-      where = "WHERE r.servicio = $1";
+    if (esSupervisor) {
+      // Supervisor: ve todas las tareas creadas por usuarios de su mismo servicio.
+      // Se contemplan tareas nuevas por mail, tareas intermedias con mail en usuario,
+      // y tareas históricas que solo guardaban el nombre.
+      where = `
+        WHERE
+          TRIM(LOWER(COALESCE(r.servicio, ''))) = TRIM(LOWER($1))
+          OR EXISTS (
+            SELECT 1
+            FROM usuarios creador
+            WHERE TRIM(LOWER(COALESCE(creador.servicio, ''))) = TRIM(LOWER($1))
+              AND (
+                TRIM(LOWER(creador.mail)) = TRIM(LOWER(COALESCE(r.solicitado_por, '')))
+                OR TRIM(LOWER(creador.mail)) = TRIM(LOWER(COALESCE(r.usuario, '')))
+                OR (
+                  (r.solicitado_por IS NULL OR TRIM(r.solicitado_por) = '')
+                  AND TRIM(LOWER(creador.nombre)) = TRIM(LOWER(COALESCE(r.usuario, '')))
+                )
+              )
+          )
+      `;
       params = [usuarioActual.servicio];
     } else {
       where = `
         WHERE
-          -- Formato nuevo: el mail queda como identidad única.
+          -- Formato nuevo: identidad única por mail.
           TRIM(LOWER(COALESCE(r.solicitado_por, ''))) = TRIM(LOWER($1))
 
-          -- Compatibilidad con el cambio anterior que guardó el mail en usuario.
+          -- Compatibilidad con tareas que temporalmente guardaron el mail en usuario.
           OR TRIM(LOWER(COALESCE(r.usuario, ''))) = TRIM(LOWER($1))
 
-          -- Compatibilidad histórica: tareas antiguas que solo guardaban el nombre.
-          -- Solo se usa cuando solicitado_por no contiene una identidad distinta.
+          -- Compatibilidad histórica: tareas que solo guardaban el nombre.
           OR (
             TRIM(LOWER(COALESCE(r.usuario, ''))) = TRIM(LOWER($2))
             AND (
@@ -262,29 +281,20 @@ router.post("/tareas-usuario", async (req, res) => {
 });
 
 // ============================================================
-// SKY26 AGENT (montaje temporal para validar integración)
+// SKY26 AGENT
 // ============================================================
 router.use("/agent", sky26AgentRoutes);
 
 // ============================================================
 // NOTIFICACIONES INTERNAS DE MANTENIMIENTO
 // ============================================================
-// Estas rutas van antes de /:id para que "notificaciones" no
-// sea interpretado como un ID de RIC29.
 router.get("/notificaciones", listarNotificacionesMantenimiento);
 router.put("/notificaciones/:id/leida", marcarNotificacionMantenimientoLeida);
 router.put("/notificaciones/leidas/todas", marcarTodasNotificacionesMantenimientoLeidas);
 
-// POST /api/ric29
 router.post("/", guardarRIC29);
-
-// GET /api/ric29/:id
 router.get("/:id", obtenerDetalleRIC29);
-
-// GET /api/ric29/:id/pdf
 router.get("/:id/pdf", generarPDFRIC29);
-
-// POST /api/ric29/:id/drive
 router.post("/:id/drive", enviarRIC29Drive);
 
 export default router;
