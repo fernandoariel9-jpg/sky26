@@ -42,6 +42,13 @@ import {
   enviarRIC10Drive
 } from "../controllers/ric10Controller.js";
 
+import {
+  guardarRIC71,
+  obtenerDetalleRIC71,
+  generarPDFRIC71,
+  enviarRIC71Drive
+} from "../controllers/ric71Controller.js";
+
 const router = express.Router();
 
 // Protocolos específicos se montan antes de /:id para evitar colisiones.
@@ -69,6 +76,11 @@ router.post("/ric64", guardarRIC64);
 router.get("/ric64/:id", obtenerDetalleRIC64);
 router.get("/ric64/:id/pdf", generarPDFRIC64);
 router.post("/ric64/:id/drive", enviarRIC64Drive);
+
+router.post("/ric71", guardarRIC71);
+router.get("/ric71/:id", obtenerDetalleRIC71);
+router.get("/ric71/:id/pdf", generarPDFRIC71);
+router.post("/ric71/:id/drive", enviarRIC71Drive);
 
 router.post("/", guardarRIC39);
 router.get("/:id", obtenerDetalleRIC39);
