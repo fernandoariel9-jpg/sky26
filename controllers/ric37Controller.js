@@ -3,6 +3,7 @@ import pool from "../db.js";
 export async function guardarRIC37(req, res) {
 
   const client = await pool.connect();
+
   try {
     await client.query("BEGIN");
 
@@ -25,6 +26,57 @@ export async function guardarRIC37(req, res) {
       observaciones,
       determinaciones
     } = req.body;
+
+    // RIC37 siempre debe quedar asociado a un mantenimiento RIC01.
+    if (!ric01_id) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió ric01_id"
+      });
+    }
+
+    const ric01IdNumerico = Number(ric01_id);
+
+    if (!Number.isInteger(ric01IdNumerico) || ric01IdNumerico <= 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        error: "ric01_id inválido"
+      });
+    }
+
+    // ========================================================
+    // PROTECCIÓN CONTRA DUPLICADOS
+    // ========================================================
+    // El advisory lock es por transacción y por ric01_id.
+    // Si llegan dos POST simultáneos para el mismo mantenimiento,
+    // el segundo espera a que termine el primero y luego comprueba
+    // si el RIC37 ya fue creado.
+    await client.query(
+      "SELECT pg_advisory_xact_lock($1::bigint)",
+      [ric01IdNumerico]
+    );
+
+    const existente = await client.query(
+      `SELECT id
+       FROM ric37
+       WHERE ric01_id = $1
+       ORDER BY id ASC
+       LIMIT 1`,
+      [ric01IdNumerico]
+    );
+
+    if (existente.rows.length > 0) {
+      await client.query("COMMIT");
+
+      return res.status(200).json({
+        ok: true,
+        ric37_id: existente.rows[0].id,
+        existente: true,
+        mensaje: "RIC37 ya estaba guardado para este mantenimiento"
+      });
+    }
 
     const result = await client.query(
       `
@@ -53,7 +105,7 @@ export async function guardarRIC37(req, res) {
       RETURNING id
       `,
       [
-        ric01_id || null,
+        ric01IdNumerico,
         equipo_id || null,
         numero_serie || null,
         marca_modelo || null,
@@ -92,14 +144,14 @@ export async function guardarRIC37(req, res) {
         `,
         [
           ric37_id,
-          d.determinacion,
+          d.determinacion ?? d.numero ?? null,
           d.nombre,
           d.medicion ?? null,
-          d.rango_aceptacion ?? null,
-          d.no_aplica
+          d.rango_aceptacion ?? d.rango ?? null,
+          d.no_aplica ?? d.noAplica
             ? null
             : d.conforme ?? null,
-          d.no_aplica ?? false,
+          d.no_aplica ?? d.noAplica ?? false,
           d.observaciones || null
         ]
       );
@@ -110,7 +162,8 @@ export async function guardarRIC37(req, res) {
 
     res.status(201).json({
       ok: true,
-      ric37_id
+      ric37_id,
+      existente: false
     });
 
   } catch (error) {
