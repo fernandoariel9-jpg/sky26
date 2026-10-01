@@ -49,8 +49,6 @@ function similitudTexto(a, b) {
   const jaccard = union ? interseccion / union : 0;
   const contencion = interseccion / Math.min(ta.size, tb.size);
 
-  // Si una descripción significativa está contenida en la otra,
-  // la consideramos fuertemente relacionada sin exigir texto idéntico.
   return Math.max(jaccard, contencion * 0.85);
 }
 
@@ -76,9 +74,16 @@ async function asegurarTablas() {
       fecha_anterior TIMESTAMP,
       dias_diferencia INTEGER,
       similitud NUMERIC(5,4),
+      mismo_problema BOOLEAN NOT NULL DEFAULT false,
       fecha_alerta TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (ric01_id, ric01_anterior_id)
     )
+  `);
+
+  // Compatibilidad con instalaciones donde la tabla ya fue creada.
+  await pool.query(`
+    ALTER TABLE alertas_reincidencia
+    ADD COLUMN IF NOT EXISTS mismo_problema BOOLEAN NOT NULL DEFAULT false
   `);
 
   await pool.query(`
@@ -129,11 +134,16 @@ async function enviarPushArea(area, alerta) {
       [area]
     );
 
+    const clasificacion = alerta.mismo_problema
+      ? "⚠️ El problema es similar al ingreso anterior."
+      : "ℹ️ El problema informado es diferente al ingreso anterior.";
+
     const body = [
       `${alerta.descripcion || "Equipo"} · Serie ${alerta.numero_serie || "-"}`,
-      `Problema similar al correctivo #${alerta.ric01_anterior_id} de hace ${alerta.dias_diferencia} día(s).`,
-      `Actual: ${alerta.diagnostico_actual}`,
-      `Anterior: ${alerta.diagnostico_anterior}`
+      `Tuvo otro correctivo #${alerta.ric01_anterior_id} hace ${alerta.dias_diferencia} día(s).`,
+      clasificacion,
+      `Actual: ${alerta.diagnostico_actual || "Sin diagnóstico informado"}`,
+      `Anterior: ${alerta.diagnostico_anterior || "Sin diagnóstico informado"}`
     ].join("\n");
 
     let enviadas = 0;
@@ -145,14 +155,17 @@ async function enviarPushArea(area, alerta) {
           : row.suscripcion;
 
         await webpush.sendNotification(subscription, JSON.stringify({
-          title: "⚠️ Posible reincidencia de equipo",
+          title: alerta.mismo_problema
+            ? "⚠️ Reingreso reciente - problema similar"
+            : "⚠️ Reingreso reciente del equipo",
           body,
           icon: "/icon-192x192.png",
           data: {
             tipo: "reincidencia",
             ric01_id: alerta.ric01_id,
             ric01_anterior_id: alerta.ric01_anterior_id,
-            numero_serie: alerta.numero_serie
+            numero_serie: alerta.numero_serie,
+            mismo_problema: alerta.mismo_problema
           }
         }));
         enviadas += 1;
@@ -193,73 +206,68 @@ async function procesarCorrectivo(ric01Id) {
 
   const actual = actualResult.rows[0];
 
+  // La alerta depende de que sea un correctivo y tenga número de serie.
+  // El diagnóstico puede estar vacío: el reingreso reciente igualmente se alerta.
   if (
     normalizarTexto(actual.tipo_mantenimiento) !== "correctivo" ||
-    !actual.numero_serie ||
-    !actual.diagnostico ||
-    !normalizarTexto(actual.diagnostico)
+    !actual.numero_serie
   ) {
     await marcarProcesado(ric01Id);
     return null;
   }
 
+  // Buscar el ingreso correctivo inmediatamente anterior del mismo equipo
+  // dentro de los últimos 10 días, independientemente del diagnóstico.
   const anterioresResult = await pool.query(
     `SELECT id, fecha, diagnostico, solucion, asignado
      FROM ric01
      WHERE numero_serie = $1
        AND id <> $2
        AND LOWER(TRIM(COALESCE(tipo_mantenimiento, ''))) = 'correctivo'
-       AND diagnostico IS NOT NULL
-       AND TRIM(diagnostico) <> ''
        AND fecha >= COALESCE($3::timestamp, CURRENT_TIMESTAMP) - INTERVAL '${VENTANA_DIAS} days'
        AND (
          fecha < COALESCE($3::timestamp, CURRENT_TIMESTAMP)
          OR (fecha = COALESCE($3::timestamp, CURRENT_TIMESTAMP) AND id < $2)
        )
      ORDER BY fecha DESC, id DESC
-     LIMIT 30`,
+     LIMIT 1`,
     [actual.numero_serie, actual.id, actual.fecha]
   );
 
-  let mejor = null;
-
-  for (const anterior of anterioresResult.rows) {
-    const similitud = similitudTexto(actual.diagnostico, anterior.diagnostico);
-    if (similitud >= UMBRAL_SIMILITUD && (!mejor || similitud > mejor.similitud)) {
-      mejor = { ...anterior, similitud };
-    }
-  }
-
-  if (!mejor) {
+  if (!anterioresResult.rows.length) {
     await marcarProcesado(ric01Id);
     return null;
   }
 
-  const diasDiferencia = calcularDias(actual.fecha, mejor.fecha);
+  const anterior = anterioresResult.rows[0];
+  const similitud = similitudTexto(actual.diagnostico, anterior.diagnostico);
+  const mismoProblema = similitud >= UMBRAL_SIMILITUD;
+  const diasDiferencia = calcularDias(actual.fecha, anterior.fecha);
 
   const insert = await pool.query(
     `INSERT INTO alertas_reincidencia (
        ric01_id, ric01_anterior_id, numero_serie, descripcion, area,
        diagnostico_actual, diagnostico_anterior, solucion_anterior,
        asignado_anterior, fecha_actual, fecha_anterior,
-       dias_diferencia, similitud
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       dias_diferencia, similitud, mismo_problema
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      ON CONFLICT (ric01_id, ric01_anterior_id) DO NOTHING
      RETURNING *`,
     [
       actual.id,
-      mejor.id,
+      anterior.id,
       actual.numero_serie,
       actual.descripcion || null,
       actual.area || null,
-      actual.diagnostico,
-      mejor.diagnostico,
-      mejor.solucion || null,
-      mejor.asignado || null,
+      actual.diagnostico || null,
+      anterior.diagnostico || null,
+      anterior.solucion || null,
+      anterior.asignado || null,
       actual.fecha || null,
-      mejor.fecha || null,
+      anterior.fecha || null,
       diasDiferencia,
-      Number(mejor.similitud.toFixed(4))
+      Number(similitud.toFixed(4)),
+      mismoProblema
     ]
   );
 
@@ -271,8 +279,9 @@ async function procesarCorrectivo(ric01Id) {
   const enviadas = await enviarPushArea(actual.area, alerta);
 
   console.log(
-    `⚠️ Reincidencia detectada: RIC01 #${actual.id} similar a #${mejor.id} ` +
-    `(${Math.round(mejor.similitud * 100)}%, ${diasDiferencia} día(s), ${enviadas} push)`
+    `⚠️ Reingreso reciente detectado: RIC01 #${actual.id} / anterior #${anterior.id} ` +
+    `(${diasDiferencia} día(s), ${Math.round(similitud * 100)}% similitud, ` +
+    `${mismoProblema ? "problema similar" : "problema diferente"}, ${enviadas} push)`
   );
 
   return alerta;
