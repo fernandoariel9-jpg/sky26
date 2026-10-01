@@ -49,7 +49,22 @@ import {
   enviarRIC71Drive
 } from "../controllers/ric71Controller.js";
 
+import {
+  iniciarMonitorReincidencias,
+  listarAlertasReincidencia
+} from "../controllers/reincidenciasController.js";
+
 const router = express.Router();
+
+// El monitor se inicializa una sola vez al cargar el backend.
+// Detecta cualquier RIC01 que pase a Correctivo, sin depender del flujo frontend.
+iniciarMonitorReincidencias().catch((error) => {
+  console.error("Error iniciando monitor de reincidencias:", error);
+});
+
+// Historial persistente de alertas por área.
+// Debe ir antes de /:id para evitar que "reincidencias" se interprete como ID RIC39.
+router.get("/reincidencias", listarAlertasReincidencia);
 
 // Protocolos específicos se montan antes de /:id para evitar colisiones.
 router.post("/ric10", guardarRIC10);
