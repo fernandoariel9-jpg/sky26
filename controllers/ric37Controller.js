@@ -186,3 +186,46 @@ export async function guardarRIC37(req, res) {
 
   }
 }
+
+
+export async function obtenerRIC37PorRic01(req, res) {
+  try {
+    const ric01Id = Number(req.params.ric01Id);
+
+    if (!Number.isInteger(ric01Id) || ric01Id <= 0) {
+      return res.status(400).json({
+        ok: false,
+        error: "ric01_id inválido"
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT id, ric01_id, resultado_general, fecha, tecnico
+       FROM ric37
+       WHERE ric01_id = $1
+       ORDER BY id ASC
+       LIMIT 1`,
+      [ric01Id]
+    );
+
+    if (!result.rows.length) {
+      return res.json({
+        ok: true,
+        realizado: false,
+        ric37: null
+      });
+    }
+
+    return res.json({
+      ok: true,
+      realizado: true,
+      ric37: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Error consultando RIC37 por ric01_id:", error);
+    return res.status(500).json({
+      ok: false,
+      error: "No se pudo consultar el RIC37 asociado"
+    });
+  }
+}
