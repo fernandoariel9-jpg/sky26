@@ -23,7 +23,7 @@ import {
   procesarCallbackGoogle
 } from "./googleDrive.js";
 import ric29Routes from "./routes/ric29Routes.js";
-import { guardarRIC37 } from "./controllers/ric37Controller.js";
+import { guardarRIC37, obtenerRIC37PorRic01 } from "./controllers/ric37Controller.js";
 import {
   guardarRIC44,
   obtenerRIC44,
@@ -1275,6 +1275,8 @@ app.get("/api/ric44/estadisticas/:numero_serie", obtenerEstadisticasRIC44);
 app.get("/api/ric44/:id", obtenerRIC44);
 
 app.post("/api/ric37", guardarRIC37);
+
+app.get("/api/ric37/por-ric01/:ric01Id", obtenerRIC37PorRic01);
 
 app.get("/api/ric37/:id", obtenerDetalleRIC37);
 
