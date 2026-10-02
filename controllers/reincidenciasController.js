@@ -23,6 +23,10 @@ function normalizarTexto(valor = "") {
     .trim();
 }
 
+function esRegistroRIC37(tarea = "") {
+  return normalizarTexto(tarea).startsWith("ric37 seguridad electrica");
+}
+
 function tokensSignificativos(valor = "") {
   return normalizarTexto(valor)
     .split(/\s+/)
@@ -100,6 +104,7 @@ async function asegurarTablas() {
       SELECT id
       FROM ric01
       WHERE LOWER(TRIM(COALESCE(tipo_mantenimiento, ''))) = 'correctivo'
+        AND COALESCE(tarea, '') NOT ILIKE 'RIC37 - Seguridad eléctrica%'
       ON CONFLICT (ric01_id) DO NOTHING
     `);
     console.log("✅ Monitor de reincidencias inicializado sin alertas retroactivas");
@@ -192,7 +197,7 @@ async function marcarProcesado(ric01Id) {
 
 async function procesarCorrectivo(ric01Id) {
   const actualResult = await pool.query(
-    `SELECT id, fecha, numero_serie, descripcion, area, diagnostico, tipo_mantenimiento
+    `SELECT id, fecha, numero_serie, descripcion, area, diagnostico, tipo_mantenimiento, tarea
      FROM ric01
      WHERE id = $1
      LIMIT 1`,
@@ -210,6 +215,7 @@ async function procesarCorrectivo(ric01Id) {
   // El diagnóstico puede estar vacío: el reingreso reciente igualmente se alerta.
   if (
     normalizarTexto(actual.tipo_mantenimiento) !== "correctivo" ||
+    esRegistroRIC37(actual.tarea) ||
     !actual.numero_serie
   ) {
     await marcarProcesado(ric01Id);
@@ -224,6 +230,7 @@ async function procesarCorrectivo(ric01Id) {
      WHERE numero_serie = $1
        AND id <> $2
        AND LOWER(TRIM(COALESCE(tipo_mantenimiento, ''))) = 'correctivo'
+       AND COALESCE(tarea, '') NOT ILIKE 'RIC37 - Seguridad eléctrica%'
        AND fecha >= COALESCE($3::timestamp, CURRENT_TIMESTAMP) - INTERVAL '${VENTANA_DIAS} days'
        AND (
          fecha < COALESCE($3::timestamp, CURRENT_TIMESTAMP)
@@ -298,6 +305,7 @@ async function revisarNuevosCorrectivos() {
       LEFT JOIN reincidencias_procesadas p ON p.ric01_id = r.id
       WHERE p.ric01_id IS NULL
         AND LOWER(TRIM(COALESCE(r.tipo_mantenimiento, ''))) = 'correctivo'
+        AND COALESCE(r.tarea, '') NOT ILIKE 'RIC37 - Seguridad eléctrica%'
       ORDER BY r.id ASC
       LIMIT 25
     `);
