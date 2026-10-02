@@ -1,5 +1,25 @@
 import pool from "../db.js";
 
+function numeroDecimalONull(valor, campo = "valor") {
+  if (valor === null || valor === undefined) return null;
+
+  if (typeof valor === "string" && valor.trim() === "") return null;
+
+  const normalizado = typeof valor === "string"
+    ? valor.trim().replace(/,/g, ".")
+    : valor;
+
+  const numero = Number(normalizado);
+
+  if (!Number.isFinite(numero)) {
+    const error = new Error(`Valor numérico inválido en ${campo}: "${valor}"`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return numero;
+}
+
 export async function guardarRIC37(req, res) {
 
   const client = await pool.connect();
@@ -117,8 +137,8 @@ export async function guardarRIC37(req, res) {
         tecnico || null,
         clase || null,
         tipo_proteccion || null,
-        medicion_tension || null,
-        medicion_corriente || null,
+        numeroDecimalONull(medicion_tension, "medicion_tension"),
+        numeroDecimalONull(medicion_corriente, "medicion_corriente"),
         resultado_general || null,
         observaciones || null
       ]
@@ -146,8 +166,8 @@ export async function guardarRIC37(req, res) {
           ric37_id,
           d.determinacion ?? d.numero ?? null,
           d.nombre,
-          d.medicion ?? null,
-          d.rango_aceptacion ?? d.rango ?? null,
+          numeroDecimalONull(d.medicion, `determinacion ${d.determinacion ?? d.numero ?? ""} - medicion`),
+          numeroDecimalONull(d.rango_aceptacion ?? d.rango, `determinacion ${d.determinacion ?? d.numero ?? ""} - rango_aceptacion`),
           d.no_aplica ?? d.noAplica
             ? null
             : d.conforme ?? null,
@@ -175,7 +195,7 @@ export async function guardarRIC37(req, res) {
       error
     );
 
-    res.status(500).json({
+    res.status(error.statusCode || 500).json({
       ok: false,
       error: error.message
     });
