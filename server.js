@@ -2107,7 +2107,11 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
         e.servicio,
         e.area,
         e.sub_servicio,
+        e.encargado,
+        e.periodo,
         e.ultimo_mant,
+        e.fecha_alta,
+        e.fecha_baja,
         e.imagen,
 
         -- Mantenimiento abierto (se mantiene igual)
