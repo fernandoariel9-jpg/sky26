@@ -1,4 +1,90 @@
 import pool from "../db.js";
+import webpush from "web-push";
+
+if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+  webpush.setVapidDetails(
+    "mailto:icsky26@gmail.com",
+    process.env.VAPID_PUBLIC_KEY,
+    process.env.VAPID_PRIVATE_KEY
+  );
+}
+
+async function notificarTransferenciaPendiente({
+  areaOrigen,
+  areaDestino,
+  transferenciaId,
+  item,
+  cantidad,
+  solicitadoPor
+}) {
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT id, suscripcion
+      FROM personal
+      WHERE suscripcion IS NOT NULL
+        AND translate(lower(trim(COALESCE(area, ''))), 'áéíóúüñ', 'aeiouun') =
+            translate(lower(trim($1)), 'áéíóúüñ', 'aeiouun')
+      `,
+      [areaOrigen]
+    );
+
+    if (!rows.length) {
+      console.log(`ℹ️ No hay personal suscrito en el área ${areaOrigen} para transferencia #${transferenciaId}`);
+      return 0;
+    }
+
+    const descripcionItem = [
+      item?.codigo || "",
+      item?.descripcion || "Repuesto"
+    ].filter(Boolean).join(" · ");
+
+    const payload = JSON.stringify({
+      title: "🔄 Transferencia de stock pendiente",
+      body: [
+        `${areaDestino} solicita ${cantidad} ${item?.unidad || ""} de ${descripcionItem}.`,
+        solicitadoPor ? `Solicitado por: ${solicitadoPor}.` : "",
+        `Tu área (${areaOrigen}) debe aprobar o rechazar la transferencia.`
+      ].filter(Boolean).join("\n"),
+      icon: "/icon-192x192.png",
+      data: {
+        tipo: "transferencia_stock",
+        transferencia_id: transferenciaId,
+        area_origen: areaOrigen,
+        area_destino: areaDestino,
+        item_id: item?.id || null
+      }
+    });
+
+    let enviadas = 0;
+
+    for (const row of rows) {
+      try {
+        const subscription =
+          typeof row.suscripcion === "string"
+            ? JSON.parse(row.suscripcion)
+            : row.suscripcion;
+
+        await webpush.sendNotification(subscription, payload);
+        enviadas += 1;
+      } catch (error) {
+        console.warn(
+          `⚠️ No se pudo enviar push de transferencia al personal #${row.id}:`,
+          error.message
+        );
+      }
+    }
+
+    console.log(
+      `📢 Transferencia #${transferenciaId}: ${enviadas} notificación(es) enviada(s) al área ${areaOrigen}`
+    );
+
+    return enviadas;
+  } catch (error) {
+    console.error("Error notificando transferencia de stock:", error);
+    return 0;
+  }
+}
 
 export async function listarTransferenciasStock(req, res) {
   try {
@@ -68,7 +154,9 @@ export async function solicitarTransferenciaStock(req, res) {
     }
 
     const item = await pool.query(
-      `SELECT id FROM stock_items WHERE id = $1 AND activo = TRUE`,
+      `SELECT id, codigo, descripcion, unidad
+       FROM stock_items
+       WHERE id = $1 AND activo = TRUE`,
       [item_id]
     );
     if (item.rowCount === 0) {
@@ -104,7 +192,18 @@ export async function solicitarTransferenciaStock(req, res) {
       ]
     );
 
-    res.status(201).json(rows[0]);
+    const transferenciaCreada = rows[0];
+
+    await notificarTransferenciaPendiente({
+      areaOrigen: origen,
+      areaDestino: destino,
+      transferenciaId: transferenciaCreada.id,
+      item: item.rows[0],
+      cantidad: cantidadNumerica,
+      solicitadoPor: solicitado_por_nombre?.trim() || null
+    });
+
+    res.status(201).json(transferenciaCreada);
   } catch (error) {
     console.error("Error al solicitar transferencia:", error);
     res.status(500).json({ error: "Error al solicitar la transferencia" });
