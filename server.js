@@ -380,11 +380,12 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
   try {
     // 🔹 1. RESUMEN GENERAL
     const resumenResult = await pool.query(`
-      SELECT 
+      SELECT
         COUNT(*) as total,
-        SUM(CASE WHEN UPPER(estado) = 'ACTIVO' THEN 1 ELSE 0 END) as activos,
-        SUM(CASE WHEN UPPER(estado) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
+        SUM(CASE WHEN UPPER(TRIM(COALESCE(estado, ''))) = 'ACTIVO' THEN 1 ELSE 0 END) as activos,
+        SUM(CASE WHEN UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
       FROM equipos
+      WHERE UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
     `);
 
     const resumen = resumenResult.rows[0];
@@ -395,7 +396,8 @@ const estadosResult = await pool.query(`
     estado,
     COUNT(*) as cantidad
   FROM equipos
-  WHERE UPPER(estado) <> 'ACTIVO'
+  WHERE UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO'
+    AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
   GROUP BY estado
   ORDER BY cantidad DESC
 `);
@@ -428,6 +430,7 @@ estadosResult.rows.forEach((row) => {
           SELECT descripcion, numero_serie, estado, marca_modelo
           FROM equipos
           WHERE UPPER(descripcion) = $1
+            AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
           ${eq.serie ? "AND numero_serie = $2" : ""}
           LIMIT 1
         `,
@@ -462,11 +465,12 @@ estadosResult.rows.forEach((row) => {
     const evaluarSubgrupo = async (descripciones) => {
   const result = await pool.query(
     `
-    SELECT 
+    SELECT
       COUNT(*) as total,
-      SUM(CASE WHEN UPPER(estado) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
+      SUM(CASE WHEN UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
     FROM equipos
     WHERE UPPER(descripcion) = ANY($1)
+      AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
     `,
     [descripciones.map(d => d.toUpperCase())]
   );
@@ -476,7 +480,8 @@ estadosResult.rows.forEach((row) => {
     SELECT descripcion, numero_serie, estado
     FROM equipos
     WHERE UPPER(descripcion) = ANY($1)
-      AND UPPER(estado) <> 'ACTIVO'
+      AND UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO'
+      AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
     ORDER BY descripcion
     `,
     [descripciones.map(d => d.toUpperCase())]
