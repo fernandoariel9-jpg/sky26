@@ -396,12 +396,70 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
         SELECT
           id,
           estado,
-          periodo,
-          ultimo_mant,
-          fecha_alta,
           CASE
-            WHEN NULLIF(TRIM(COALESCE(periodo::text, '')), '') IS NOT NULL
-              AND TRIM(periodo::text) ~ '^[0-9]+
+            WHEN periodo IS NOT NULL
+              AND periodo::text ~ '^[0-9]+$'
+              AND periodo::integer > 0
+            THEN periodo::integer
+            ELSE NULL
+          END AS periodo_dias,
+          CASE
+            WHEN ultimo_mant IS NOT NULL
+            THEN ultimo_mant::date
+            WHEN fecha_alta IS NOT NULL
+            THEN fecha_alta::date
+            ELSE NULL
+          END AS fecha_base_preventivo
+        FROM equipos
+        WHERE UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+      )
+      SELECT
+        COUNT(*)::integer AS total_vigentes,
+        COUNT(*) FILTER (
+          WHERE UPPER(TRIM(COALESCE(estado, ''))) IN ('ACTIVO', 'ACTIVO RESTRINGIDO')
+        )::integer AS operativos,
+        COUNT(*) FILTER (
+          WHERE periodo_dias IS NOT NULL
+        )::integer AS cubiertos,
+        COUNT(*) FILTER (
+          WHERE periodo_dias IS NOT NULL
+            AND fecha_base_preventivo IS NOT NULL
+        )::integer AS cubiertos_calculables,
+        COUNT(*) FILTER (
+          WHERE periodo_dias IS NOT NULL
+            AND fecha_base_preventivo IS NOT NULL
+            AND (fecha_base_preventivo + (periodo_dias * INTERVAL '1 day'))::date >= CURRENT_DATE
+        )::integer AS preventivos_en_cumplimiento
+      FROM equipos_vigentes
+    `);
+
+    const indicadoresPreventivosDB = indicadoresPreventivosResult.rows[0] || {};
+    const totalVigentes = Number(indicadoresPreventivosDB.total_vigentes || 0);
+    const operativos = Number(indicadoresPreventivosDB.operativos || 0);
+    const cubiertos = Number(indicadoresPreventivosDB.cubiertos || 0);
+    const cubiertosCalculables = Number(indicadoresPreventivosDB.cubiertos_calculables || 0);
+    const preventivosEnCumplimiento = Number(indicadoresPreventivosDB.preventivos_en_cumplimiento || 0);
+
+    const indicadoresPreventivos = {
+      cobertura_preventiva: totalVigentes > 0
+        ? Number(((cubiertos / totalVigentes) * 100).toFixed(1))
+        : 0,
+      cumplimiento_preventivo: cubiertosCalculables > 0
+        ? Number(((preventivosEnCumplimiento / cubiertosCalculables) * 100).toFixed(1))
+        : 0,
+      equipos_operativos: totalVigentes > 0
+        ? Number(((operativos / totalVigentes) * 100).toFixed(1))
+        : 0,
+      detalle: {
+        total_vigentes: totalVigentes,
+        cubiertos,
+        cubiertos_calculables: cubiertosCalculables,
+        preventivos_en_cumplimiento: preventivosEnCumplimiento,
+        operativos
+      }
+    };
+
+    // 🔹 DETALLE DE ESTADOS
 const estadosResult = await pool.query(`
   SELECT 
     estado,
