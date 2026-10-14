@@ -390,6 +390,6785 @@ app.get("/api/dashboard/resumen", verificarToken, async (req, res) => {
 
     const resumen = resumenResult.rows[0];
 
+    // 🔹 INDICADORES DE MANTENIMIENTO PREVENTIVO
+    const indicadoresPreventivosResult = await pool.query(`
+      WITH equipos_vigentes AS (
+        SELECT
+          id,
+          estado,
+          periodo,
+          ultimo_mant,
+          fecha_alta,
+          CASE
+            WHEN NULLIF(TRIM(COALESCE(periodo::text, '')), '') IS NOT NULL
+              AND TRIM(periodo::text) ~ '^[0-9]+
+const estadosResult = await pool.query(`
+  SELECT 
+    estado,
+    COUNT(*) as cantidad
+  FROM equipos
+  WHERE UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO'
+    AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+  GROUP BY estado
+  ORDER BY cantidad DESC
+`);
+
+const detalleEstados = {};
+
+estadosResult.rows.forEach((row) => {
+  detalleEstados[row.estado] = Number(row.cantidad);
+});
+
+    // 🔹 2. EQUIPOS CRÍTICOS
+    const equiposCriticos = [
+      { descripcion: "RESONADOR", serie: "80611" },
+      { descripcion: "MAMOGRAFO", serie: "67121012" },
+      { descripcion: "ANGIOGRAFO", serie: "722026594" },
+      { descripcion: "CITOMETRO DE FLUJO", serie: "V33896202615" },
+      { descripcion: "PLETISMOGRAFO", serie: "242000380" },
+      { descripcion: "MONITOR MULTIPARAMETRICO", serie: "TM3M0728" },
+      { descripcion: "COLCHON TERMICO", serie: "020708" },
+      { descripcion: "ESPECTROMETRO", serie: "860467301903" },
+      { descripcion: "MULTIPLEX", serie: "LX10014295404" },
+      { descripcion: "ELECTROFORESIS CAPILAR", serie: "93771" },
+    ];
+
+    // 🔹 3. CONSULTA REAL (POSTGRES)
+    const criticosDB = await Promise.all(
+      equiposCriticos.map(async (eq) => {
+        const result = await pool.query(
+          `
+          SELECT descripcion, numero_serie, estado, marca_modelo
+          FROM equipos
+          WHERE UPPER(descripcion) = $1
+            AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+          ${eq.serie ? "AND numero_serie = $2" : ""}
+          LIMIT 1
+        `,
+          eq.serie
+            ? [eq.descripcion.toUpperCase(), eq.serie]
+            : [eq.descripcion.toUpperCase()]
+        );
+
+        if (result.rows.length > 0) {
+          const equipo = result.rows[0];
+
+          return {
+            marca_modelo: equipo.marca_modelo,
+            descripcion: equipo.descripcion,
+            numero_serie: equipo.numero_serie,
+            estado: equipo.estado,
+            activo: equipo.estado?.toUpperCase() === "ACTIVO",
+          };
+        } else {
+          return {
+            marca_modelo: eq.marca_modelo,
+            descripcion: eq.descripcion,
+            numero_serie: eq.serie,
+            estado: "NO ENCONTRADO",
+            activo: false,
+          };
+        }
+      })
+    );
+
+    // 🔹 4. FUNCIÓN PARA EVALUAR GRUPOS (50%)
+    const evaluarSubgrupo = async (descripciones) => {
+  const result = await pool.query(
+    `
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
+    FROM equipos
+    WHERE UPPER(descripcion) = ANY($1)
+      AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+    `,
+    [descripciones.map(d => d.toUpperCase())]
+  );
+
+  const detalle = await pool.query(
+    `
+    SELECT descripcion, numero_serie, estado
+    FROM equipos
+    WHERE UPPER(descripcion) = ANY($1)
+      AND UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO'
+      AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+    ORDER BY descripcion
+    `,
+    [descripciones.map(d => d.toUpperCase())]
+  );
+
+  const total = Number(result.rows[0].total);
+  const noActivos = Number(result.rows[0].no_activos);
+  const porcentaje = total > 0 ? (noActivos / total) * 100 : 0;
+
+  return {
+    descripciones,
+    total,
+    no_activos: noActivos,
+    porcentaje,
+    estado: porcentaje >= 50 ? "OFF" : "ON",
+    detalle: detalle.rows,
+  };
+};
+
+    // 🔹 5. GRUPOS
+     const tomo_subgrupos = await Promise.all([
+  evaluarSubgrupo(["TOMOGRAFO"]),
+]);
+
+const tomografos = {
+  estado: tomo_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: tomo_subgrupos,
+  detalle: tomo_subgrupos.flatMap(sg => sg.detalle)
+};
+    
+    const diag_subgrupos = await Promise.all([
+  evaluarSubgrupo(["FLAT PANEL"]),
+  evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
+  evaluarSubgrupo(["EQUIPO DE RX MOVIL"]),
+  evaluarSubgrupo(["EQUIPO DE RX FIJO"]),
+]);
+
+const diagnosticoImagen = {
+  estado: diag_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: diag_subgrupos,
+  detalle: diag_subgrupos.flatMap(sg => sg.detalle)
+};
+
+    const cq_subgrupos = await Promise.all([
+  evaluarSubgrupo(["BOMBA EXTRACORPOREA"]),
+  evaluarSubgrupo(["CRANEOTOMO"]),
+  evaluarSubgrupo(["FACOEMULSIFICADOR"]),
+  evaluarSubgrupo(["BALON DE CONTRAPULSACIONES INTRAAORTICO"]),
+  evaluarSubgrupo(["MICROSCOPIO DE NEURO"]),
+  evaluarSubgrupo(["LITOTRIPTOR"]),
+  evaluarSubgrupo(["HISTEROSCOPIO"]),
+]);
+
+const centroQuirurgico = {
+  estado: cq_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: cq_subgrupos,
+  detalle: cq_subgrupos.flatMap(sg => sg.detalle)
+};
+
+    const gastro_subgrupos = await Promise.all([
+  evaluarSubgrupo(["VIDEOCOLONOSCOPIO"]),
+  evaluarSubgrupo(["GASTROVIDEOENDOSCOPIO"]),
+  evaluarSubgrupo(["ECOENDOSCOPIO"]),
+  evaluarSubgrupo(["ENTEROSCOPIO"]),
+  evaluarSubgrupo(["DUODENOSCOPIO"]),
+  evaluarSubgrupo(["COLONOSCOPIO"]),
+]);
+
+const gastro = {
+  estado: gastro_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: gastro_subgrupos,
+  detalle: gastro_subgrupos.flatMap(sg => sg.detalle)
+};
+
+    // 🔹 6. RESPUESTA FINAL
+    res.json({
+      total: Number(resumen.total),
+      activos: Number(resumen.activos),
+      no_activos: Number(resumen.no_activos),
+      detalle_estados: detalleEstados,
+      indicadores_preventivos: indicadoresPreventivos,
+      criticos: criticosDB,
+
+      grupos: {
+        diagnostico_imagen: diagnosticoImagen,
+        centro_quirurgico: centroQuirurgico,
+        gastroenterologia: gastro,
+        tomografos: tomografos,
+      }
+    });
+
+  } catch (error) {
+    console.error("🔥 ERROR REAL:", error);
+    res.status(500).json({ error: "Error en dashboard" });
+  }
+});
+
+app.get("/estados", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM estados ORDER BY id");
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener estados:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+app.put("/api/equipos/:id/estado", async (req, res) => {
+  const { id } = req.params;
+  const { estado, usuario } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Guardar el usuario en el contexto de la transacción
+    await client.query(
+      `SELECT set_config('app.usuario', $1, true)`,
+      [usuario || "Sistema"]
+    );
+
+    // Actualizar estado
+    const result = await client.query(
+      `UPDATE equipos
+       SET estado = $1
+       WHERE id = $2
+       RETURNING *`,
+      [estado, id]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    await client.query("COMMIT");
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    console.error("Error actualizando estado:", error);
+
+    res.status(500).json({
+      error: "Error del servidor"
+    });
+
+  } finally {
+    client.release();
+  }
+});
+app.put("/api/equipos/:serie/imagen", async (req, res) => {
+
+  try {
+
+    const { serie } = req.params;
+    const { imagen } = req.body;
+
+    if (!imagen) {
+      return res.status(400).json({
+        error: "No se recibió ninguna imagen"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE equipos
+      SET imagen = $1
+      WHERE numero_serie = $2
+      RETURNING numero_serie
+      `,
+      [imagen, serie]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json({
+      ok: true,
+      mensaje: "Imagen guardada correctamente"
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  }
+
+});
+
+app.get("/equipos/serie/:serie", async (req, res) => {
+  const { serie } = req.params;
+
+  try {
+    // 🔹 limpiar input
+    const serieLimpia = serie.trim().toLowerCase();
+
+    // 🔹 query robusta
+    const result = await pool.query(
+      "SELECT * FROM equipos WHERE LOWER(TRIM(numero_serie)) = $1",
+      [serieLimpia]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ mensaje: "No encontrado" });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error buscando equipo:", error);
+    res.status(500).json({ error: "Error en servidor" });
+  }
+});
+
+app.get("/api/resumen_tiempos_por_area", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        area,
+        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha))) AS prom_solucion_seg,
+        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_comp))) AS prom_finalizacion_seg
+      FROM ric01
+      WHERE fecha IS NOT NULL
+      GROUP BY area
+      ORDER BY area
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error resumen por área:", err);
+    res.status(500).json({ error: "Error obteniendo resumen por área" });
+  }
+});
+
+app.get("/api/tiempos_analitica", async (req, res) => {
+  const { desde, hasta } = req.query;
+
+  try {
+    let filtroFecha = "";
+    const valores = [];
+
+    if (desde && hasta) {
+      filtroFecha = "AND r.fecha::date BETWEEN $1 AND $2";
+      valores.push(desde, hasta);
+    }
+
+    const query = `
+      SELECT
+        COALESCE(r.reasignado_a, r.area) AS area,
+        COUNT(*) AS total_tareas,
+
+        AVG(
+          CASE 
+            WHEN r.fecha_comp IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha)) / 3600
+          END
+        ) AS promedio_solucion,
+
+        AVG(
+          CASE 
+            WHEN r.fecha_fin IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (r.fecha_fin - r.fecha_comp)) / 3600
+          END
+        ) AS promedio_finalizacion
+
+      FROM ric01 r
+      WHERE 1=1
+      ${filtroFecha}
+
+      GROUP BY COALESCE(r.reasignado_a, r.area)
+      ORDER BY area;
+    `;
+
+    const result = await pool.query(query, valores);
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error("Error analítica:", err);
+    res.status(500).json([]);
+  }
+});
+
+// ---------- TAREAS ----------
+app.get("/tareas/:area", identificarPersonalOpcional, async (req, res) => {
+  const { area } = req.params;
+  const { personal } = req.query;
+
+  try {
+    let result;
+
+if (req.personal?.rol === "superusuario") {
+
+  result = await pool.query(`
+    SELECT
+      r.*,
+      u.movil AS movil,
+
+      COALESCE(
+  (
+    SELECT json_agg(
+      json_build_object(
+        'id', c.id,
+        'item_id', c.item_id,
+        'codigo', i.codigo,
+        'descripcion', i.descripcion,
+        'unidad', i.unidad,
+        'cantidad', c.cantidad,
+        'area', c.area,
+        'personal_nombre', c.personal_nombre,
+        'observacion', c.observacion
+      )
+      ORDER BY c.id ASC
+    )
+    FROM stock_consumos c
+    INNER JOIN stock_items i
+      ON i.id = c.item_id
+    WHERE c.ric01_id = r.id
+  ),
+  '[]'::json
+) AS consumos,
+
+      CASE
+        WHEN r.diagnostico IS NOT NULL
+         AND TRIM(r.diagnostico) <> ''
+        THEN (
+          SELECT json_agg(DISTINCT solucion)
+          FROM rics
+          WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+            AND solucion IS NOT NULL
+            AND TRIM(solucion) <> ''
+        )
+        ELSE NULL
+      END AS soluciones_posibles
+
+    FROM ric01 r
+    LEFT JOIN usuarios u
+      ON r.usuario = u.mail
+      OR r.usuario = u.nombre
+
+    ORDER BY r.fecha DESC
+  `);
+
+} else {
+
+  result = await pool.query(
+    `
+    SELECT
+      r.*,
+      u.movil AS movil,
+
+      COALESCE(
+  (
+    SELECT json_agg(
+      json_build_object(
+        'id', c.id,
+        'item_id', c.item_id,
+        'codigo', i.codigo,
+        'descripcion', i.descripcion,
+        'unidad', i.unidad,
+        'cantidad', c.cantidad,
+        'area', c.area,
+        'personal_nombre', c.personal_nombre,
+        'observacion', c.observacion
+      )
+      ORDER BY c.id ASC
+    )
+    FROM stock_consumos c
+    INNER JOIN stock_items i
+      ON i.id = c.item_id
+    WHERE c.ric01_id = r.id
+  ),
+  '[]'::json
+) AS consumos,
+
+      CASE
+        WHEN r.diagnostico IS NOT NULL
+         AND TRIM(r.diagnostico) <> ''
+        THEN (
+          SELECT json_agg(DISTINCT solucion)
+          FROM rics
+          WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+            AND solucion IS NOT NULL
+            AND TRIM(solucion) <> ''
+        )
+        ELSE NULL
+      END AS soluciones_posibles
+
+    FROM ric01 r
+    LEFT JOIN usuarios u
+      ON r.usuario = u.mail
+      OR r.usuario = u.nombre
+
+    WHERE (
+      (r.area = $1 AND r.reasignado_a IS NULL)
+      OR r.reasignado_a = $1
+      OR (r.origen = 'interno' AND r.usuario = $2)
+    )
+
+    ORDER BY r.fecha DESC
+    `,
+    [area, personal]
+  );
+
+}
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener tareas:", err.message);
+    res.status(500).json({ error: "Error al obtener tareas" });
+  }
+});
+
+app.get("/tareas", async (req, res) => {
+  try {
+    const { usuario, panel } = req.query;
+
+    let query = `
+      SELECT
+  r.*,
+  u.movil AS movil,
+
+  CASE
+    WHEN r.diagnostico IS NOT NULL
+     AND TRIM(r.diagnostico) <> ''
+    THEN (
+      SELECT json_agg(DISTINCT solucion)
+FROM rics
+WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+  AND solucion IS NOT NULL
+  AND TRIM(solucion) <> ''
+    )
+    ELSE NULL
+  END AS soluciones_posibles
+
+FROM ric01 r
+LEFT JOIN usuarios u ON r.usuario = u.mail
+    `;
+    let params = [];
+
+    // 🧭 PANEL DE SUPERVISIÓN → VE TODO
+    if (panel === "true") {
+      // no se aplica filtro
+    }
+    // 👤 USUARIO COMÚN / SUPERVISOR
+    else if (usuario) {
+      const userResult = await pool.query(
+  `SELECT nombre, mail, tipo, servicio
+   FROM usuarios
+   WHERE TRIM(LOWER(mail)) = TRIM(LOWER($1))
+      OR TRIM(LOWER(nombre)) = TRIM(LOWER($1))
+   LIMIT 1`,
+  [usuario]
+);
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      }
+
+      const { nombre, mail, tipo, servicio } = userResult.rows[0];
+      
+      if (tipo === "supervisor") {
+        // 👔 Supervisor → tareas de su servicio
+        query += ` WHERE r.servicio = $1 `;
+        params.push(servicio);
+      } else {
+  // 👤 Común → ve lo que creó Y lo que solicitó
+  query += `
+  WHERE TRIM(LOWER(r.usuario)) = TRIM(LOWER($1))
+     OR TRIM(LOWER(r.solicitado_por)) = TRIM(LOWER($1))
+     OR TRIM(LOWER(r.usuario)) = TRIM(LOWER($2))
+     OR TRIM(LOWER(r.solicitado_por)) = TRIM(LOWER($2))
+`;
+params.push(nombre, usuario);
+}
+    } else {
+      // ❌ ni usuario ni panel
+      return res.status(400).json({ error: "Parámetros insuficientes" });
+    }
+
+    query += ` ORDER BY r.fecha DESC`;
+
+    const result = await pool.query(query, params);
+    console.log(
+  JSON.stringify(result.rows[0], null, 2)
+);
+
+    res.json(
+      result.rows.map((t) => ({
+        ...t,
+        fecha: t.fecha || null,
+        fecha_comp: t.fecha_comp || null,
+        fecha_fin: t.fecha_fin || null,
+      }))
+    );
+  } catch (err) {
+    console.error("❌ Error al obtener tareas:", err);
+    res.status(500).json({ error: "Error al obtener tareas" });
+  }
+});
+
+app.put("/tareas/:id/editar", async (req, res) => {
+  const { id } = req.params;
+  const { tarea } = req.body;
+
+  console.log("EDITANDO:", id, tarea);
+
+  if (!tarea || tarea.trim() === "") {
+    return res.status(400).json({ error: "Tarea vacía" });
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE ric01 SET tarea = $1 WHERE id = $2 RETURNING *",
+      [tarea, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "No existe la tarea" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("ERROR:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+app.get("/api/equipos", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM equipos ORDER BY id DESC");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error obteniendo equipos:", error);
+    res.status(500).json({ error: "Error obteniendo equipos" });
+  }
+});
+
+app.get("/equipos/existe/:serie", async (req, res) => {
+
+  const { serie } = req.params;
+
+  const result = await pool.query(
+
+    `
+    SELECT
+      descripcion,
+      servicio,
+      estado
+    FROM equipos
+    WHERE UPPER(numero_serie)=UPPER($1)
+    LIMIT 1
+    `,
+    [serie]
+
+  );
+
+  res.json({
+
+    existe: result.rows.length > 0,
+
+    equipo: result.rows[0] || null
+
+  });
+
+});
+
+app.get("/diagnosticos/ric02", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT diagnostico
+      FROM rics
+      WHERE ric = 'RIC02'
+        AND diagnostico IS NOT NULL
+        AND TRIM(diagnostico) <> ''
+      ORDER BY diagnostico
+    `);
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error al obtener diagnósticos"
+    });
+  }
+});
+
+app.post("/api/equipos", async (req, res) => {
+
+  const {
+    numero_serie,
+    descripcion,
+    marca_modelo,
+    servicio,
+    sub_servicio,
+    encargado,
+    area,
+    periodo,
+    ultimo_mant,
+    fecha_alta,
+    fecha_baja,
+    estado,
+    imagen
+  } = req.body;
+
+  try {
+
+    // Verificar si ya existe el número de serie
+    const existe = await pool.query(
+      `
+      SELECT id
+      FROM equipos
+      WHERE numero_serie = $1
+      `,
+      [numero_serie]
+    );
+
+    if (existe.rows.length > 0) {
+      return res.status(409).json({
+        error: "Ya existe un equipo con ese número de serie."
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO equipos
+      (
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta,
+        fecha_baja,
+        estado,
+        imagen
+      )
+      VALUES
+      (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+      )
+      RETURNING *
+      `,
+      [
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta || new Date(),
+        fecha_baja,
+        estado || "En Servicio",
+        imagen || null
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      error: "Error creando equipo"
+    });
+
+  }
+
+});
+
+app.put("/api/equipos/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    numero_serie,
+    descripcion,
+    marca_modelo,
+    servicio,
+    sub_servicio,
+    encargado,
+    area,
+    periodo,
+    ultimo_mant,
+    fecha_alta,
+    fecha_baja,
+    estado,
+    imagen
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE equipos
+      SET
+        numero_serie = $1,
+        descripcion = $2,
+        marca_modelo = $3,
+        servicio = $4,
+        sub_servicio = $5,
+        encargado = $6,
+        area = $7,
+        periodo = $8,
+        ultimo_mant = $9,
+        fecha_alta = $10,
+        fecha_baja = $11,
+        estado = $12,
+        imagen = $13
+      WHERE id = $14
+      RETURNING *
+      `,
+      [
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta,
+        fecha_baja,
+        estado,
+        imagen,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error actualizando equipo:", error);
+
+    res.status(500).json({
+      error: "Error actualizando equipo"
+    });
+  }
+});
+
+app.put("/api/equipos/:id", async (req, res) => {
+  const { id } = req.params;
+  const { numero_serie, descripcion, marca, modelo, area } = req.body;
+
+  try {
+    await pool.query(
+      `UPDATE equipos 
+       SET numero_serie=$1, descripcion=$2, marca=$3, modelo=$4, area=$5
+       WHERE id=$6`,
+      [numero_serie, descripcion, marca, modelo, area, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error actualizando equipo:", error);
+    res.status(500).json({ error: "Error actualizando equipo" });
+  }
+});
+
+    // --------------------------------------------------------
+    // RUTAS DE ARCHIVOS CONTROLLERS
+    // --------------------------------------------------------
+
+app.use("/api/ric29", ric29Routes);
+
+app.post("/api/ric44", guardarRIC44);
+
+app.get("/api/ric44", listarRIC44);
+
+app.get("/api/ric44/estadisticas/:numero_serie", obtenerEstadisticasRIC44);
+
+app.get("/api/ric44/:id", obtenerRIC44);
+
+app.post("/api/ric37", guardarRIC37);
+
+app.get("/api/ric37/por-ric01/:ric01Id", obtenerRIC37PorRic01);
+
+app.get("/api/ric37/:id", obtenerDetalleRIC37);
+
+app.get("/api/estadisticas/equipo/:numero_serie", obtenerEstadisticasEquipo);
+
+app.use("/equipos", historialEquipoRoutes);
+
+app.get("/equipos/:numero_serie/historial", obtenerHistorialEquipo);
+
+app.get("/equipos/:serie/historial/pdf", generarHistorialPDF);
+
+app.use("/api/resumen_tiempos", promediosRoutes);
+
+
+// --------------------------------------------------------
+
+app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      DELETE FROM ric01
+      WHERE id = $1
+      RETURNING id
+      `,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    console.log(
+      `Preventivo cancelado. Tarea RIC01 eliminada: ${id}`
+    );
+
+    res.json({
+      ok: true,
+      id: result.rows[0].id
+    });
+
+  } catch (err) {
+    console.error(
+      "Error eliminando tarea preventiva:",
+      err
+    );
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
+app.get("/api/equipos/mantenimiento-proximo", async (req, res) => {
+  try {
+    const { area } = req.query;
+
+    if (!area) {
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió el área del usuario"
+      });
+    }
+
+    const { rows } = await pool.query(`
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        area,
+        ultimo_mant,
+        periodo,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+            THEN TRIM(ultimo_mant)::timestamp::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+            THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+          ELSE NULL
+        END AS fecha_ultimo_mant,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+            THEN (
+              TRIM(ultimo_mant)::timestamp::date
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+            THEN (
+              TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          ELSE NULL
+        END AS proximo_mant
+
+      FROM equipos
+
+      WHERE LOWER(TRIM(area)) = LOWER(TRIM($1))
+
+        AND NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
+        AND NULLIF(TRIM(periodo), '') IS NOT NULL
+        AND TRIM(periodo) ~ '^[0-9]+$'
+        AND TRIM(periodo)::integer > 0
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date >= CURRENT_DATE
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date <= CURRENT_DATE + INTERVAL '30 days'
+
+      ORDER BY proximo_mant ASC
+    `, [area]);
+
+    res.json({
+      ok: true,
+      total: rows.length,
+      equipos: rows
+    });
+
+  } catch (error) {
+    console.error("Error equipos con mantenimiento próximo:", error);
+
+    res.status(500).json({
+      ok: false,
+      error: "Error al obtener equipos con mantenimiento próximo"
+    });
+  }
+});
+
+app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
+  try {
+    const { area } = req.query;
+
+    if (!area) {
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió el área del usuario"
+      });
+    }
+
+    const { rows } = await pool.query(`
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        sub_servicio,
+        area,
+        ultimo_mant,
+        periodo,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+            THEN TRIM(ultimo_mant)::timestamp::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+            THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+          ELSE NULL
+        END AS fecha_ultimo_mant,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+            THEN (
+              TRIM(ultimo_mant)::timestamp::date
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+            THEN (
+              TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          ELSE NULL
+        END AS proximo_mant
+
+      FROM equipos
+
+      WHERE LOWER(TRIM(area)) = LOWER(TRIM($1))
+
+        AND NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
+        AND NULLIF(TRIM(periodo), '') IS NOT NULL
+        AND TRIM(periodo) ~ '^[0-9]+$'
+        AND TRIM(periodo)::integer > 0
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date < CURRENT_DATE
+
+      ORDER BY proximo_mant ASC
+    `, [area]);
+
+    res.json({
+  ok: true,
+  total: rows.length,
+  equipos: rows
+});
+
+  } catch (error) {
+    console.error("Error equipos vencidos:", error);
+
+    res.status(500).json({
+      ok: false,
+      error: "Error al obtener equipos con mantenimiento vencido"
+    });
+  }
+});
+
+app.post("/api/ric01", async (req, res) => {
+  try {
+
+    const { tarea, area, origen, solicitado_por } = req.body;
+
+    // Valores por defecto
+    let descripcion = null;
+    let marca_modelo = null;
+    let numero_serie = null;
+    let servicio = null;
+
+    // ¿Es una solicitud automática desde QR?
+    if (
+      tarea &&
+      tarea.includes("Solicitud automática") &&
+      tarea.includes("{") &&
+      tarea.includes("}")
+    ) {
+
+      const match = tarea.match(/\{([^}]*)\}/);
+
+      if (match) {
+
+        const datos = match[1]
+          .split(",")
+          .map(x => x.trim().replace(/^"(.*)"$/, "$1"));
+
+        if (datos.length >= 4) {
+
+          descripcion   = datos[0] || null;
+          marca_modelo  = datos[1] || null;
+          numero_serie  = datos[2] || null;
+          servicio      = datos[3] || null;
+
+          console.log("Equipo detectado desde QR:", {
+            descripcion,
+            marca_modelo,
+            numero_serie,
+            servicio
+          });
+
+        }
+      }
+    }
+
+    await pool.query(
+      `
+      INSERT INTO ric01
+      (
+        tarea,
+        area,
+        origen,
+        usuario,
+        fecha,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio
+      )
+      VALUES
+      (
+        $1,
+        $2,
+        $3,
+        $4,
+        NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires',
+        $5,
+        $6,
+        $7,
+        $8
+      )
+      `,
+      [
+        tarea,
+        area,
+        origen,
+        solicitado_por,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio
+      ]
+    );
+
+    res.status(201).json({
+      message: "Creado"
+    });
+
+  } catch (error) {
+
+    console.error("Error creando pedido interno:", error);
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  }
+});
+
+app.post("/ric01", async (req, res) => {
+  try {
+    const {
+      usuario,
+      fecha,
+      tarea,
+      diagnostico,
+      tipo_mantenimiento,
+      descripcion,
+      marca_modelo,
+      numero_serie,
+      area,
+      servicio,
+      subservicio,
+      asignado,
+      solicitado_por,
+      origen,
+      tarea_id,
+      solucion
+    } = req.body;
+
+    // ✅ INSERT (tu lógica intacta)
+    const result = await pool.query(
+      `INSERT INTO ric01 (
+        usuario,
+        fecha,
+        tarea,
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        area,
+        servicio,
+        subservicio,
+        asignado,
+        solicitado_por,
+        origen,
+        fin,
+        fecha_fin,
+        fecha_comp,
+        tarea_id,
+        solucion
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+        false, NULL, NULL, $15, $16
+      )
+      RETURNING *`,
+      [
+        usuario,
+        fecha,
+        tarea,
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        area,
+        servicio,
+        subservicio,
+        asignado,
+        solicitado_por,
+        origen,
+        tarea_id,
+        solucion
+      ]
+    );
+
+    // ✅ Cambiar estado del equipo a Ingresado
+if (numero_serie) {
+  await pool.query(
+    `UPDATE equipos
+     SET estado = 'Ingresado'
+     WHERE numero_serie = $1`,
+    [numero_serie]
+  );
+}
+
+    // ✅ Si es un mantenimiento preventivo, actualizar último mantenimiento
+if (
+  tipo_mantenimiento &&
+  tipo_mantenimiento.toLowerCase() === "preventivo"
+) {
+  await pool.query(
+    `UPDATE equipos
+     SET ultimo_mant = $1
+     WHERE numero_serie = $2`,
+    [fecha, numero_serie]
+  );
+}
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error iniciando mantenimiento:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/ric01/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    diagnostico,
+    solucion,
+    descripcion,
+    fecha_comp
+  } = req.body;
+
+  try {
+    const actual = await pool.query(
+      `SELECT solucion
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (actual.rows.length === 0) {
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado"
+      });
+    }
+
+    const historialAnterior =
+      actual.rows[0].solucion || "";
+
+    const nuevaEntrada =
+      `${new Date().toLocaleString("es-AR")} - ${solucion}`;
+
+    const historialCompleto =
+      historialAnterior
+        ? historialAnterior + "\n" + nuevaEntrada
+        : nuevaEntrada;
+
+    const result = await pool.query(
+  `UPDATE ric01
+   SET diagnostico = CASE
+                   WHEN $1::text IS NULL OR TRIM($1::text) = ''
+                   THEN diagnostico
+                   ELSE $1::text
+                 END,
+    descripcion = CASE
+                   WHEN $2::text IS NULL OR TRIM($2::text) = ''
+                   THEN descripcion
+                   ELSE $2::text
+                 END,
+    solucion = $3,
+    fecha_comp = $4
+WHERE id = $5
+RETURNING *`,
+  [
+    diagnostico,
+    descripcion,
+    historialCompleto,
+    fecha_comp,
+    id
+  ]
+);
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.put("/ric01/:id/solucion", async (req, res) => {
+  const { id } = req.params;
+  const { solucion } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE ric01
+      SET solucion = CASE
+        WHEN solucion IS NULL OR TRIM(solucion) = ''
+          THEN $1
+        ELSE solucion || E'\n' || $1
+      END
+      WHERE id = $2
+      RETURNING *
+      `,
+      [solucion, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado",
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+app.put("/ric01/cerrar/:id", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params;
+    const fechaCierre = new Date().toISOString();
+
+    await client.query("BEGIN");
+
+    // 🔹 1. cerrar mantenimiento
+    const result = await client.query(
+      `UPDATE ric01
+       SET 
+         fin = true,
+         fecha_fin = $1,
+         fecha_comp = $1
+       WHERE id = $2
+       RETURNING *`,
+      [fechaCierre, id]
+    );
+
+    const mantenimiento = result.rows[0];
+
+    // 🔴 2. cerrar tarea (SI EXISTE)
+    if (mantenimiento.tarea_id) {
+      await client.query(
+        `UPDATE ric01 
+         SET fin = 'true' 
+         WHERE id = $1`,
+        [mantenimiento.tarea_id]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    res.json(mantenimiento);
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error cerrando mantenimiento:", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.put("/ric01/:id/iniciar-mantenimiento", async (req, res) => {
+  console.log("ENTRÓ A INICIAR MANTENIMIENTO", req.params.id);
+  const { id } = req.params;
+
+  const {
+    diagnostico,
+    tipo_mantenimiento,
+    descripcion,
+    marca_modelo,
+    numero_serie,
+    servicio,
+    subservicio,
+    asignado,
+    solucion
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE ric01
+      SET
+        diagnostico = $1,
+        tipo_mantenimiento = $2,
+        descripcion = $3,
+        marca_modelo = $4,
+        numero_serie = $5,
+        servicio = $6,
+        subservicio = $7,
+        asignado = $8,
+        solucion = $9
+      WHERE id = $10
+      RETURNING *;
+      `,
+      [
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        subservicio,
+        asignado,
+        solucion,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
+app.put("/ric01/finalizar/:id", async (req, res) => {
+
+  const { id } = req.params;
+
+  const {
+    fecha_fin,
+    estado,
+    numero_serie,
+    usuario
+  } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+
+    await client.query("BEGIN");
+
+    // 1️⃣ Verificar que el mantenimiento exista
+    const mantenimientoActual = await client.query(
+      `
+      SELECT id, numero_serie, fin
+      FROM ric01
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    if (mantenimientoActual.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado"
+      });
+    }
+
+    const mantenimiento =
+      mantenimientoActual.rows[0];
+
+    const numeroSerie =
+      mantenimiento.numero_serie || numero_serie;
+
+    // 2️⃣ Finalizar SOLO este mantenimiento
+    await client.query(
+      `
+      UPDATE ric01
+      SET
+        fin = true,
+        fecha_fin = $1
+      WHERE id = $2
+      `,
+      [fecha_fin, id]
+    );
+
+    // 3️⃣ Verificar si quedan otros mantenimientos abiertos
+    const abiertos = await client.query(
+      `
+      SELECT COUNT(*)::integer AS cantidad
+      FROM ric01
+      WHERE numero_serie = $1
+        AND COALESCE(fin, false) = false
+      `,
+      [numeroSerie]
+    );
+
+    const cantidadAbiertos =
+      abiertos.rows[0].cantidad;
+
+    // 4️⃣ Solo cambiar el estado del equipo
+    // cuando ya NO quedan mantenimientos abiertos
+    if (
+      cantidadAbiertos === 0 &&
+      estado &&
+      numeroSerie
+    ) {
+
+      await client.query(
+        `
+        UPDATE equipos
+        SET estado = $1
+        WHERE numero_serie = $2
+        `,
+        [estado, numeroSerie]
+      );
+
+    }
+
+    await client.query("COMMIT");
+
+    res.json({
+      ok: true,
+      mantenimiento_id: Number(id),
+      mantenimientos_abiertos: cantidadAbiertos,
+      estado_actualizado: cantidadAbiertos === 0
+    });
+
+  } catch (error) {
+
+    await client.query("ROLLBACK");
+
+    console.error(
+      "Error finalizando mantenimiento:",
+      error
+    );
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  } finally {
+
+    client.release();
+
+  }
+
+});
+
+app.get("/equipos/:numero_serie/historial", async (req, res) => {
+  const { numero_serie } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        fecha,
+        fecha_comp,
+        fecha_fin,
+        fin,
+        usuario,
+        solicitado_por,
+        asignado,
+        tipo_mantenimiento,
+        diagnostico,
+        solucion,
+        observacion,
+        calificacion
+      FROM ric01
+      WHERE numero_serie = $1
+      ORDER BY fecha DESC
+      `,
+      [numero_serie]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
+app.get("/buscar-equipo/:serie", async (req, res) => {
+  try {
+    const { serie } = req.params;
+
+    const result = await pool.query(
+      `
+      SELECT
+        e.id,
+        e.descripcion,
+        e.marca_modelo,
+        e.numero_serie,
+        e.estado,
+        e.servicio,
+        e.area,
+        e.sub_servicio,
+        e.encargado,
+        e.periodo,
+        e.ultimo_mant,
+        e.fecha_alta,
+        e.fecha_baja,
+        e.imagen,
+
+        -- Mantenimiento abierto (se mantiene igual)
+        r.id AS mantenimiento_id,
+        r.tipo_mantenimiento,
+        r.diagnostico,
+        r.fecha AS fecha_inicio,
+        r.fecha_comp,
+        r.solucion,
+
+        (
+  SELECT COALESCE(
+    json_agg(
+      json_build_object(
+        'id', m.id,
+        'tipo_mantenimiento', m.tipo_mantenimiento,
+        'diagnostico', m.diagnostico,
+        'fecha', m.fecha,
+        'fecha_comp', m.fecha_comp,
+        'fecha_fin', m.fecha_fin,
+        'solucion', m.solucion,
+        'observacion', m.observacion,
+        'asignado', m.asignado,
+        'fin', m.fin
+      )
+      ORDER BY m.fecha DESC
+    ),
+    '[]'::json
+  )
+  FROM ric01 m
+  WHERE m.numero_serie = e.numero_serie
+    AND COALESCE(m.fin, false) = false
+) AS mantenimientos_abiertos,
+
+        -- Estadísticas
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+        ) AS total_intervenciones,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND LOWER(x.tipo_mantenimiento) = 'correctivo'
+        ) AS correctivos,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND LOWER(x.tipo_mantenimiento) = 'preventivo'
+        ) AS preventivos,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND (
+              LOWER(x.tipo_mantenimiento) = 'calibración'
+              OR LOWER(x.tipo_mantenimiento) = 'calibracion'
+            )
+        ) AS calibraciones,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND (
+              LOWER(x.tipo_mantenimiento) = 'instalación'
+              OR LOWER(x.tipo_mantenimiento) = 'instalacion'
+            )
+        ) AS instalaciones,
+
+        -- Última intervención
+        (
+          SELECT fecha
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultima_fecha,
+
+        (
+          SELECT asignado
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultimo_tecnico,
+
+        (
+          SELECT diagnostico
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultimo_diagnostico,
+
+        (
+          SELECT solucion
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultima_solucion
+
+      FROM equipos e
+
+      LEFT JOIN ric01 r
+        ON r.numero_serie = e.numero_serie
+       AND r.fin = false
+
+      WHERE e.numero_serie = $1
+
+      ORDER BY r.id DESC
+      LIMIT 1
+      `,
+      [serie]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error buscando equipo"
+    });
+  }
+});
+
+app.get("/buscar-equipos", async (req, res) => {
+  try {
+
+    const texto = req.query.q?.trim();
+
+    if (!texto) {
+      return res.json([]);
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        estado,
+        servicio
+      FROM equipos
+      WHERE
+            numero_serie ILIKE '%' || $1 || '%'
+         OR descripcion ILIKE '%' || $1 || '%'
+         OR marca_modelo ILIKE '%' || $1 || '%'
+      ORDER BY
+        CASE
+          WHEN numero_serie ILIKE $1 || '%' THEN 0
+          WHEN numero_serie ILIKE '%' || $1 || '%' THEN 1
+          ELSE 2
+        END,
+        descripcion
+      LIMIT 50
+      `,
+      [texto]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error buscando equipos"
+    });
+
+  }
+});
+
+app.put("/ric01/asignar-equipo/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    descripcion,
+    marca_modelo,
+    numero_serie
+  } = req.body;
+
+  try {
+    // 🔍 Verificar si ya tiene equipo asignado
+    const existe = await pool.query(
+      "SELECT numero_serie FROM ric01 WHERE id = $1",
+      [id]
+    );
+
+    if (existe.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    if (existe.rows[0].numero_serie) {
+      return res.status(400).json({
+        error: "La tarea ya tiene un equipo asignado"
+      });
+    }
+
+    // ✅ Asignar equipo a la tarea
+    await pool.query(
+      `UPDATE ric01
+       SET descripcion = $1,
+           marca_modelo = $2,
+           numero_serie = $3,
+           tipo_mantenimiento = 'correctivo'
+           WHERE id = $4`,
+      [
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        id
+      ]
+    );
+
+    res.json({
+      message: "Equipo asignado correctamente ✅"
+    });
+
+  } catch (error) {
+    console.error("Error al asignar equipo:", error);
+
+    res.status(500).json({
+      error: "Error al asignar equipo"
+    });
+  }
+});
+
+app.put("/tareas/finalizar/:id", async (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
+
+  try {
+
+    const tarea = await pool.query(
+      `SELECT numero_serie
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (tarea.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    await pool.query(
+      `UPDATE ric01
+       SET fin = true,
+           fecha_fin = NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires'
+       WHERE id = $1`,
+      [id]
+    );
+
+    const numeroSerie =
+      tarea.rows[0].numero_serie;
+
+    if (numeroSerie && estado) {
+      await pool.query(
+        `UPDATE equipos
+         SET estado = $1
+         WHERE numero_serie = $2`,
+        [estado, numeroSerie]
+      );
+    }
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: "Error al finalizar tarea"
+    });
+  }
+});
+app.get("/api/mantenimientos", async (req, res) => {
+  const { tipo, equipo_id } = req.query;
+
+  try {
+    let query = `
+      SELECT r.*, e.numero_serie, e.descripcion AS equipo
+      FROM ric01 r
+      LEFT JOIN equipos e ON r.equipo_id = e.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+
+    if (tipo) {
+      params.push(tipo);
+      query += ` AND r.tipo_mantenimiento = $${params.length}`;
+    }
+
+    if (equipo_id) {
+      params.push(equipo_id);
+      query += ` AND r.equipo_id = $${params.length}`;
+    }
+
+    query += " ORDER BY r.id DESC";
+
+    const result = await pool.query(query, params);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error obteniendo mantenimientos" });
+  }
+});
+
+// ----------------- ENDPOINT PARA EL FRONT -----------------
+app.get("/api/resumen_tareas", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT fecha, pendientes, en_proceso
+      FROM resumen_tareas
+      ORDER BY fecha ASC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error("❌ Error al obtener resumen de tareas:", error);
+    res.status(500).json({ error: "Error al obtener resumen de tareas" });
+  }
+});
+
+app.get("/api/resumen_tiempos", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        fecha,
+        promedio_solucion,
+        promedio_finalizacion,
+        promedio_adm
+      FROM resumen_tiempos
+      ORDER BY fecha ASC
+    `);
+
+    res.json(rows);
+
+  } catch (error) {
+    console.error("❌ Error al obtener resumen de tiempos:", error);
+    res.status(500).json({ error: "Error al obtener resumen de tiempos" });
+  }
+});
+
+// 📌 Obtener lista de usuarios registrados
+app.get("/usuarios", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, mail, area, fecha_registro 
+       FROM usuarios 
+       ORDER BY nombre ASC`
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener usuarios:", err);
+    res.status(500).json({ error: "Error al obtener usuarios" });
+  }
+});
+
+app.post("/api/guardias", async (req, res) => {
+  try {
+    const { personal_id, personal_nombre, servicio, fecha_hora, observaciones } = req.body;
+
+    if (!personal_id || !servicio || !fecha_hora) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    await pool.query(
+      `INSERT INTO guardias (personal_id, personal_nombre, servicio, fecha_hora, observaciones)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [personal_id, personal_nombre, servicio, fecha_hora, observaciones]
+    );
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("❌ Error en /api/guardias:", error);
+    res.status(500).json({ error: "Error guardando guardia" });
+  }
+});
+
+app.get("/api/areas", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, area FROM areas ORDER BY area ASC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error obteniendo áreas" });
+  }
+});
+
+app.post("/tareas", async (req, res) => {
+  try {
+
+    let {
+      usuario,
+      tarea,
+      area,
+      fin,
+      imagen,
+      servicio,
+      subservicio
+    } = req.body;
+
+    // Si faltan area/servicio/subservicio, intentar obtenerlas desde la tabla usuarios
+    if ((!area || !servicio || !subservicio) && usuario) {
+      try {
+
+        const userQ = await pool.query(
+          "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
+          [usuario]
+        );
+
+        if (userQ.rows.length > 0) {
+
+          area = area || userQ.rows[0].area;
+          servicio = servicio || userQ.rows[0].servicio;
+          subservicio = subservicio || userQ.rows[0].subservicio;
+
+        } else {
+
+          const personalQ = await pool.query(
+            "SELECT area FROM personal WHERE mail = $1 OR nombre = $1 LIMIT 1",
+            [usuario]
+          );
+
+          if (personalQ.rows.length > 0) {
+            area = area || personalQ.rows[0].area;
+          }
+        }
+
+      } catch (lookupErr) {
+        console.error("Error buscando area/servicio/subservicio:", lookupErr);
+      }
+    }
+
+    // ======================================================
+    // Extraer datos del equipo si es una solicitud automática
+    // ======================================================
+
+    let descripcion = null;
+    let marca_modelo = null;
+    let numero_serie = null;
+    let servicio_equipo = null;
+
+    if (
+      tarea &&
+      tarea.includes("Solicitud automática") &&
+      tarea.includes("{") &&
+      tarea.includes("}")
+    ) {
+
+      const match = tarea.match(/\{([^}]*)\}/);
+
+      if (match) {
+
+        const datos = match[1]
+          .split(",")
+          .map(x => x.trim().replace(/^"(.*)"$/, "$1"));
+
+        if (datos.length >= 4) {
+
+          descripcion = datos[0];
+          marca_modelo = datos[1];
+          numero_serie = datos[2];
+          servicio_equipo = datos[3];
+
+          console.log("Equipo detectado:", {
+            descripcion,
+            marca_modelo,
+            numero_serie,
+            servicio_equipo
+          });
+
+        }
+      }
+    }
+
+    const fecha = fechaLocalArgentina();
+
+    const result = await pool.query(
+      `
+      INSERT INTO ric01
+      (
+        usuario,
+        tarea,
+        fin,
+        imagen,
+        fecha,
+        fecha_comp,
+        fecha_fin,
+        area,
+        servicio,
+        subservicio,
+        descripcion,
+        marca_modelo,
+        numero_serie
+      )
+      VALUES
+      (
+        $1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11
+      )
+      RETURNING *
+      `,
+      [
+        usuario,
+        tarea,
+        fin || false,
+        imagen || null,
+        fecha,
+        area || null,
+        servicio || null,        // Servicio del solicitante
+        subservicio || null,
+        descripcion,
+        marca_modelo,
+        numero_serie
+      ]
+    );
+
+    if (numero_serie) {
+
+    await pool.query(
+        `
+        UPDATE equipos
+        SET estado = 'Ingresado'
+        WHERE numero_serie = $1
+        `,
+        [numero_serie]
+    );
+
+}
+
+    // Si el QR traía el servicio del equipo, lo guardamos
+    if (numero_serie && servicio_equipo) {
+
+      await pool.query(
+        `
+        UPDATE ric01
+        SET servicio = $1
+        WHERE id = $2
+        `,
+        [servicio_equipo, result.rows[0].id]
+      );
+
+      result.rows[0].servicio = servicio_equipo;
+
+    }
+
+    // Notificar al personal del área
+    const personalRes = await pool.query(
+      "SELECT id, suscripcion FROM personal WHERE area = $1 AND suscripcion IS NOT NULL",
+      [area]
+    );
+
+    const payload = {
+      title: "Nueva tarea asignada",
+      body: tarea,
+      icon: "/icon-192x192.png"
+    };
+
+    personalRes.rows.forEach(({ id }) => {
+      enviarNotificacion(id, payload).catch(console.error);
+    });
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+
+    console.error("Error creando tarea:", err);
+
+    res.status(500).json({
+      error: "Error creando tarea"
+    });
+
+  }
+});
+
+// ---------- ACTUALIZACIONES DE TAREAS ----------
+
+// 🔹 Función para calcular y guardar promedios de todas las fechas
+async function calcularYGuardarPromediosGlobal() {   // ← renombrada
+  try {
+    const result = await pool.query(`
+      SELECT
+        DATE(fecha) AS fecha,
+        COUNT(*) AS total_tareas,
+        COUNT(fecha_comp) AS tareas_completadas,
+        COUNT(fecha_fin) AS tareas_finalizadas,
+        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha)) / 60) AS promedio_minutos_comp,
+        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha)) / 60) AS promedio_minutos_fin
+      FROM ric01
+      GROUP BY DATE(fecha)
+      ORDER BY fecha DESC
+    `);
+
+    for (const row of result.rows) {
+      await pool.query(
+        `INSERT INTO promedios (fecha, total_tareas, tareas_completadas, tareas_finalizadas, promedio_minutos_comp, promedio_minutos_fin)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (fecha)
+         DO UPDATE SET
+           total_tareas = EXCLUDED.total_tareas,
+           tareas_completadas = EXCLUDED.tareas_completadas,
+           tareas_finalizadas = EXCLUDED.tareas_finalizadas,
+           promedio_minutos_comp = EXCLUDED.promedio_minutos_comp,
+           promedio_minutos_fin = EXCLUDED.promedio_minutos_fin`,
+        [
+          row.fecha,
+          row.total_tareas,
+          row.tareas_completadas,
+          row.tareas_finalizadas,
+          row.promedio_minutos_comp,
+          row.promedio_minutos_fin,
+        ]
+      );
+    }
+
+    console.log("📊 Promedios recalculados correctamente");
+  } catch (err) {
+    console.error("❌ Error al calcular promedios:", err);
+  }
+}
+
+// ---------- ACTUALIZACIONES DE TAREAS ----------
+
+app.put("/tareas/:id/solucion", async (req, res) => {
+  const { id } = req.params;
+  const { solucion, asignado } = req.body;
+  try {
+    const fecha_comp = fechaLocalArgentina();
+    await pool.query(
+      `UPDATE ric01 SET solucion=$1, asignado=$2, fecha_comp=$3 WHERE id=$4`,
+      [solucion, asignado, fecha_comp, id]
+    );
+
+    await calcularYGuardarPromedios(); // 🔁 recalcula después de completar tarea
+
+    res.json({ message: "✅ Solución guardada y promedios actualizados" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.put("/tareas/:id", async (req, res) => {
+  const { id } = req.params;
+  const { fin } = req.body;
+
+  try {
+    const fecha_fin = fechaLocalArgentina();
+
+    // Obtener número de serie asociado
+    const tareaActual = await pool.query(
+      `SELECT numero_serie
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (tareaActual.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    const numeroSerie =
+      tareaActual.rows[0].numero_serie;
+
+    // Finalizar mantenimiento
+    const result = await pool.query(
+      `UPDATE ric01
+       SET fin = $1,
+           fecha_fin = $2
+       WHERE id = $3
+       RETURNING *`,
+      [fin, fecha_fin, id]
+    );
+
+    // Activar equipo automáticamente
+    if (numeroSerie) {
+      await pool.query(
+        `UPDATE equipos
+         SET estado = 'Activo'
+         WHERE numero_serie = $1`,
+        [numeroSerie]
+      );
+    }
+
+    await calcularYGuardarPromediosGlobal();
+
+    res.json({
+      message: "✅ Tarea finalizada",
+      tarea: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error al finalizar tarea"
+    });
+  }
+});
+
+app.put("/tareas/:id/calificacion", async (req, res) => {
+  const { id } = req.params;
+  const { calificacion } = req.body;
+  if (!calificacion || calificacion < 1 || calificacion > 5)
+    return res.status(400).json({ error: "Calificación inválida (1–5)" });
+  try {
+    const result = await pool.query(
+      "UPDATE ric01 SET calificacion=$1 WHERE id=$2 RETURNING *",
+      [calificacion, id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Tarea no encontrada" });
+    res.json({ mensaje: "Calificación actualizada", tarea: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.put("/tareas/:id/reasignar", async (req, res) => {
+  const { id } = req.params;
+  const { nueva_area, reasignado_por } = req.body;
+
+  try {
+    // 1️⃣ Actualizar la tarea en la base de datos
+    const result = await pool.query(
+      `UPDATE ric01 SET reasignado_a=$1, reasignado_por=$2 WHERE id=$3 RETURNING *`,
+      [nueva_area, reasignado_por, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Tarea no encontrada" });
+    }
+
+    const tarea = result.rows[0];
+
+    // 2️⃣ Enviar notificación al nuevo personal del área
+    try {
+      const subsResult = await pool.query(
+        `SELECT suscripcion FROM personal WHERE area=$1 AND suscripcion IS NOT NULL`,
+        [nueva_area]
+      );
+
+      if (subsResult.rows.length > 0) {
+        const payload = JSON.stringify({
+          title: "Tarea reasignada a tu área",
+          body: `La tarea ID ${id} fue reasignada al área ${nueva_area}.`,
+          icon: "/icon-192x192.png",
+          data: { tareaId: id },
+        });
+
+        for (const row of subsResult.rows) {
+          try {
+            const sub = JSON.parse(row.suscripcion);
+            await webpush.sendNotification(sub, payload);
+          } catch (err) {
+            console.warn("⚠️ Error enviando notificación:", err.message);
+          }
+        }
+
+        console.log(`📢 Notificación enviada a ${subsResult.rows.length} usuarios del área ${nueva_area}`);
+      } else {
+        console.log(`ℹ️ No hay personal suscrito en el área ${nueva_area}`);
+      }
+    } catch (notifyErr) {
+      console.error("Error al enviar notificación:", notifyErr);
+    }
+
+    // 3️⃣ Responder al cliente
+    res.json({ ok: true, tarea });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔧 Actualizar datos de un usuario
+app.put("/usuarios/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nombre, mail, area } = req.body;
+
+  if (!nombre || !mail) {
+    return res.status(400).json({ error: "Faltan datos obligatorios" });
+  }
+
+  try {
+    const query = `
+      UPDATE usuarios
+      SET nombre = $1, mail = $2, area = $3
+      WHERE id = $4
+      RETURNING id, nombre, mail, area
+    `;
+
+    const result = await pool.query(query, [nombre, mail, area || "", id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error al actualizar usuario:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔐 Cambiar contraseña de un usuario
+app.put("/usuarios/:id/password", async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  if (!password || password.length < 4) {
+    return res.status(400).json({ error: "La contraseña es demasiado corta" });
+  }
+
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+
+    const query = `
+      UPDATE usuarios
+      SET password = $1
+      WHERE id = $2
+    `;
+
+    const result = await pool.query(query, [hashed, id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({ message: "Contraseña actualizada correctamente" });
+  } catch (err) {
+    console.error("Error al cambiar contraseña:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.put("/tareas/:id/observacion", async (req, res) => {
+  const { id } = req.params;
+  const { observacion } = req.body;
+
+  try {
+    const fechaAdm = fechaLocalArgentina();
+
+    await pool.query(
+      `
+      UPDATE ric01
+      SET
+        observacion = $1,
+        fecha_adm = CASE
+          WHEN fecha_adm IS NULL AND COALESCE(observacion, '') = ''
+          THEN $2
+          ELSE fecha_adm
+        END
+      WHERE id = $3
+      `,
+      [observacion, fechaAdm, id]
+    );
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al guardar observación" });
+  }
+});
+
+// ---------- USUARIOS ----------
+app.post("/usuarios", async (req, res) => {
+  const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [nombre, servicio, subservicio, area, movil, mail, hashedPassword]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al registrar usuario" });
+  }
+});
+
+app.post("/usuarios/login", async (req, res) => {
+  const { mail, password } = req.body;
+  try {
+    const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [mail]);
+    if (result.rows.length === 0)
+      return res.status(401).json({ error: "Usuario no encontrado" });
+
+    const user = result.rows[0];
+    const esValido = 
+      user.password === password || await bcrypt.compare(password, user.password);
+
+    if (!esValido)
+      return res.status(401).json({ error: "Contraseña incorrecta" });
+
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al loguear usuario" });
+  }
+});
+// ---------- PERSONAL ----------
+app.post("/personal", async (req, res) => {
+  const { nombre, movil, mail, area, password } = req.body;
+  try {
+    const areaCheck = await pool.query("SELECT * FROM areas WHERE area=$1", [area]);
+    if (areaCheck.rows.length === 0) return res.status(400).json({ error: "Área inválida" });
+
+    const result = await pool.query(
+      "INSERT INTO personal(nombre,movil,mail,area,password) VALUES($1,$2,$3,$4,$5) RETURNING *",
+      [nombre, movil, mail, area, password]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al registrar personal" });
+  }
+});
+
+app.post("/personal/login", async (req, res) => {
+  const { mail, password } = req.body;
+
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, movil, mail, area, rol
+       FROM personal
+       WHERE mail=$1 AND password=$2`,
+      [mail, password]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        error: "Credenciales inválidas"
+      });
+    }
+
+    const personal = result.rows[0];
+
+    const token = jwt.sign(
+      {
+        personal_id: personal.id
+      },
+      process.env.PERSONAL_JWT_SECRET,
+      {
+        expiresIn: "12h"
+      }
+    );
+
+    res.json({
+      ...personal,
+      token
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error en login personal"
+    });
+  }
+});
+
+app.put("/personal/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nombre, movil, area, password } = req.body;
+
+  // Validación mínima
+  if (!nombre || !usuario || !area) {
+    return res.status(400).json({
+      error: "Faltan datos obligatorios (nombre, usuario o área)",
+    });
+  }
+
+  try {
+    // 1️⃣ Actualizar datos básicos
+    await pool.query(
+      `UPDATE personal
+       SET nombre = $1,
+           movil = $2,
+           area = $3
+       WHERE id = $4`,
+      [nombre, usuario, area, id]
+    );
+
+    // 2️⃣ Actualizar contraseña SOLO si viene
+    if (password && password.trim() !== "") {
+      const hash = await bcrypt.hash(password, 10);
+
+      await pool.query(
+        `UPDATE personal
+         SET password = $1
+         WHERE id = $2`,
+        [hash, id]
+      );
+    }
+
+    res.json({
+      ok: true,
+      message: "Personal actualizado correctamente",
+    });
+  } catch (err) {
+    console.error("Error actualizando personal:", err);
+
+    // Error de usuario duplicado (si usuario es UNIQUE)
+    if (err.code === "23505") {
+      return res.status(409).json({
+        error: "El personal ya existe",
+      });
+    }
+
+    res.status(500).json({
+      error: "Error interno del servidor",
+    });
+  }
+});
+
+// ---------- SERVICIOS ----------
+app.get("/servicios", async (req, res) => {
+  try {
+
+    const result = await pool.query(
+      `
+      SELECT
+        area,
+        servicio,
+        subservicio,
+        encargado
+      FROM servicios
+      ORDER BY
+        area,
+        servicio,
+        subservicio
+      `
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error al obtener servicios"
+    });
+
+  }
+});
+
+// ---------- AREAS ----------
+app.get("/areas", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM areas ORDER BY id");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener áreas" });
+  }
+});
+
+app.get(
+    "/equipos/:serie/historial/pdf",
+    generarHistorialPDF
+);
+
+// ---------- SUSCRIPCIONES PUSH ----------
+
+app.post("/suscribir", async (req, res) => {
+  try {
+    const { userId, subscription } = req.body;
+
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    // Guardar la suscripción en la tabla 'personal'
+    const query = `
+      UPDATE personal
+      SET suscripcion = $1
+      WHERE id = $2
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [JSON.stringify(subscription), userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
+    res.json({ message: "Suscripción guardada correctamente" });
+  } catch (err) {
+    console.error("Error al guardar suscripción:", err);
+    res.status(500).json({ error: "Error al guardar suscripción" });
+  }
+});
+
+app.post("/desuscribir", async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "Falta el ID del usuario" });
+    }
+
+    // Eliminar la suscripción del personal (dejarla en NULL)
+    const query = `
+      UPDATE personal
+      SET suscripcion = NULL
+      WHERE id = $1
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
+    res.json({ message: "Suscripción eliminada correctamente" });
+  } catch (err) {
+    console.error("Error al eliminar suscripción:", err);
+    res.status(500).json({ error: "Error al eliminar suscripción" });
+  }
+});
+
+app.post("/api/suscribir", async (req, res) => {
+  try {
+    const { userId, subscription } = req.body;
+    console.log("Recibido en /api/suscribir:", req.body);
+
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "Faltan datos" });
+    }
+
+    // Verificar que el usuario exista antes de actualizar
+    const check = await pool.query("SELECT id FROM personal WHERE id=$1", [userId]);
+    if (check.rowCount === 0) {
+      console.error("Usuario no encontrado para guardar suscripción:", userId);
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    await pool.query(
+      "UPDATE personal SET suscripcion=$1 WHERE id=$2",
+      [JSON.stringify(subscription), userId]
+    );
+
+    console.log("✅ Suscripción guardada correctamente para usuario", userId);
+    res.status(201).json({ message: "Suscripción guardada correctamente" });
+  } catch (err) {
+    console.error("Error en /api/suscribir:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// Ruta para desuscribir push
+app.post("/desuscribir", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "Faltan datos" });
+    }
+
+    // Borrar la suscripción de la columna 'suscripcion'
+    await pool.query(
+      `UPDATE personal SET suscripcion = NULL WHERE id = $1`,
+      [userId]
+    );
+
+    res.status(200).json({ message: "Suscripción eliminada correctamente" });
+  } catch (err) {
+    console.error("Error desuscribiendo:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ---------- PROMEDIOS ----------
+
+// Guardar promedios diarios
+app.post("/promedios", async (req, res) => {
+  const { fecha, promedio_solucion, promedio_finalizacion } = req.body;
+
+  if (!fecha || promedio_solucion == null || promedio_finalizacion == null) {
+    return res.status(400).json({ error: "Faltan datos para guardar los promedios" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO promedios (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (fecha) 
+       DO UPDATE SET promedio_solucion = EXCLUDED.promedio_solucion,
+                     promedio_finalizacion = EXCLUDED.promedio_finalizacion
+       RETURNING *`,
+      [fecha, promedio_solucion, promedio_finalizacion]
+    );
+    res.json({ message: "Promedios guardados correctamente", data: result.rows[0] });
+  } catch (err) {
+    console.error("Error guardando promedios:", err);
+    res.status(500).json({ error: "Error al guardar los promedios" });
+  }
+});
+
+// Obtener todos los promedios
+app.get("/promedios", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM promedios ORDER BY fecha ASC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error obteniendo promedios:", err);
+    res.status(500).json({ error: "Error al obtener los promedios" });
+  }
+});
+
+// ---------- CÁLCULO AUTOMÁTICO DE PROMEDIOS DIARIOS ----------
+async function calcularYGuardarPromedios() {
+  try {
+    const hoy = new Date();
+    const fechaHoy = hoy.toISOString().split("T")[0]; // 'YYYY-MM-DD'
+
+    // Obtener todas las tareas finalizadas hoy
+    const result = await pool.query(
+      `SELECT fecha, fecha_comp, fecha_fin 
+       FROM ric01
+       WHERE fecha::date = $1::date`,
+      [fechaHoy]
+    );
+
+    const tareas = result.rows;
+
+    let totalSol = 0, cantSol = 0;
+    let totalFin = 0, cantFin = 0;
+
+    tareas.forEach((t) => {
+      if (t.fecha_comp) {
+        const tiempoSol = (new Date(t.fecha_comp) - new Date(t.fecha)) / (1000 * 60 * 60);
+        totalSol += tiempoSol;
+        cantSol += 1;
+      }
+      if (t.fecha_fin) {
+        const tiempoFin = (new Date(t.fecha_fin) - new Date(t.fecha)) / (1000 * 60 * 60);
+        totalFin += tiempoFin;
+        cantFin += 1;
+      }
+    });
+
+    const promedio_solucion = cantSol ? totalSol / cantSol : 0;
+    const promedio_finalizacion = cantFin ? totalFin / cantFin : 0;
+
+    // Guardar en la tabla 'promedios' (insertar o actualizar)
+    await pool.query(
+      `INSERT INTO promedios (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (fecha)
+       DO UPDATE SET promedio_solucion = EXCLUDED.promedio_solucion,
+                     promedio_finalizacion = EXCLUDED.promedio_finalizacion`,
+      [fechaHoy, promedio_solucion, promedio_finalizacion]
+    );
+
+    console.log(`✅ Promedios guardados para ${fechaHoy}`);
+  } catch (err) {
+    console.error("❌ Error calculando promedios:", err);
+  }
+}
+
+// Ejecutar al iniciar el servidor
+calcularYGuardarPromedios();
+
+// Opcional: recalcular cada 24 horas
+setInterval(calcularYGuardarPromedios, 24 * 60 * 60 * 1000);
+
+// ---------- ASISTENTE IA ----------
+// Helper para insertar en ia_logs de forma segura y consistente
+async function logIALog({ session_id = "", pregunta = null, respuesta = null, correccion = null }) {
+  // usamos casts explícitos para evitar conversiones implícitas
+  const q = `
+    INSERT INTO ia_logs (session_id, pregunta, respuesta, correccion)
+    VALUES ($1::text, $2::text, $3::text, $4::text)
+    RETURNING id
+  `;
+  const params = [session_id, pregunta || null, respuesta || null, correccion || null];
+  return pool.query(q, params);
+}
+
+// 🧠 Formatea resultados SQL en texto natural
+function formatearRespuestaSQL(sql, rows) {
+  // Si la consulta devuelve solo una celda numérica (como un COUNT)
+  if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+    const valor = Object.values(rows[0])[0];
+
+    // Detección semántica simple por tipo de consulta
+    if (/count/i.test(sql)) {
+      return `Hay ${valor} ${valor == 1 ? "tarea" : "tareas"} que cumplen esa condición.`;
+    }
+    if (/sum/i.test(sql)) {
+      return `La suma total es ${valor}.`;
+    }
+    if (/avg|average/i.test(sql)) {
+      return `El promedio calculado es ${valor}.`;
+    }
+
+    // Respuesta genérica si no detecta un tipo específico
+    return `El resultado es ${valor}.`;
+  }
+
+  // Si hay varias filas, devolver un resumen claro
+  if (rows.length > 0) {
+    const columnas = Object.keys(rows[0]);
+    const limite = Math.min(rows.length, 5); // máximo 5 filas mostradas
+    const preview = rows
+      .slice(0, limite)
+      .map((r) => columnas.map((c) => `${c}: ${r[c]}`).join(", "))
+      .join("\n- ");
+
+    let resumen = `Se encontraron ${rows.length} registros. Ejemplos:\n- ${preview}`;
+    if (rows.length > limite) resumen += `\n...y ${rows.length - limite} más.`;
+    return resumen;
+  }
+
+  // Si no hay filas
+  return "No se encontraron registros que cumplan esa condición.";
+}
+
+// ======================================================
+// 🤖 Endpoint de IA — con razonamiento SQL + modo explicación
+// ======================================================
+app.post("/api/ia", async (req, res) => {
+  const { pregunta, sessionId } = req.body;
+
+  if (!pregunta || !sessionId) {
+    return res.status(400).json({ error: "Faltan datos: pregunta o sessionId." });
+  }
+
+  // 🔍 Función auxiliar: detectar entidad principal
+  function detectarEntidad(texto) {
+    texto = texto.toLowerCase();
+    if (texto.includes("personal") || texto.includes("empleado") || texto.includes("usuario"))
+      return "personal";
+    if (texto.includes("área") || texto.includes("area"))
+      return "area";
+    if (texto.includes("tarea") || texto.includes("trabajo"))
+      return "tarea";
+    return "general";
+  }
+
+  try {
+    // ------------------------------------------------
+    // 🔍 Buscar correcciones previas similares
+    // ------------------------------------------------
+    const { rows: correcciones } = await pool.query(
+      `SELECT pregunta, correccion FROM ia_logs 
+       WHERE correccion IS NOT NULL 
+       AND similarity(pregunta, $1) > 0.85
+       ORDER BY fecha DESC LIMIT 1`,
+      [pregunta]
+    );
+
+    if (correcciones.length > 0) {
+      let aplicarCorreccion = true;
+      let respuesta;
+      let correccion = correcciones[0].correccion.trim();
+
+      // 🧠 Nuevo filtro por tipo de entidad
+      const entidadActual = detectarEntidad(pregunta);
+      const entidadCorreccion = detectarEntidad(correcciones[0].pregunta);
+      if (entidadActual !== entidadCorreccion) {
+        console.log(`⚠️ No se aplica corrección (entidades distintas): ${entidadActual} ≠ ${entidadCorreccion}`);
+        aplicarCorreccion = false;
+      }
+
+      // Detectar número de área
+      const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
+      const areaMatchActual = pregunta.match(regexArea);
+      const areaActual = areaMatchActual ? areaMatchActual[1] || areaMatchActual[2] : null;
+
+      const areaMatchCorreccion = correcciones[0].pregunta.match(regexArea);
+      const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] || areaMatchCorreccion[2] : null;
+
+      if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
+        if (/^select/i.test(correccion)) {
+          correccion = correccion.replace(
+            new RegExp(`'Area ${areaCorreccion}'`, "i"),
+            `'Area ${areaActual}'`
+          );
+          console.log(`🔁 Adaptada la corrección para el Área ${areaActual}`);
+        } else aplicarCorreccion = false;
+      }
+
+      if (aplicarCorreccion) {
+        if (/^select/i.test(correccion)) {
+          try {
+            const { rows } = await pool.query(correccion);
+            if (rows && rows.length > 0) {
+              const firstRow = rows[0];
+              const keys = Object.keys(firstRow).map(k => k.toLowerCase());
+
+              // 🧠 Caso 1: un solo valor simple
+              if (rows.length === 1 && keys.length === 1) {
+                const valor = Object.values(firstRow)[0];
+                respuesta = `El resultado es ${valor}.`;
+              }
+
+              // 🧠 Caso 2: resultados por área
+              else if (keys.includes("area") && keys.includes("cantidad")) {
+                respuesta =
+                  "📊 Tareas pendientes por área:\n" +
+                  rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
+              }
+
+              // 🧠 Caso 3: resultados por personal
+              else if (keys.includes("personal") && keys.includes("cantidad")) {
+                respuesta =
+                  "👤 Tareas realizadas por personal:\n" +
+                  rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+              }
+
+              // 🧠 Caso 4: resultados genéricos
+              else {
+                respuesta =
+                  rows.map(r =>
+                    Object.entries(r)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(", ")
+                  ).join(" | ");
+              }
+            } else {
+              respuesta = "⚠️ No se encontraron tareas que cumplan esas condiciones.";
+            }
+          } catch (err) {
+            console.error("❌ Error al ejecutar SQL de corrección:", err);
+            respuesta = "La corrección contiene una consulta SQL no válida.";
+          }
+        } else {
+          respuesta = correccion;
+        }
+
+        await pool.query(
+          "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+          [sessionId, pregunta, respuesta]
+        );
+
+        return res.json({ respuesta });
+      }
+    }
+
+    // ------------------------------------------------
+    // 🧠 Generar SQL automáticamente con OpenRouter
+    // ------------------------------------------------
+    const prompt = `
+Eres un asistente experto en PostgreSQL y gestión de tareas.
+Tu base de datos se llama "ric01" y tiene columnas: 
+id, area, usuario, tarea, solucion, fin, fecha, fecha_comp, fecha_fin, asignado, reasignado_a, reasignado_por.
+
+Objetivo:
+- Si la pregunta requiere información (por ejemplo "¿cuál es la tarea más común?" o "qué área tiene más tareas?"),
+  genera una consulta SQL válida que lo responda.
+- No inventes datos. Usa solo SQL real sobre la tabla ric01.
+- Devuelve SOLO la consulta SQL, nada más.
+- Toma tu tiempo para penser bien las respuestas.
+
+Ejemplo:
+Pregunta: "¿Cuál es la tarea más común?"
+Respuesta:
+SELECT tarea, COUNT(*) AS cantidad FROM ric01 GROUP BY tarea ORDER BY cantidad DESC LIMIT 1;
+
+Pregunta: "${pregunta}"
+`;
+
+    // 🧩 Llamada a OpenRouter
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+      }),
+    });
+
+    const data = await response.json();
+    let sql = data?.choices?.[0]?.message?.content?.trim();
+
+    if (!sql) {
+      throw new Error("No se recibió SQL válido del modelo.");
+    }
+
+    console.log("🧮 SQL generado por IA:", sql);
+
+    // ------------------------------------------------
+    // Ejecutar el SQL generado
+    // ------------------------------------------------
+    let respuestaFinal = "";
+    try {
+      const { rows } = await pool.query(sql);
+
+      if (rows.length === 0) {
+        respuestaFinal = "No se encontraron resultados.";
+      } else if (rows.length === 1) {
+        const registro = rows[0];
+        const columnas = Object.keys(registro);
+
+        // 💬 Respuestas más naturales
+        if (columnas.includes("personal") && columnas.includes("cantidad")) {
+          respuestaFinal = `👤 ${registro.personal} ha realizado ${registro.cantidad} tareas.`;
+        } else if (columnas.includes("tarea") && columnas.includes("cantidad")) {
+          respuestaFinal = `🧩 La tarea más común es "${registro.tarea}" con ${registro.cantidad} registros.`;
+        } else if (columnas.includes("area") && columnas.includes("cantidad")) {
+          respuestaFinal = `🏢 El área con más tareas es "${registro.area}" con ${registro.cantidad} tareas.`;
+        } else {
+          respuestaFinal = Object.entries(registro)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+        }
+      } else {
+        // Varias filas → generar texto legible
+        const claves = Object.keys(rows[0]).map(k => k.toLowerCase());
+        if (claves.includes("area") && claves.includes("cantidad")) {
+          respuestaFinal = "📊 Tareas por área:\n" +
+            rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
+        } else if (claves.includes("personal") && claves.includes("cantidad")) {
+          respuestaFinal = "👥 Tareas por personal:\n" +
+            rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+        } else {
+          respuestaFinal = rows.map(r =>
+            Object.entries(r)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(", ")
+          ).join(" | ");
+        }
+      }
+    } catch (err) {
+      console.error("❌ Error al ejecutar SQL:", err);
+      respuestaFinal = `No pude ejecutar correctamente la consulta. SQL generado:\n${sql}`;
+    }
+
+    // ------------------------------------------------
+    // 🧩 Modo de explicación
+    // ------------------------------------------------
+    let explicacion = "";
+    if (/explicame|cómo lo calculaste|muéstrame la consulta/i.test(pregunta)) {
+      explicacion = `🔍 La consulta SQL utilizada fue:\n\n\`\`\`sql\n${sql}\n\`\`\``;
+    }
+
+    const respuestaCompleta = explicacion
+      ? `${respuestaFinal}\n\n${explicacion}`
+      : respuestaFinal;
+
+    await pool.query(
+      "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+      [sessionId, pregunta, respuestaCompleta]
+    );
+
+    res.json({ respuesta: respuestaCompleta });
+  } catch (error) {
+    console.error("❌ Error en /api/ia:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
+  }
+});
+
+
+// PUT /api/ia/corregir/:id (actualizar corrección existente)
+app.put("/api/ia/corregir/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nuevaRespuesta } = req.body;
+
+  try {
+    // Usamos bigint en lugar de int
+    const result = await pool.query(
+      "UPDATE ia_logs SET correccion = $1::text WHERE id = $2::bigint RETURNING id",
+      [nuevaRespuesta, id]
+    );
+
+    if (result.rowCount === 0)
+      return res.status(404).json({ error: "Registro no encontrado" });
+
+    res.json({ mensaje: "✅ Corrección guardada con éxito.", id: result.rows[0].id });
+  } catch (error) {
+    console.error("❌ Error al guardar corrección (PUT):", {
+      message: error?.message,
+      stack: error?.stack,
+      params: { id, nuevaRespuesta },
+    });
+    res.status(500).json({ error: "No se pudo guardar la corrección.", details: error?.message });
+  }
+});
+
+// ----------------- SERVIDOR -----------------
+app.listen(PORT, () => {
+  console.log(`Servidor ejecutándose en el puerto ${PORT}`);
+});
+
+// ----------------- PING INTERNO RENDER -----------------
+const SELF_URL = "https://sky26.onrender.com";
+setInterval(() => {
+  fetch(SELF_URL)
+    .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
+    .catch(err => console.log("Error en ping interno:", err.message));
+}, 13 * 60 * 1000);
+
+
+
+              AND TRIM(periodo::text)::integer > 0
+            THEN TRIM(periodo::text)::integer
+            ELSE NULL
+          END AS periodo_dias,
+          CASE
+            WHEN NULLIF(TRIM(COALESCE(ultimo_mant::text, '')), '') IS NOT NULL
+              AND TRIM(ultimo_mant::text) ~ '^\\d{4}-\\d{2}-\\d{2}'
+            THEN TRIM(ultimo_mant::text)::timestamp::date
+            WHEN NULLIF(TRIM(COALESCE(ultimo_mant::text, '')), '') IS NOT NULL
+              AND TRIM(ultimo_mant::text) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}
+const estadosResult = await pool.query(`
+  SELECT 
+    estado,
+    COUNT(*) as cantidad
+  FROM equipos
+  WHERE UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO'
+    AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+  GROUP BY estado
+  ORDER BY cantidad DESC
+`);
+
+const detalleEstados = {};
+
+estadosResult.rows.forEach((row) => {
+  detalleEstados[row.estado] = Number(row.cantidad);
+});
+
+    // 🔹 2. EQUIPOS CRÍTICOS
+    const equiposCriticos = [
+      { descripcion: "RESONADOR", serie: "80611" },
+      { descripcion: "MAMOGRAFO", serie: "67121012" },
+      { descripcion: "ANGIOGRAFO", serie: "722026594" },
+      { descripcion: "CITOMETRO DE FLUJO", serie: "V33896202615" },
+      { descripcion: "PLETISMOGRAFO", serie: "242000380" },
+      { descripcion: "MONITOR MULTIPARAMETRICO", serie: "TM3M0728" },
+      { descripcion: "COLCHON TERMICO", serie: "020708" },
+      { descripcion: "ESPECTROMETRO", serie: "860467301903" },
+      { descripcion: "MULTIPLEX", serie: "LX10014295404" },
+      { descripcion: "ELECTROFORESIS CAPILAR", serie: "93771" },
+    ];
+
+    // 🔹 3. CONSULTA REAL (POSTGRES)
+    const criticosDB = await Promise.all(
+      equiposCriticos.map(async (eq) => {
+        const result = await pool.query(
+          `
+          SELECT descripcion, numero_serie, estado, marca_modelo
+          FROM equipos
+          WHERE UPPER(descripcion) = $1
+            AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+          ${eq.serie ? "AND numero_serie = $2" : ""}
+          LIMIT 1
+        `,
+          eq.serie
+            ? [eq.descripcion.toUpperCase(), eq.serie]
+            : [eq.descripcion.toUpperCase()]
+        );
+
+        if (result.rows.length > 0) {
+          const equipo = result.rows[0];
+
+          return {
+            marca_modelo: equipo.marca_modelo,
+            descripcion: equipo.descripcion,
+            numero_serie: equipo.numero_serie,
+            estado: equipo.estado,
+            activo: equipo.estado?.toUpperCase() === "ACTIVO",
+          };
+        } else {
+          return {
+            marca_modelo: eq.marca_modelo,
+            descripcion: eq.descripcion,
+            numero_serie: eq.serie,
+            estado: "NO ENCONTRADO",
+            activo: false,
+          };
+        }
+      })
+    );
+
+    // 🔹 4. FUNCIÓN PARA EVALUAR GRUPOS (50%)
+    const evaluarSubgrupo = async (descripciones) => {
+  const result = await pool.query(
+    `
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO' THEN 1 ELSE 0 END) as no_activos
+    FROM equipos
+    WHERE UPPER(descripcion) = ANY($1)
+      AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+    `,
+    [descripciones.map(d => d.toUpperCase())]
+  );
+
+  const detalle = await pool.query(
+    `
+    SELECT descripcion, numero_serie, estado
+    FROM equipos
+    WHERE UPPER(descripcion) = ANY($1)
+      AND UPPER(TRIM(COALESCE(estado, ''))) <> 'ACTIVO'
+      AND UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+    ORDER BY descripcion
+    `,
+    [descripciones.map(d => d.toUpperCase())]
+  );
+
+  const total = Number(result.rows[0].total);
+  const noActivos = Number(result.rows[0].no_activos);
+  const porcentaje = total > 0 ? (noActivos / total) * 100 : 0;
+
+  return {
+    descripciones,
+    total,
+    no_activos: noActivos,
+    porcentaje,
+    estado: porcentaje >= 50 ? "OFF" : "ON",
+    detalle: detalle.rows,
+  };
+};
+
+    // 🔹 5. GRUPOS
+     const tomo_subgrupos = await Promise.all([
+  evaluarSubgrupo(["TOMOGRAFO"]),
+]);
+
+const tomografos = {
+  estado: tomo_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: tomo_subgrupos,
+  detalle: tomo_subgrupos.flatMap(sg => sg.detalle)
+};
+    
+    const diag_subgrupos = await Promise.all([
+  evaluarSubgrupo(["FLAT PANEL"]),
+  evaluarSubgrupo(["EQUIPO DE RX ARCO EN C"]),
+  evaluarSubgrupo(["EQUIPO DE RX MOVIL"]),
+  evaluarSubgrupo(["EQUIPO DE RX FIJO"]),
+]);
+
+const diagnosticoImagen = {
+  estado: diag_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: diag_subgrupos,
+  detalle: diag_subgrupos.flatMap(sg => sg.detalle)
+};
+
+    const cq_subgrupos = await Promise.all([
+  evaluarSubgrupo(["BOMBA EXTRACORPOREA"]),
+  evaluarSubgrupo(["CRANEOTOMO"]),
+  evaluarSubgrupo(["FACOEMULSIFICADOR"]),
+  evaluarSubgrupo(["BALON DE CONTRAPULSACIONES INTRAAORTICO"]),
+  evaluarSubgrupo(["MICROSCOPIO DE NEURO"]),
+  evaluarSubgrupo(["LITOTRIPTOR"]),
+  evaluarSubgrupo(["HISTEROSCOPIO"]),
+]);
+
+const centroQuirurgico = {
+  estado: cq_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: cq_subgrupos,
+  detalle: cq_subgrupos.flatMap(sg => sg.detalle)
+};
+
+    const gastro_subgrupos = await Promise.all([
+  evaluarSubgrupo(["VIDEOCOLONOSCOPIO"]),
+  evaluarSubgrupo(["GASTROVIDEOENDOSCOPIO"]),
+  evaluarSubgrupo(["ECOENDOSCOPIO"]),
+  evaluarSubgrupo(["ENTEROSCOPIO"]),
+  evaluarSubgrupo(["DUODENOSCOPIO"]),
+  evaluarSubgrupo(["COLONOSCOPIO"]),
+]);
+
+const gastro = {
+  estado: gastro_subgrupos.some(sg => sg.estado === "OFF") ? "OFF" : "ON",
+  subgrupos: gastro_subgrupos,
+  detalle: gastro_subgrupos.flatMap(sg => sg.detalle)
+};
+
+    // 🔹 6. RESPUESTA FINAL
+    res.json({
+      total: Number(resumen.total),
+      activos: Number(resumen.activos),
+      no_activos: Number(resumen.no_activos),
+      detalle_estados: detalleEstados,
+      criticos: criticosDB,
+
+      grupos: {
+        diagnostico_imagen: diagnosticoImagen,
+        centro_quirurgico: centroQuirurgico,
+        gastroenterologia: gastro,
+        tomografos: tomografos,
+      }
+    });
+
+  } catch (error) {
+    console.error("🔥 ERROR REAL:", error);
+    res.status(500).json({ error: "Error en dashboard" });
+  }
+});
+
+app.get("/estados", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM estados ORDER BY id");
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener estados:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+app.put("/api/equipos/:id/estado", async (req, res) => {
+  const { id } = req.params;
+  const { estado, usuario } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    // Guardar el usuario en el contexto de la transacción
+    await client.query(
+      `SELECT set_config('app.usuario', $1, true)`,
+      [usuario || "Sistema"]
+    );
+
+    // Actualizar estado
+    const result = await client.query(
+      `UPDATE equipos
+       SET estado = $1
+       WHERE id = $2
+       RETURNING *`,
+      [estado, id]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    await client.query("COMMIT");
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+
+    console.error("Error actualizando estado:", error);
+
+    res.status(500).json({
+      error: "Error del servidor"
+    });
+
+  } finally {
+    client.release();
+  }
+});
+app.put("/api/equipos/:serie/imagen", async (req, res) => {
+
+  try {
+
+    const { serie } = req.params;
+    const { imagen } = req.body;
+
+    if (!imagen) {
+      return res.status(400).json({
+        error: "No se recibió ninguna imagen"
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE equipos
+      SET imagen = $1
+      WHERE numero_serie = $2
+      RETURNING numero_serie
+      `,
+      [imagen, serie]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json({
+      ok: true,
+      mensaje: "Imagen guardada correctamente"
+    });
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  }
+
+});
+
+app.get("/equipos/serie/:serie", async (req, res) => {
+  const { serie } = req.params;
+
+  try {
+    // 🔹 limpiar input
+    const serieLimpia = serie.trim().toLowerCase();
+
+    // 🔹 query robusta
+    const result = await pool.query(
+      "SELECT * FROM equipos WHERE LOWER(TRIM(numero_serie)) = $1",
+      [serieLimpia]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ mensaje: "No encontrado" });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error buscando equipo:", error);
+    res.status(500).json({ error: "Error en servidor" });
+  }
+});
+
+app.get("/api/resumen_tiempos_por_area", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        area,
+        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha))) AS prom_solucion_seg,
+        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha_comp))) AS prom_finalizacion_seg
+      FROM ric01
+      WHERE fecha IS NOT NULL
+      GROUP BY area
+      ORDER BY area
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error resumen por área:", err);
+    res.status(500).json({ error: "Error obteniendo resumen por área" });
+  }
+});
+
+app.get("/api/tiempos_analitica", async (req, res) => {
+  const { desde, hasta } = req.query;
+
+  try {
+    let filtroFecha = "";
+    const valores = [];
+
+    if (desde && hasta) {
+      filtroFecha = "AND r.fecha::date BETWEEN $1 AND $2";
+      valores.push(desde, hasta);
+    }
+
+    const query = `
+      SELECT
+        COALESCE(r.reasignado_a, r.area) AS area,
+        COUNT(*) AS total_tareas,
+
+        AVG(
+          CASE 
+            WHEN r.fecha_comp IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (r.fecha_comp - r.fecha)) / 3600
+          END
+        ) AS promedio_solucion,
+
+        AVG(
+          CASE 
+            WHEN r.fecha_fin IS NOT NULL
+            THEN EXTRACT(EPOCH FROM (r.fecha_fin - r.fecha_comp)) / 3600
+          END
+        ) AS promedio_finalizacion
+
+      FROM ric01 r
+      WHERE 1=1
+      ${filtroFecha}
+
+      GROUP BY COALESCE(r.reasignado_a, r.area)
+      ORDER BY area;
+    `;
+
+    const result = await pool.query(query, valores);
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error("Error analítica:", err);
+    res.status(500).json([]);
+  }
+});
+
+// ---------- TAREAS ----------
+app.get("/tareas/:area", identificarPersonalOpcional, async (req, res) => {
+  const { area } = req.params;
+  const { personal } = req.query;
+
+  try {
+    let result;
+
+if (req.personal?.rol === "superusuario") {
+
+  result = await pool.query(`
+    SELECT
+      r.*,
+      u.movil AS movil,
+
+      COALESCE(
+  (
+    SELECT json_agg(
+      json_build_object(
+        'id', c.id,
+        'item_id', c.item_id,
+        'codigo', i.codigo,
+        'descripcion', i.descripcion,
+        'unidad', i.unidad,
+        'cantidad', c.cantidad,
+        'area', c.area,
+        'personal_nombre', c.personal_nombre,
+        'observacion', c.observacion
+      )
+      ORDER BY c.id ASC
+    )
+    FROM stock_consumos c
+    INNER JOIN stock_items i
+      ON i.id = c.item_id
+    WHERE c.ric01_id = r.id
+  ),
+  '[]'::json
+) AS consumos,
+
+      CASE
+        WHEN r.diagnostico IS NOT NULL
+         AND TRIM(r.diagnostico) <> ''
+        THEN (
+          SELECT json_agg(DISTINCT solucion)
+          FROM rics
+          WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+            AND solucion IS NOT NULL
+            AND TRIM(solucion) <> ''
+        )
+        ELSE NULL
+      END AS soluciones_posibles
+
+    FROM ric01 r
+    LEFT JOIN usuarios u
+      ON r.usuario = u.mail
+      OR r.usuario = u.nombre
+
+    ORDER BY r.fecha DESC
+  `);
+
+} else {
+
+  result = await pool.query(
+    `
+    SELECT
+      r.*,
+      u.movil AS movil,
+
+      COALESCE(
+  (
+    SELECT json_agg(
+      json_build_object(
+        'id', c.id,
+        'item_id', c.item_id,
+        'codigo', i.codigo,
+        'descripcion', i.descripcion,
+        'unidad', i.unidad,
+        'cantidad', c.cantidad,
+        'area', c.area,
+        'personal_nombre', c.personal_nombre,
+        'observacion', c.observacion
+      )
+      ORDER BY c.id ASC
+    )
+    FROM stock_consumos c
+    INNER JOIN stock_items i
+      ON i.id = c.item_id
+    WHERE c.ric01_id = r.id
+  ),
+  '[]'::json
+) AS consumos,
+
+      CASE
+        WHEN r.diagnostico IS NOT NULL
+         AND TRIM(r.diagnostico) <> ''
+        THEN (
+          SELECT json_agg(DISTINCT solucion)
+          FROM rics
+          WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+            AND solucion IS NOT NULL
+            AND TRIM(solucion) <> ''
+        )
+        ELSE NULL
+      END AS soluciones_posibles
+
+    FROM ric01 r
+    LEFT JOIN usuarios u
+      ON r.usuario = u.mail
+      OR r.usuario = u.nombre
+
+    WHERE (
+      (r.area = $1 AND r.reasignado_a IS NULL)
+      OR r.reasignado_a = $1
+      OR (r.origen = 'interno' AND r.usuario = $2)
+    )
+
+    ORDER BY r.fecha DESC
+    `,
+    [area, personal]
+  );
+
+}
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener tareas:", err.message);
+    res.status(500).json({ error: "Error al obtener tareas" });
+  }
+});
+
+app.get("/tareas", async (req, res) => {
+  try {
+    const { usuario, panel } = req.query;
+
+    let query = `
+      SELECT
+  r.*,
+  u.movil AS movil,
+
+  CASE
+    WHEN r.diagnostico IS NOT NULL
+     AND TRIM(r.diagnostico) <> ''
+    THEN (
+      SELECT json_agg(DISTINCT solucion)
+FROM rics
+WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
+  AND solucion IS NOT NULL
+  AND TRIM(solucion) <> ''
+    )
+    ELSE NULL
+  END AS soluciones_posibles
+
+FROM ric01 r
+LEFT JOIN usuarios u ON r.usuario = u.mail
+    `;
+    let params = [];
+
+    // 🧭 PANEL DE SUPERVISIÓN → VE TODO
+    if (panel === "true") {
+      // no se aplica filtro
+    }
+    // 👤 USUARIO COMÚN / SUPERVISOR
+    else if (usuario) {
+      const userResult = await pool.query(
+  `SELECT nombre, mail, tipo, servicio
+   FROM usuarios
+   WHERE TRIM(LOWER(mail)) = TRIM(LOWER($1))
+      OR TRIM(LOWER(nombre)) = TRIM(LOWER($1))
+   LIMIT 1`,
+  [usuario]
+);
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({ error: "Usuario no encontrado" });
+      }
+
+      const { nombre, mail, tipo, servicio } = userResult.rows[0];
+      
+      if (tipo === "supervisor") {
+        // 👔 Supervisor → tareas de su servicio
+        query += ` WHERE r.servicio = $1 `;
+        params.push(servicio);
+      } else {
+  // 👤 Común → ve lo que creó Y lo que solicitó
+  query += `
+  WHERE TRIM(LOWER(r.usuario)) = TRIM(LOWER($1))
+     OR TRIM(LOWER(r.solicitado_por)) = TRIM(LOWER($1))
+     OR TRIM(LOWER(r.usuario)) = TRIM(LOWER($2))
+     OR TRIM(LOWER(r.solicitado_por)) = TRIM(LOWER($2))
+`;
+params.push(nombre, usuario);
+}
+    } else {
+      // ❌ ni usuario ni panel
+      return res.status(400).json({ error: "Parámetros insuficientes" });
+    }
+
+    query += ` ORDER BY r.fecha DESC`;
+
+    const result = await pool.query(query, params);
+    console.log(
+  JSON.stringify(result.rows[0], null, 2)
+);
+
+    res.json(
+      result.rows.map((t) => ({
+        ...t,
+        fecha: t.fecha || null,
+        fecha_comp: t.fecha_comp || null,
+        fecha_fin: t.fecha_fin || null,
+      }))
+    );
+  } catch (err) {
+    console.error("❌ Error al obtener tareas:", err);
+    res.status(500).json({ error: "Error al obtener tareas" });
+  }
+});
+
+app.put("/tareas/:id/editar", async (req, res) => {
+  const { id } = req.params;
+  const { tarea } = req.body;
+
+  console.log("EDITANDO:", id, tarea);
+
+  if (!tarea || tarea.trim() === "") {
+    return res.status(400).json({ error: "Tarea vacía" });
+  }
+
+  try {
+    const result = await pool.query(
+      "UPDATE ric01 SET tarea = $1 WHERE id = $2 RETURNING *",
+      [tarea, id]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "No existe la tarea" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("ERROR:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+app.get("/api/equipos", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM equipos ORDER BY id DESC");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error obteniendo equipos:", error);
+    res.status(500).json({ error: "Error obteniendo equipos" });
+  }
+});
+
+app.get("/equipos/existe/:serie", async (req, res) => {
+
+  const { serie } = req.params;
+
+  const result = await pool.query(
+
+    `
+    SELECT
+      descripcion,
+      servicio,
+      estado
+    FROM equipos
+    WHERE UPPER(numero_serie)=UPPER($1)
+    LIMIT 1
+    `,
+    [serie]
+
+  );
+
+  res.json({
+
+    existe: result.rows.length > 0,
+
+    equipo: result.rows[0] || null
+
+  });
+
+});
+
+app.get("/diagnosticos/ric02", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT diagnostico
+      FROM rics
+      WHERE ric = 'RIC02'
+        AND diagnostico IS NOT NULL
+        AND TRIM(diagnostico) <> ''
+      ORDER BY diagnostico
+    `);
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error al obtener diagnósticos"
+    });
+  }
+});
+
+app.post("/api/equipos", async (req, res) => {
+
+  const {
+    numero_serie,
+    descripcion,
+    marca_modelo,
+    servicio,
+    sub_servicio,
+    encargado,
+    area,
+    periodo,
+    ultimo_mant,
+    fecha_alta,
+    fecha_baja,
+    estado,
+    imagen
+  } = req.body;
+
+  try {
+
+    // Verificar si ya existe el número de serie
+    const existe = await pool.query(
+      `
+      SELECT id
+      FROM equipos
+      WHERE numero_serie = $1
+      `,
+      [numero_serie]
+    );
+
+    if (existe.rows.length > 0) {
+      return res.status(409).json({
+        error: "Ya existe un equipo con ese número de serie."
+      });
+    }
+
+    const result = await pool.query(
+      `
+      INSERT INTO equipos
+      (
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta,
+        fecha_baja,
+        estado,
+        imagen
+      )
+      VALUES
+      (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13
+      )
+      RETURNING *
+      `,
+      [
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta || new Date(),
+        fecha_baja,
+        estado || "En Servicio",
+        imagen || null
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (error) {
+
+    console.error(error);
+
+    res.status(500).json({
+      error: "Error creando equipo"
+    });
+
+  }
+
+});
+
+app.put("/api/equipos/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    numero_serie,
+    descripcion,
+    marca_modelo,
+    servicio,
+    sub_servicio,
+    encargado,
+    area,
+    periodo,
+    ultimo_mant,
+    fecha_alta,
+    fecha_baja,
+    estado,
+    imagen
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE equipos
+      SET
+        numero_serie = $1,
+        descripcion = $2,
+        marca_modelo = $3,
+        servicio = $4,
+        sub_servicio = $5,
+        encargado = $6,
+        area = $7,
+        periodo = $8,
+        ultimo_mant = $9,
+        fecha_alta = $10,
+        fecha_baja = $11,
+        estado = $12,
+        imagen = $13
+      WHERE id = $14
+      RETURNING *
+      `,
+      [
+        numero_serie,
+        descripcion,
+        marca_modelo,
+        servicio,
+        sub_servicio,
+        encargado,
+        area,
+        periodo,
+        ultimo_mant,
+        fecha_alta,
+        fecha_baja,
+        estado,
+        imagen,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error actualizando equipo:", error);
+
+    res.status(500).json({
+      error: "Error actualizando equipo"
+    });
+  }
+});
+
+app.put("/api/equipos/:id", async (req, res) => {
+  const { id } = req.params;
+  const { numero_serie, descripcion, marca, modelo, area } = req.body;
+
+  try {
+    await pool.query(
+      `UPDATE equipos 
+       SET numero_serie=$1, descripcion=$2, marca=$3, modelo=$4, area=$5
+       WHERE id=$6`,
+      [numero_serie, descripcion, marca, modelo, area, id]
+    );
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Error actualizando equipo:", error);
+    res.status(500).json({ error: "Error actualizando equipo" });
+  }
+});
+
+    // --------------------------------------------------------
+    // RUTAS DE ARCHIVOS CONTROLLERS
+    // --------------------------------------------------------
+
+app.use("/api/ric29", ric29Routes);
+
+app.post("/api/ric44", guardarRIC44);
+
+app.get("/api/ric44", listarRIC44);
+
+app.get("/api/ric44/estadisticas/:numero_serie", obtenerEstadisticasRIC44);
+
+app.get("/api/ric44/:id", obtenerRIC44);
+
+app.post("/api/ric37", guardarRIC37);
+
+app.get("/api/ric37/por-ric01/:ric01Id", obtenerRIC37PorRic01);
+
+app.get("/api/ric37/:id", obtenerDetalleRIC37);
+
+app.get("/api/estadisticas/equipo/:numero_serie", obtenerEstadisticasEquipo);
+
+app.use("/equipos", historialEquipoRoutes);
+
+app.get("/equipos/:numero_serie/historial", obtenerHistorialEquipo);
+
+app.get("/equipos/:serie/historial/pdf", generarHistorialPDF);
+
+app.use("/api/resumen_tiempos", promediosRoutes);
+
+
+// --------------------------------------------------------
+
+app.delete("/ric01/:id/cancelar-preventivo", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      DELETE FROM ric01
+      WHERE id = $1
+      RETURNING id
+      `,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    console.log(
+      `Preventivo cancelado. Tarea RIC01 eliminada: ${id}`
+    );
+
+    res.json({
+      ok: true,
+      id: result.rows[0].id
+    });
+
+  } catch (err) {
+    console.error(
+      "Error eliminando tarea preventiva:",
+      err
+    );
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
+app.get("/api/equipos/mantenimiento-proximo", async (req, res) => {
+  try {
+    const { area } = req.query;
+
+    if (!area) {
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió el área del usuario"
+      });
+    }
+
+    const { rows } = await pool.query(`
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        area,
+        ultimo_mant,
+        periodo,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+            THEN TRIM(ultimo_mant)::timestamp::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+            THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+          ELSE NULL
+        END AS fecha_ultimo_mant,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+            THEN (
+              TRIM(ultimo_mant)::timestamp::date
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+            THEN (
+              TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          ELSE NULL
+        END AS proximo_mant
+
+      FROM equipos
+
+      WHERE LOWER(TRIM(area)) = LOWER(TRIM($1))
+
+        AND NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
+        AND NULLIF(TRIM(periodo), '') IS NOT NULL
+        AND TRIM(periodo) ~ '^[0-9]+$'
+        AND TRIM(periodo)::integer > 0
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date >= CURRENT_DATE
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{4}-\\\\d{2}-\\\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\\\d{1,2}/\\\\d{1,2}/\\\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date <= CURRENT_DATE + INTERVAL '30 days'
+
+      ORDER BY proximo_mant ASC
+    `, [area]);
+
+    res.json({
+      ok: true,
+      total: rows.length,
+      equipos: rows
+    });
+
+  } catch (error) {
+    console.error("Error equipos con mantenimiento próximo:", error);
+
+    res.status(500).json({
+      ok: false,
+      error: "Error al obtener equipos con mantenimiento próximo"
+    });
+  }
+});
+
+app.get("/api/equipos/mantenimiento-vencido", async (req, res) => {
+  try {
+    const { area } = req.query;
+
+    if (!area) {
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió el área del usuario"
+      });
+    }
+
+    const { rows } = await pool.query(`
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        sub_servicio,
+        area,
+        ultimo_mant,
+        periodo,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+            THEN TRIM(ultimo_mant)::timestamp::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+            THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+          ELSE NULL
+        END AS fecha_ultimo_mant,
+
+        CASE
+          WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+            THEN (
+              TRIM(ultimo_mant)::timestamp::date
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+            THEN (
+              TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+              + (TRIM(periodo)::integer * INTERVAL '1 day')
+            )::date
+
+          ELSE NULL
+        END AS proximo_mant
+
+      FROM equipos
+
+      WHERE LOWER(TRIM(area)) = LOWER(TRIM($1))
+
+        AND NULLIF(TRIM(ultimo_mant), '') IS NOT NULL
+        AND NULLIF(TRIM(periodo), '') IS NOT NULL
+        AND TRIM(periodo) ~ '^[0-9]+$'
+        AND TRIM(periodo)::integer > 0
+
+        AND (
+          CASE
+            WHEN TRIM(ultimo_mant) ~ '^\\d{4}-\\d{2}-\\d{2}'
+              THEN TRIM(ultimo_mant)::timestamp::date
+
+            WHEN TRIM(ultimo_mant) ~ '^\\d{1,2}/\\d{1,2}/\\d{4}$'
+              THEN TO_DATE(TRIM(ultimo_mant), 'DD/MM/YYYY')
+
+            ELSE NULL
+          END
+          + (TRIM(periodo)::integer * INTERVAL '1 day')
+        )::date < CURRENT_DATE
+
+      ORDER BY proximo_mant ASC
+    `, [area]);
+
+    res.json({
+  ok: true,
+  total: rows.length,
+  equipos: rows
+});
+
+  } catch (error) {
+    console.error("Error equipos vencidos:", error);
+
+    res.status(500).json({
+      ok: false,
+      error: "Error al obtener equipos con mantenimiento vencido"
+    });
+  }
+});
+
+app.post("/api/ric01", async (req, res) => {
+  try {
+
+    const { tarea, area, origen, solicitado_por } = req.body;
+
+    // Valores por defecto
+    let descripcion = null;
+    let marca_modelo = null;
+    let numero_serie = null;
+    let servicio = null;
+
+    // ¿Es una solicitud automática desde QR?
+    if (
+      tarea &&
+      tarea.includes("Solicitud automática") &&
+      tarea.includes("{") &&
+      tarea.includes("}")
+    ) {
+
+      const match = tarea.match(/\{([^}]*)\}/);
+
+      if (match) {
+
+        const datos = match[1]
+          .split(",")
+          .map(x => x.trim().replace(/^"(.*)"$/, "$1"));
+
+        if (datos.length >= 4) {
+
+          descripcion   = datos[0] || null;
+          marca_modelo  = datos[1] || null;
+          numero_serie  = datos[2] || null;
+          servicio      = datos[3] || null;
+
+          console.log("Equipo detectado desde QR:", {
+            descripcion,
+            marca_modelo,
+            numero_serie,
+            servicio
+          });
+
+        }
+      }
+    }
+
+    await pool.query(
+      `
+      INSERT INTO ric01
+      (
+        tarea,
+        area,
+        origen,
+        usuario,
+        fecha,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio
+      )
+      VALUES
+      (
+        $1,
+        $2,
+        $3,
+        $4,
+        NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires',
+        $5,
+        $6,
+        $7,
+        $8
+      )
+      `,
+      [
+        tarea,
+        area,
+        origen,
+        solicitado_por,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio
+      ]
+    );
+
+    res.status(201).json({
+      message: "Creado"
+    });
+
+  } catch (error) {
+
+    console.error("Error creando pedido interno:", error);
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  }
+});
+
+app.post("/ric01", async (req, res) => {
+  try {
+    const {
+      usuario,
+      fecha,
+      tarea,
+      diagnostico,
+      tipo_mantenimiento,
+      descripcion,
+      marca_modelo,
+      numero_serie,
+      area,
+      servicio,
+      subservicio,
+      asignado,
+      solicitado_por,
+      origen,
+      tarea_id,
+      solucion
+    } = req.body;
+
+    // ✅ INSERT (tu lógica intacta)
+    const result = await pool.query(
+      `INSERT INTO ric01 (
+        usuario,
+        fecha,
+        tarea,
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        area,
+        servicio,
+        subservicio,
+        asignado,
+        solicitado_por,
+        origen,
+        fin,
+        fecha_fin,
+        fecha_comp,
+        tarea_id,
+        solucion
+      )
+      VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
+        false, NULL, NULL, $15, $16
+      )
+      RETURNING *`,
+      [
+        usuario,
+        fecha,
+        tarea,
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        area,
+        servicio,
+        subservicio,
+        asignado,
+        solicitado_por,
+        origen,
+        tarea_id,
+        solucion
+      ]
+    );
+
+    // ✅ Cambiar estado del equipo a Ingresado
+if (numero_serie) {
+  await pool.query(
+    `UPDATE equipos
+     SET estado = 'Ingresado'
+     WHERE numero_serie = $1`,
+    [numero_serie]
+  );
+}
+
+    // ✅ Si es un mantenimiento preventivo, actualizar último mantenimiento
+if (
+  tipo_mantenimiento &&
+  tipo_mantenimiento.toLowerCase() === "preventivo"
+) {
+  await pool.query(
+    `UPDATE equipos
+     SET ultimo_mant = $1
+     WHERE numero_serie = $2`,
+    [fecha, numero_serie]
+  );
+}
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error("Error iniciando mantenimiento:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put("/ric01/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    diagnostico,
+    solucion,
+    descripcion,
+    fecha_comp
+  } = req.body;
+
+  try {
+    const actual = await pool.query(
+      `SELECT solucion
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (actual.rows.length === 0) {
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado"
+      });
+    }
+
+    const historialAnterior =
+      actual.rows[0].solucion || "";
+
+    const nuevaEntrada =
+      `${new Date().toLocaleString("es-AR")} - ${solucion}`;
+
+    const historialCompleto =
+      historialAnterior
+        ? historialAnterior + "\n" + nuevaEntrada
+        : nuevaEntrada;
+
+    const result = await pool.query(
+  `UPDATE ric01
+   SET diagnostico = CASE
+                   WHEN $1::text IS NULL OR TRIM($1::text) = ''
+                   THEN diagnostico
+                   ELSE $1::text
+                 END,
+    descripcion = CASE
+                   WHEN $2::text IS NULL OR TRIM($2::text) = ''
+                   THEN descripcion
+                   ELSE $2::text
+                 END,
+    solucion = $3,
+    fecha_comp = $4
+WHERE id = $5
+RETURNING *`,
+  [
+    diagnostico,
+    descripcion,
+    historialCompleto,
+    fecha_comp,
+    id
+  ]
+);
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+app.put("/ric01/:id/solucion", async (req, res) => {
+  const { id } = req.params;
+  const { solucion } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE ric01
+      SET solucion = CASE
+        WHEN solucion IS NULL OR TRIM(solucion) = ''
+          THEN $1
+        ELSE solucion || E'\n' || $1
+      END
+      WHERE id = $2
+      RETURNING *
+      `,
+      [solucion, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado",
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: error.message,
+    });
+  }
+});
+
+app.put("/ric01/cerrar/:id", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { id } = req.params;
+    const fechaCierre = new Date().toISOString();
+
+    await client.query("BEGIN");
+
+    // 🔹 1. cerrar mantenimiento
+    const result = await client.query(
+      `UPDATE ric01
+       SET 
+         fin = true,
+         fecha_fin = $1,
+         fecha_comp = $1
+       WHERE id = $2
+       RETURNING *`,
+      [fechaCierre, id]
+    );
+
+    const mantenimiento = result.rows[0];
+
+    // 🔴 2. cerrar tarea (SI EXISTE)
+    if (mantenimiento.tarea_id) {
+      await client.query(
+        `UPDATE ric01 
+         SET fin = 'true' 
+         WHERE id = $1`,
+        [mantenimiento.tarea_id]
+      );
+    }
+
+    await client.query("COMMIT");
+
+    res.json(mantenimiento);
+
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error cerrando mantenimiento:", error);
+    res.status(500).json({ error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.put("/ric01/:id/iniciar-mantenimiento", async (req, res) => {
+  console.log("ENTRÓ A INICIAR MANTENIMIENTO", req.params.id);
+  const { id } = req.params;
+
+  const {
+    diagnostico,
+    tipo_mantenimiento,
+    descripcion,
+    marca_modelo,
+    numero_serie,
+    servicio,
+    subservicio,
+    asignado,
+    solucion
+  } = req.body;
+
+  try {
+    const result = await pool.query(
+      `
+      UPDATE ric01
+      SET
+        diagnostico = $1,
+        tipo_mantenimiento = $2,
+        descripcion = $3,
+        marca_modelo = $4,
+        numero_serie = $5,
+        servicio = $6,
+        subservicio = $7,
+        asignado = $8,
+        solucion = $9
+      WHERE id = $10
+      RETURNING *;
+      `,
+      [
+        diagnostico,
+        tipo_mantenimiento,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        servicio,
+        subservicio,
+        asignado,
+        solucion,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
+app.put("/ric01/finalizar/:id", async (req, res) => {
+
+  const { id } = req.params;
+
+  const {
+    fecha_fin,
+    estado,
+    numero_serie,
+    usuario
+  } = req.body;
+
+  const client = await pool.connect();
+
+  try {
+
+    await client.query("BEGIN");
+
+    // 1️⃣ Verificar que el mantenimiento exista
+    const mantenimientoActual = await client.query(
+      `
+      SELECT id, numero_serie, fin
+      FROM ric01
+      WHERE id = $1
+      `,
+      [id]
+    );
+
+    if (mantenimientoActual.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        error: "Mantenimiento no encontrado"
+      });
+    }
+
+    const mantenimiento =
+      mantenimientoActual.rows[0];
+
+    const numeroSerie =
+      mantenimiento.numero_serie || numero_serie;
+
+    // 2️⃣ Finalizar SOLO este mantenimiento
+    await client.query(
+      `
+      UPDATE ric01
+      SET
+        fin = true,
+        fecha_fin = $1
+      WHERE id = $2
+      `,
+      [fecha_fin, id]
+    );
+
+    // 3️⃣ Verificar si quedan otros mantenimientos abiertos
+    const abiertos = await client.query(
+      `
+      SELECT COUNT(*)::integer AS cantidad
+      FROM ric01
+      WHERE numero_serie = $1
+        AND COALESCE(fin, false) = false
+      `,
+      [numeroSerie]
+    );
+
+    const cantidadAbiertos =
+      abiertos.rows[0].cantidad;
+
+    // 4️⃣ Solo cambiar el estado del equipo
+    // cuando ya NO quedan mantenimientos abiertos
+    if (
+      cantidadAbiertos === 0 &&
+      estado &&
+      numeroSerie
+    ) {
+
+      await client.query(
+        `
+        UPDATE equipos
+        SET estado = $1
+        WHERE numero_serie = $2
+        `,
+        [estado, numeroSerie]
+      );
+
+    }
+
+    await client.query("COMMIT");
+
+    res.json({
+      ok: true,
+      mantenimiento_id: Number(id),
+      mantenimientos_abiertos: cantidadAbiertos,
+      estado_actualizado: cantidadAbiertos === 0
+    });
+
+  } catch (error) {
+
+    await client.query("ROLLBACK");
+
+    console.error(
+      "Error finalizando mantenimiento:",
+      error
+    );
+
+    res.status(500).json({
+      error: error.message
+    });
+
+  } finally {
+
+    client.release();
+
+  }
+
+});
+
+app.get("/equipos/:numero_serie/historial", async (req, res) => {
+  const { numero_serie } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        fecha,
+        fecha_comp,
+        fecha_fin,
+        fin,
+        usuario,
+        solicitado_por,
+        asignado,
+        tipo_mantenimiento,
+        diagnostico,
+        solucion,
+        observacion,
+        calificacion
+      FROM ric01
+      WHERE numero_serie = $1
+      ORDER BY fecha DESC
+      `,
+      [numero_serie]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+  }
+});
+
+app.get("/buscar-equipo/:serie", async (req, res) => {
+  try {
+    const { serie } = req.params;
+
+    const result = await pool.query(
+      `
+      SELECT
+        e.id,
+        e.descripcion,
+        e.marca_modelo,
+        e.numero_serie,
+        e.estado,
+        e.servicio,
+        e.area,
+        e.sub_servicio,
+        e.encargado,
+        e.periodo,
+        e.ultimo_mant,
+        e.fecha_alta,
+        e.fecha_baja,
+        e.imagen,
+
+        -- Mantenimiento abierto (se mantiene igual)
+        r.id AS mantenimiento_id,
+        r.tipo_mantenimiento,
+        r.diagnostico,
+        r.fecha AS fecha_inicio,
+        r.fecha_comp,
+        r.solucion,
+
+        (
+  SELECT COALESCE(
+    json_agg(
+      json_build_object(
+        'id', m.id,
+        'tipo_mantenimiento', m.tipo_mantenimiento,
+        'diagnostico', m.diagnostico,
+        'fecha', m.fecha,
+        'fecha_comp', m.fecha_comp,
+        'fecha_fin', m.fecha_fin,
+        'solucion', m.solucion,
+        'observacion', m.observacion,
+        'asignado', m.asignado,
+        'fin', m.fin
+      )
+      ORDER BY m.fecha DESC
+    ),
+    '[]'::json
+  )
+  FROM ric01 m
+  WHERE m.numero_serie = e.numero_serie
+    AND COALESCE(m.fin, false) = false
+) AS mantenimientos_abiertos,
+
+        -- Estadísticas
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+        ) AS total_intervenciones,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND LOWER(x.tipo_mantenimiento) = 'correctivo'
+        ) AS correctivos,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND LOWER(x.tipo_mantenimiento) = 'preventivo'
+        ) AS preventivos,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND (
+              LOWER(x.tipo_mantenimiento) = 'calibración'
+              OR LOWER(x.tipo_mantenimiento) = 'calibracion'
+            )
+        ) AS calibraciones,
+
+        (
+          SELECT COUNT(*)
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+            AND (
+              LOWER(x.tipo_mantenimiento) = 'instalación'
+              OR LOWER(x.tipo_mantenimiento) = 'instalacion'
+            )
+        ) AS instalaciones,
+
+        -- Última intervención
+        (
+          SELECT fecha
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultima_fecha,
+
+        (
+          SELECT asignado
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultimo_tecnico,
+
+        (
+          SELECT diagnostico
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultimo_diagnostico,
+
+        (
+          SELECT solucion
+          FROM ric01 x
+          WHERE x.numero_serie = e.numero_serie
+          ORDER BY fecha DESC
+          LIMIT 1
+        ) AS ultima_solucion
+
+      FROM equipos e
+
+      LEFT JOIN ric01 r
+        ON r.numero_serie = e.numero_serie
+       AND r.fin = false
+
+      WHERE e.numero_serie = $1
+
+      ORDER BY r.id DESC
+      LIMIT 1
+      `,
+      [serie]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        error: "Equipo no encontrado"
+      });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: "Error buscando equipo"
+    });
+  }
+});
+
+app.get("/buscar-equipos", async (req, res) => {
+  try {
+
+    const texto = req.query.q?.trim();
+
+    if (!texto) {
+      return res.json([]);
+    }
+
+    const result = await pool.query(
+      `
+      SELECT
+        id,
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        estado,
+        servicio
+      FROM equipos
+      WHERE
+            numero_serie ILIKE '%' || $1 || '%'
+         OR descripcion ILIKE '%' || $1 || '%'
+         OR marca_modelo ILIKE '%' || $1 || '%'
+      ORDER BY
+        CASE
+          WHEN numero_serie ILIKE $1 || '%' THEN 0
+          WHEN numero_serie ILIKE '%' || $1 || '%' THEN 1
+          ELSE 2
+        END,
+        descripcion
+      LIMIT 50
+      `,
+      [texto]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error buscando equipos"
+    });
+
+  }
+});
+
+app.put("/ric01/asignar-equipo/:id", async (req, res) => {
+  const { id } = req.params;
+
+  const {
+    descripcion,
+    marca_modelo,
+    numero_serie
+  } = req.body;
+
+  try {
+    // 🔍 Verificar si ya tiene equipo asignado
+    const existe = await pool.query(
+      "SELECT numero_serie FROM ric01 WHERE id = $1",
+      [id]
+    );
+
+    if (existe.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    if (existe.rows[0].numero_serie) {
+      return res.status(400).json({
+        error: "La tarea ya tiene un equipo asignado"
+      });
+    }
+
+    // ✅ Asignar equipo a la tarea
+    await pool.query(
+      `UPDATE ric01
+       SET descripcion = $1,
+           marca_modelo = $2,
+           numero_serie = $3,
+           tipo_mantenimiento = 'correctivo'
+           WHERE id = $4`,
+      [
+        descripcion,
+        marca_modelo,
+        numero_serie,
+        id
+      ]
+    );
+
+    res.json({
+      message: "Equipo asignado correctamente ✅"
+    });
+
+  } catch (error) {
+    console.error("Error al asignar equipo:", error);
+
+    res.status(500).json({
+      error: "Error al asignar equipo"
+    });
+  }
+});
+
+app.put("/tareas/finalizar/:id", async (req, res) => {
+  const { id } = req.params;
+  const { estado } = req.body;
+
+  try {
+
+    const tarea = await pool.query(
+      `SELECT numero_serie
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (tarea.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    await pool.query(
+      `UPDATE ric01
+       SET fin = true,
+           fecha_fin = NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires'
+       WHERE id = $1`,
+      [id]
+    );
+
+    const numeroSerie =
+      tarea.rows[0].numero_serie;
+
+    if (numeroSerie && estado) {
+      await pool.query(
+        `UPDATE equipos
+         SET estado = $1
+         WHERE numero_serie = $2`,
+        [estado, numeroSerie]
+      );
+    }
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      error: "Error al finalizar tarea"
+    });
+  }
+});
+app.get("/api/mantenimientos", async (req, res) => {
+  const { tipo, equipo_id } = req.query;
+
+  try {
+    let query = `
+      SELECT r.*, e.numero_serie, e.descripcion AS equipo
+      FROM ric01 r
+      LEFT JOIN equipos e ON r.equipo_id = e.id
+      WHERE 1=1
+    `;
+
+    const params = [];
+
+    if (tipo) {
+      params.push(tipo);
+      query += ` AND r.tipo_mantenimiento = $${params.length}`;
+    }
+
+    if (equipo_id) {
+      params.push(equipo_id);
+      query += ` AND r.equipo_id = $${params.length}`;
+    }
+
+    query += " ORDER BY r.id DESC";
+
+    const result = await pool.query(query, params);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error obteniendo mantenimientos" });
+  }
+});
+
+// ----------------- ENDPOINT PARA EL FRONT -----------------
+app.get("/api/resumen_tareas", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT fecha, pendientes, en_proceso
+      FROM resumen_tareas
+      ORDER BY fecha ASC
+    `);
+    res.json(rows);
+  } catch (error) {
+    console.error("❌ Error al obtener resumen de tareas:", error);
+    res.status(500).json({ error: "Error al obtener resumen de tareas" });
+  }
+});
+
+app.get("/api/resumen_tiempos", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        fecha,
+        promedio_solucion,
+        promedio_finalizacion,
+        promedio_adm
+      FROM resumen_tiempos
+      ORDER BY fecha ASC
+    `);
+
+    res.json(rows);
+
+  } catch (error) {
+    console.error("❌ Error al obtener resumen de tiempos:", error);
+    res.status(500).json({ error: "Error al obtener resumen de tiempos" });
+  }
+});
+
+// 📌 Obtener lista de usuarios registrados
+app.get("/usuarios", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, mail, area, fecha_registro 
+       FROM usuarios 
+       ORDER BY nombre ASC`
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error al obtener usuarios:", err);
+    res.status(500).json({ error: "Error al obtener usuarios" });
+  }
+});
+
+app.post("/api/guardias", async (req, res) => {
+  try {
+    const { personal_id, personal_nombre, servicio, fecha_hora, observaciones } = req.body;
+
+    if (!personal_id || !servicio || !fecha_hora) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    await pool.query(
+      `INSERT INTO guardias (personal_id, personal_nombre, servicio, fecha_hora, observaciones)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [personal_id, personal_nombre, servicio, fecha_hora, observaciones]
+    );
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("❌ Error en /api/guardias:", error);
+    res.status(500).json({ error: "Error guardando guardia" });
+  }
+});
+
+app.get("/api/areas", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, area FROM areas ORDER BY area ASC"
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error obteniendo áreas" });
+  }
+});
+
+app.post("/tareas", async (req, res) => {
+  try {
+
+    let {
+      usuario,
+      tarea,
+      area,
+      fin,
+      imagen,
+      servicio,
+      subservicio
+    } = req.body;
+
+    // Si faltan area/servicio/subservicio, intentar obtenerlas desde la tabla usuarios
+    if ((!area || !servicio || !subservicio) && usuario) {
+      try {
+
+        const userQ = await pool.query(
+          "SELECT area, servicio, subservicio FROM usuarios WHERE mail = $1 OR nombre = $1 LIMIT 1",
+          [usuario]
+        );
+
+        if (userQ.rows.length > 0) {
+
+          area = area || userQ.rows[0].area;
+          servicio = servicio || userQ.rows[0].servicio;
+          subservicio = subservicio || userQ.rows[0].subservicio;
+
+        } else {
+
+          const personalQ = await pool.query(
+            "SELECT area FROM personal WHERE mail = $1 OR nombre = $1 LIMIT 1",
+            [usuario]
+          );
+
+          if (personalQ.rows.length > 0) {
+            area = area || personalQ.rows[0].area;
+          }
+        }
+
+      } catch (lookupErr) {
+        console.error("Error buscando area/servicio/subservicio:", lookupErr);
+      }
+    }
+
+    // ======================================================
+    // Extraer datos del equipo si es una solicitud automática
+    // ======================================================
+
+    let descripcion = null;
+    let marca_modelo = null;
+    let numero_serie = null;
+    let servicio_equipo = null;
+
+    if (
+      tarea &&
+      tarea.includes("Solicitud automática") &&
+      tarea.includes("{") &&
+      tarea.includes("}")
+    ) {
+
+      const match = tarea.match(/\{([^}]*)\}/);
+
+      if (match) {
+
+        const datos = match[1]
+          .split(",")
+          .map(x => x.trim().replace(/^"(.*)"$/, "$1"));
+
+        if (datos.length >= 4) {
+
+          descripcion = datos[0];
+          marca_modelo = datos[1];
+          numero_serie = datos[2];
+          servicio_equipo = datos[3];
+
+          console.log("Equipo detectado:", {
+            descripcion,
+            marca_modelo,
+            numero_serie,
+            servicio_equipo
+          });
+
+        }
+      }
+    }
+
+    const fecha = fechaLocalArgentina();
+
+    const result = await pool.query(
+      `
+      INSERT INTO ric01
+      (
+        usuario,
+        tarea,
+        fin,
+        imagen,
+        fecha,
+        fecha_comp,
+        fecha_fin,
+        area,
+        servicio,
+        subservicio,
+        descripcion,
+        marca_modelo,
+        numero_serie
+      )
+      VALUES
+      (
+        $1,$2,$3,$4,$5,NULL,NULL,$6,$7,$8,$9,$10,$11
+      )
+      RETURNING *
+      `,
+      [
+        usuario,
+        tarea,
+        fin || false,
+        imagen || null,
+        fecha,
+        area || null,
+        servicio || null,        // Servicio del solicitante
+        subservicio || null,
+        descripcion,
+        marca_modelo,
+        numero_serie
+      ]
+    );
+
+    if (numero_serie) {
+
+    await pool.query(
+        `
+        UPDATE equipos
+        SET estado = 'Ingresado'
+        WHERE numero_serie = $1
+        `,
+        [numero_serie]
+    );
+
+}
+
+    // Si el QR traía el servicio del equipo, lo guardamos
+    if (numero_serie && servicio_equipo) {
+
+      await pool.query(
+        `
+        UPDATE ric01
+        SET servicio = $1
+        WHERE id = $2
+        `,
+        [servicio_equipo, result.rows[0].id]
+      );
+
+      result.rows[0].servicio = servicio_equipo;
+
+    }
+
+    // Notificar al personal del área
+    const personalRes = await pool.query(
+      "SELECT id, suscripcion FROM personal WHERE area = $1 AND suscripcion IS NOT NULL",
+      [area]
+    );
+
+    const payload = {
+      title: "Nueva tarea asignada",
+      body: tarea,
+      icon: "/icon-192x192.png"
+    };
+
+    personalRes.rows.forEach(({ id }) => {
+      enviarNotificacion(id, payload).catch(console.error);
+    });
+
+    res.status(201).json(result.rows[0]);
+
+  } catch (err) {
+
+    console.error("Error creando tarea:", err);
+
+    res.status(500).json({
+      error: "Error creando tarea"
+    });
+
+  }
+});
+
+// ---------- ACTUALIZACIONES DE TAREAS ----------
+
+// 🔹 Función para calcular y guardar promedios de todas las fechas
+async function calcularYGuardarPromediosGlobal() {   // ← renombrada
+  try {
+    const result = await pool.query(`
+      SELECT
+        DATE(fecha) AS fecha,
+        COUNT(*) AS total_tareas,
+        COUNT(fecha_comp) AS tareas_completadas,
+        COUNT(fecha_fin) AS tareas_finalizadas,
+        AVG(EXTRACT(EPOCH FROM (fecha_comp - fecha)) / 60) AS promedio_minutos_comp,
+        AVG(EXTRACT(EPOCH FROM (fecha_fin - fecha)) / 60) AS promedio_minutos_fin
+      FROM ric01
+      GROUP BY DATE(fecha)
+      ORDER BY fecha DESC
+    `);
+
+    for (const row of result.rows) {
+      await pool.query(
+        `INSERT INTO promedios (fecha, total_tareas, tareas_completadas, tareas_finalizadas, promedio_minutos_comp, promedio_minutos_fin)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (fecha)
+         DO UPDATE SET
+           total_tareas = EXCLUDED.total_tareas,
+           tareas_completadas = EXCLUDED.tareas_completadas,
+           tareas_finalizadas = EXCLUDED.tareas_finalizadas,
+           promedio_minutos_comp = EXCLUDED.promedio_minutos_comp,
+           promedio_minutos_fin = EXCLUDED.promedio_minutos_fin`,
+        [
+          row.fecha,
+          row.total_tareas,
+          row.tareas_completadas,
+          row.tareas_finalizadas,
+          row.promedio_minutos_comp,
+          row.promedio_minutos_fin,
+        ]
+      );
+    }
+
+    console.log("📊 Promedios recalculados correctamente");
+  } catch (err) {
+    console.error("❌ Error al calcular promedios:", err);
+  }
+}
+
+// ---------- ACTUALIZACIONES DE TAREAS ----------
+
+app.put("/tareas/:id/solucion", async (req, res) => {
+  const { id } = req.params;
+  const { solucion, asignado } = req.body;
+  try {
+    const fecha_comp = fechaLocalArgentina();
+    await pool.query(
+      `UPDATE ric01 SET solucion=$1, asignado=$2, fecha_comp=$3 WHERE id=$4`,
+      [solucion, asignado, fecha_comp, id]
+    );
+
+    await calcularYGuardarPromedios(); // 🔁 recalcula después de completar tarea
+
+    res.json({ message: "✅ Solución guardada y promedios actualizados" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.put("/tareas/:id", async (req, res) => {
+  const { id } = req.params;
+  const { fin } = req.body;
+
+  try {
+    const fecha_fin = fechaLocalArgentina();
+
+    // Obtener número de serie asociado
+    const tareaActual = await pool.query(
+      `SELECT numero_serie
+       FROM ric01
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (tareaActual.rows.length === 0) {
+      return res.status(404).json({
+        error: "Tarea no encontrada"
+      });
+    }
+
+    const numeroSerie =
+      tareaActual.rows[0].numero_serie;
+
+    // Finalizar mantenimiento
+    const result = await pool.query(
+      `UPDATE ric01
+       SET fin = $1,
+           fecha_fin = $2
+       WHERE id = $3
+       RETURNING *`,
+      [fin, fecha_fin, id]
+    );
+
+    // Activar equipo automáticamente
+    if (numeroSerie) {
+      await pool.query(
+        `UPDATE equipos
+         SET estado = 'Activo'
+         WHERE numero_serie = $1`,
+        [numeroSerie]
+      );
+    }
+
+    await calcularYGuardarPromediosGlobal();
+
+    res.json({
+      message: "✅ Tarea finalizada",
+      tarea: result.rows[0]
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error al finalizar tarea"
+    });
+  }
+});
+
+app.put("/tareas/:id/calificacion", async (req, res) => {
+  const { id } = req.params;
+  const { calificacion } = req.body;
+  if (!calificacion || calificacion < 1 || calificacion > 5)
+    return res.status(400).json({ error: "Calificación inválida (1–5)" });
+  try {
+    const result = await pool.query(
+      "UPDATE ric01 SET calificacion=$1 WHERE id=$2 RETURNING *",
+      [calificacion, id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Tarea no encontrada" });
+    res.json({ mensaje: "Calificación actualizada", tarea: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.put("/tareas/:id/reasignar", async (req, res) => {
+  const { id } = req.params;
+  const { nueva_area, reasignado_por } = req.body;
+
+  try {
+    // 1️⃣ Actualizar la tarea en la base de datos
+    const result = await pool.query(
+      `UPDATE ric01 SET reasignado_a=$1, reasignado_por=$2 WHERE id=$3 RETURNING *`,
+      [nueva_area, reasignado_por, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Tarea no encontrada" });
+    }
+
+    const tarea = result.rows[0];
+
+    // 2️⃣ Enviar notificación al nuevo personal del área
+    try {
+      const subsResult = await pool.query(
+        `SELECT suscripcion FROM personal WHERE area=$1 AND suscripcion IS NOT NULL`,
+        [nueva_area]
+      );
+
+      if (subsResult.rows.length > 0) {
+        const payload = JSON.stringify({
+          title: "Tarea reasignada a tu área",
+          body: `La tarea ID ${id} fue reasignada al área ${nueva_area}.`,
+          icon: "/icon-192x192.png",
+          data: { tareaId: id },
+        });
+
+        for (const row of subsResult.rows) {
+          try {
+            const sub = JSON.parse(row.suscripcion);
+            await webpush.sendNotification(sub, payload);
+          } catch (err) {
+            console.warn("⚠️ Error enviando notificación:", err.message);
+          }
+        }
+
+        console.log(`📢 Notificación enviada a ${subsResult.rows.length} usuarios del área ${nueva_area}`);
+      } else {
+        console.log(`ℹ️ No hay personal suscrito en el área ${nueva_area}`);
+      }
+    } catch (notifyErr) {
+      console.error("Error al enviar notificación:", notifyErr);
+    }
+
+    // 3️⃣ Responder al cliente
+    res.json({ ok: true, tarea });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔧 Actualizar datos de un usuario
+app.put("/usuarios/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nombre, mail, area } = req.body;
+
+  if (!nombre || !mail) {
+    return res.status(400).json({ error: "Faltan datos obligatorios" });
+  }
+
+  try {
+    const query = `
+      UPDATE usuarios
+      SET nombre = $1, mail = $2, area = $3
+      WHERE id = $4
+      RETURNING id, nombre, mail, area
+    `;
+
+    const result = await pool.query(query, [nombre, mail, area || "", id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error al actualizar usuario:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+// 🔐 Cambiar contraseña de un usuario
+app.put("/usuarios/:id/password", async (req, res) => {
+  const { id } = req.params;
+  const { password } = req.body;
+
+  if (!password || password.length < 4) {
+    return res.status(400).json({ error: "La contraseña es demasiado corta" });
+  }
+
+  try {
+    const hashed = await bcrypt.hash(password, 10);
+
+    const query = `
+      UPDATE usuarios
+      SET password = $1
+      WHERE id = $2
+    `;
+
+    const result = await pool.query(query, [hashed, id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    res.json({ message: "Contraseña actualizada correctamente" });
+  } catch (err) {
+    console.error("Error al cambiar contraseña:", err);
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
+
+app.put("/tareas/:id/observacion", async (req, res) => {
+  const { id } = req.params;
+  const { observacion } = req.body;
+
+  try {
+    const fechaAdm = fechaLocalArgentina();
+
+    await pool.query(
+      `
+      UPDATE ric01
+      SET
+        observacion = $1,
+        fecha_adm = CASE
+          WHEN fecha_adm IS NULL AND COALESCE(observacion, '') = ''
+          THEN $2
+          ELSE fecha_adm
+        END
+      WHERE id = $3
+      `,
+      [observacion, fechaAdm, id]
+    );
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al guardar observación" });
+  }
+});
+
+// ---------- USUARIOS ----------
+app.post("/usuarios", async (req, res) => {
+  const { nombre, servicio, subservicio, area, movil, mail, password } = req.body;
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `INSERT INTO usuarios (nombre, servicio, subservicio, area, movil, mail, password)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [nombre, servicio, subservicio, area, movil, mail, hashedPassword]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al registrar usuario" });
+  }
+});
+
+app.post("/usuarios/login", async (req, res) => {
+  const { mail, password } = req.body;
+  try {
+    const result = await pool.query("SELECT * FROM usuarios WHERE mail=$1", [mail]);
+    if (result.rows.length === 0)
+      return res.status(401).json({ error: "Usuario no encontrado" });
+
+    const user = result.rows[0];
+    const esValido = 
+      user.password === password || await bcrypt.compare(password, user.password);
+
+    if (!esValido)
+      return res.status(401).json({ error: "Contraseña incorrecta" });
+
+    res.json(user);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al loguear usuario" });
+  }
+});
+// ---------- PERSONAL ----------
+app.post("/personal", async (req, res) => {
+  const { nombre, movil, mail, area, password } = req.body;
+  try {
+    const areaCheck = await pool.query("SELECT * FROM areas WHERE area=$1", [area]);
+    if (areaCheck.rows.length === 0) return res.status(400).json({ error: "Área inválida" });
+
+    const result = await pool.query(
+      "INSERT INTO personal(nombre,movil,mail,area,password) VALUES($1,$2,$3,$4,$5) RETURNING *",
+      [nombre, movil, mail, area, password]
+    );
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al registrar personal" });
+  }
+});
+
+app.post("/personal/login", async (req, res) => {
+  const { mail, password } = req.body;
+
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, movil, mail, area, rol
+       FROM personal
+       WHERE mail=$1 AND password=$2`,
+      [mail, password]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        error: "Credenciales inválidas"
+      });
+    }
+
+    const personal = result.rows[0];
+
+    const token = jwt.sign(
+      {
+        personal_id: personal.id
+      },
+      process.env.PERSONAL_JWT_SECRET,
+      {
+        expiresIn: "12h"
+      }
+    );
+
+    res.json({
+      ...personal,
+      token
+    });
+
+  } catch (err) {
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error en login personal"
+    });
+  }
+});
+
+app.put("/personal/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nombre, movil, area, password } = req.body;
+
+  // Validación mínima
+  if (!nombre || !usuario || !area) {
+    return res.status(400).json({
+      error: "Faltan datos obligatorios (nombre, usuario o área)",
+    });
+  }
+
+  try {
+    // 1️⃣ Actualizar datos básicos
+    await pool.query(
+      `UPDATE personal
+       SET nombre = $1,
+           movil = $2,
+           area = $3
+       WHERE id = $4`,
+      [nombre, usuario, area, id]
+    );
+
+    // 2️⃣ Actualizar contraseña SOLO si viene
+    if (password && password.trim() !== "") {
+      const hash = await bcrypt.hash(password, 10);
+
+      await pool.query(
+        `UPDATE personal
+         SET password = $1
+         WHERE id = $2`,
+        [hash, id]
+      );
+    }
+
+    res.json({
+      ok: true,
+      message: "Personal actualizado correctamente",
+    });
+  } catch (err) {
+    console.error("Error actualizando personal:", err);
+
+    // Error de usuario duplicado (si usuario es UNIQUE)
+    if (err.code === "23505") {
+      return res.status(409).json({
+        error: "El personal ya existe",
+      });
+    }
+
+    res.status(500).json({
+      error: "Error interno del servidor",
+    });
+  }
+});
+
+// ---------- SERVICIOS ----------
+app.get("/servicios", async (req, res) => {
+  try {
+
+    const result = await pool.query(
+      `
+      SELECT
+        area,
+        servicio,
+        subservicio,
+        encargado
+      FROM servicios
+      ORDER BY
+        area,
+        servicio,
+        subservicio
+      `
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      error: "Error al obtener servicios"
+    });
+
+  }
+});
+
+// ---------- AREAS ----------
+app.get("/areas", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM areas ORDER BY id");
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al obtener áreas" });
+  }
+});
+
+app.get(
+    "/equipos/:serie/historial/pdf",
+    generarHistorialPDF
+);
+
+// ---------- SUSCRIPCIONES PUSH ----------
+
+app.post("/suscribir", async (req, res) => {
+  try {
+    const { userId, subscription } = req.body;
+
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "Datos incompletos" });
+    }
+
+    // Guardar la suscripción en la tabla 'personal'
+    const query = `
+      UPDATE personal
+      SET suscripcion = $1
+      WHERE id = $2
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [JSON.stringify(subscription), userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
+    res.json({ message: "Suscripción guardada correctamente" });
+  } catch (err) {
+    console.error("Error al guardar suscripción:", err);
+    res.status(500).json({ error: "Error al guardar suscripción" });
+  }
+});
+
+app.post("/desuscribir", async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ error: "Falta el ID del usuario" });
+    }
+
+    // Eliminar la suscripción del personal (dejarla en NULL)
+    const query = `
+      UPDATE personal
+      SET suscripcion = NULL
+      WHERE id = $1
+      RETURNING id;
+    `;
+    const result = await pool.query(query, [userId]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
+    res.json({ message: "Suscripción eliminada correctamente" });
+  } catch (err) {
+    console.error("Error al eliminar suscripción:", err);
+    res.status(500).json({ error: "Error al eliminar suscripción" });
+  }
+});
+
+app.post("/api/suscribir", async (req, res) => {
+  try {
+    const { userId, subscription } = req.body;
+    console.log("Recibido en /api/suscribir:", req.body);
+
+    if (!userId || !subscription) {
+      return res.status(400).json({ error: "Faltan datos" });
+    }
+
+    // Verificar que el usuario exista antes de actualizar
+    const check = await pool.query("SELECT id FROM personal WHERE id=$1", [userId]);
+    if (check.rowCount === 0) {
+      console.error("Usuario no encontrado para guardar suscripción:", userId);
+      return res.status(404).json({ error: "Usuario no encontrado" });
+    }
+
+    await pool.query(
+      "UPDATE personal SET suscripcion=$1 WHERE id=$2",
+      [JSON.stringify(subscription), userId]
+    );
+
+    console.log("✅ Suscripción guardada correctamente para usuario", userId);
+    res.status(201).json({ message: "Suscripción guardada correctamente" });
+  } catch (err) {
+    console.error("Error en /api/suscribir:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// Ruta para desuscribir push
+app.post("/desuscribir", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "Faltan datos" });
+    }
+
+    // Borrar la suscripción de la columna 'suscripcion'
+    await pool.query(
+      `UPDATE personal SET suscripcion = NULL WHERE id = $1`,
+      [userId]
+    );
+
+    res.status(200).json({ message: "Suscripción eliminada correctamente" });
+  } catch (err) {
+    console.error("Error desuscribiendo:", err);
+    res.status(500).json({ error: "Error interno" });
+  }
+});
+
+// ---------- PROMEDIOS ----------
+
+// Guardar promedios diarios
+app.post("/promedios", async (req, res) => {
+  const { fecha, promedio_solucion, promedio_finalizacion } = req.body;
+
+  if (!fecha || promedio_solucion == null || promedio_finalizacion == null) {
+    return res.status(400).json({ error: "Faltan datos para guardar los promedios" });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO promedios (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (fecha) 
+       DO UPDATE SET promedio_solucion = EXCLUDED.promedio_solucion,
+                     promedio_finalizacion = EXCLUDED.promedio_finalizacion
+       RETURNING *`,
+      [fecha, promedio_solucion, promedio_finalizacion]
+    );
+    res.json({ message: "Promedios guardados correctamente", data: result.rows[0] });
+  } catch (err) {
+    console.error("Error guardando promedios:", err);
+    res.status(500).json({ error: "Error al guardar los promedios" });
+  }
+});
+
+// Obtener todos los promedios
+app.get("/promedios", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM promedios ORDER BY fecha ASC"
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error obteniendo promedios:", err);
+    res.status(500).json({ error: "Error al obtener los promedios" });
+  }
+});
+
+// ---------- CÁLCULO AUTOMÁTICO DE PROMEDIOS DIARIOS ----------
+async function calcularYGuardarPromedios() {
+  try {
+    const hoy = new Date();
+    const fechaHoy = hoy.toISOString().split("T")[0]; // 'YYYY-MM-DD'
+
+    // Obtener todas las tareas finalizadas hoy
+    const result = await pool.query(
+      `SELECT fecha, fecha_comp, fecha_fin 
+       FROM ric01
+       WHERE fecha::date = $1::date`,
+      [fechaHoy]
+    );
+
+    const tareas = result.rows;
+
+    let totalSol = 0, cantSol = 0;
+    let totalFin = 0, cantFin = 0;
+
+    tareas.forEach((t) => {
+      if (t.fecha_comp) {
+        const tiempoSol = (new Date(t.fecha_comp) - new Date(t.fecha)) / (1000 * 60 * 60);
+        totalSol += tiempoSol;
+        cantSol += 1;
+      }
+      if (t.fecha_fin) {
+        const tiempoFin = (new Date(t.fecha_fin) - new Date(t.fecha)) / (1000 * 60 * 60);
+        totalFin += tiempoFin;
+        cantFin += 1;
+      }
+    });
+
+    const promedio_solucion = cantSol ? totalSol / cantSol : 0;
+    const promedio_finalizacion = cantFin ? totalFin / cantFin : 0;
+
+    // Guardar en la tabla 'promedios' (insertar o actualizar)
+    await pool.query(
+      `INSERT INTO promedios (fecha, promedio_solucion, promedio_finalizacion)
+       VALUES ($1, $2, $3)
+       ON CONFLICT (fecha)
+       DO UPDATE SET promedio_solucion = EXCLUDED.promedio_solucion,
+                     promedio_finalizacion = EXCLUDED.promedio_finalizacion`,
+      [fechaHoy, promedio_solucion, promedio_finalizacion]
+    );
+
+    console.log(`✅ Promedios guardados para ${fechaHoy}`);
+  } catch (err) {
+    console.error("❌ Error calculando promedios:", err);
+  }
+}
+
+// Ejecutar al iniciar el servidor
+calcularYGuardarPromedios();
+
+// Opcional: recalcular cada 24 horas
+setInterval(calcularYGuardarPromedios, 24 * 60 * 60 * 1000);
+
+// ---------- ASISTENTE IA ----------
+// Helper para insertar en ia_logs de forma segura y consistente
+async function logIALog({ session_id = "", pregunta = null, respuesta = null, correccion = null }) {
+  // usamos casts explícitos para evitar conversiones implícitas
+  const q = `
+    INSERT INTO ia_logs (session_id, pregunta, respuesta, correccion)
+    VALUES ($1::text, $2::text, $3::text, $4::text)
+    RETURNING id
+  `;
+  const params = [session_id, pregunta || null, respuesta || null, correccion || null];
+  return pool.query(q, params);
+}
+
+// 🧠 Formatea resultados SQL en texto natural
+function formatearRespuestaSQL(sql, rows) {
+  // Si la consulta devuelve solo una celda numérica (como un COUNT)
+  if (rows.length > 0 && Object.keys(rows[0]).length === 1) {
+    const valor = Object.values(rows[0])[0];
+
+    // Detección semántica simple por tipo de consulta
+    if (/count/i.test(sql)) {
+      return `Hay ${valor} ${valor == 1 ? "tarea" : "tareas"} que cumplen esa condición.`;
+    }
+    if (/sum/i.test(sql)) {
+      return `La suma total es ${valor}.`;
+    }
+    if (/avg|average/i.test(sql)) {
+      return `El promedio calculado es ${valor}.`;
+    }
+
+    // Respuesta genérica si no detecta un tipo específico
+    return `El resultado es ${valor}.`;
+  }
+
+  // Si hay varias filas, devolver un resumen claro
+  if (rows.length > 0) {
+    const columnas = Object.keys(rows[0]);
+    const limite = Math.min(rows.length, 5); // máximo 5 filas mostradas
+    const preview = rows
+      .slice(0, limite)
+      .map((r) => columnas.map((c) => `${c}: ${r[c]}`).join(", "))
+      .join("\n- ");
+
+    let resumen = `Se encontraron ${rows.length} registros. Ejemplos:\n- ${preview}`;
+    if (rows.length > limite) resumen += `\n...y ${rows.length - limite} más.`;
+    return resumen;
+  }
+
+  // Si no hay filas
+  return "No se encontraron registros que cumplan esa condición.";
+}
+
+// ======================================================
+// 🤖 Endpoint de IA — con razonamiento SQL + modo explicación
+// ======================================================
+app.post("/api/ia", async (req, res) => {
+  const { pregunta, sessionId } = req.body;
+
+  if (!pregunta || !sessionId) {
+    return res.status(400).json({ error: "Faltan datos: pregunta o sessionId." });
+  }
+
+  // 🔍 Función auxiliar: detectar entidad principal
+  function detectarEntidad(texto) {
+    texto = texto.toLowerCase();
+    if (texto.includes("personal") || texto.includes("empleado") || texto.includes("usuario"))
+      return "personal";
+    if (texto.includes("área") || texto.includes("area"))
+      return "area";
+    if (texto.includes("tarea") || texto.includes("trabajo"))
+      return "tarea";
+    return "general";
+  }
+
+  try {
+    // ------------------------------------------------
+    // 🔍 Buscar correcciones previas similares
+    // ------------------------------------------------
+    const { rows: correcciones } = await pool.query(
+      `SELECT pregunta, correccion FROM ia_logs 
+       WHERE correccion IS NOT NULL 
+       AND similarity(pregunta, $1) > 0.85
+       ORDER BY fecha DESC LIMIT 1`,
+      [pregunta]
+    );
+
+    if (correcciones.length > 0) {
+      let aplicarCorreccion = true;
+      let respuesta;
+      let correccion = correcciones[0].correccion.trim();
+
+      // 🧠 Nuevo filtro por tipo de entidad
+      const entidadActual = detectarEntidad(pregunta);
+      const entidadCorreccion = detectarEntidad(correcciones[0].pregunta);
+      if (entidadActual !== entidadCorreccion) {
+        console.log(`⚠️ No se aplica corrección (entidades distintas): ${entidadActual} ≠ ${entidadCorreccion}`);
+        aplicarCorreccion = false;
+      }
+
+      // Detectar número de área
+      const regexArea = /área\s*(\d+)|area\s*(\d+)/i;
+      const areaMatchActual = pregunta.match(regexArea);
+      const areaActual = areaMatchActual ? areaMatchActual[1] || areaMatchActual[2] : null;
+
+      const areaMatchCorreccion = correcciones[0].pregunta.match(regexArea);
+      const areaCorreccion = areaMatchCorreccion ? areaMatchCorreccion[1] || areaMatchCorreccion[2] : null;
+
+      if (areaActual && areaCorreccion && areaActual !== areaCorreccion) {
+        if (/^select/i.test(correccion)) {
+          correccion = correccion.replace(
+            new RegExp(`'Area ${areaCorreccion}'`, "i"),
+            `'Area ${areaActual}'`
+          );
+          console.log(`🔁 Adaptada la corrección para el Área ${areaActual}`);
+        } else aplicarCorreccion = false;
+      }
+
+      if (aplicarCorreccion) {
+        if (/^select/i.test(correccion)) {
+          try {
+            const { rows } = await pool.query(correccion);
+            if (rows && rows.length > 0) {
+              const firstRow = rows[0];
+              const keys = Object.keys(firstRow).map(k => k.toLowerCase());
+
+              // 🧠 Caso 1: un solo valor simple
+              if (rows.length === 1 && keys.length === 1) {
+                const valor = Object.values(firstRow)[0];
+                respuesta = `El resultado es ${valor}.`;
+              }
+
+              // 🧠 Caso 2: resultados por área
+              else if (keys.includes("area") && keys.includes("cantidad")) {
+                respuesta =
+                  "📊 Tareas pendientes por área:\n" +
+                  rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
+              }
+
+              // 🧠 Caso 3: resultados por personal
+              else if (keys.includes("personal") && keys.includes("cantidad")) {
+                respuesta =
+                  "👤 Tareas realizadas por personal:\n" +
+                  rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+              }
+
+              // 🧠 Caso 4: resultados genéricos
+              else {
+                respuesta =
+                  rows.map(r =>
+                    Object.entries(r)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(", ")
+                  ).join(" | ");
+              }
+            } else {
+              respuesta = "⚠️ No se encontraron tareas que cumplan esas condiciones.";
+            }
+          } catch (err) {
+            console.error("❌ Error al ejecutar SQL de corrección:", err);
+            respuesta = "La corrección contiene una consulta SQL no válida.";
+          }
+        } else {
+          respuesta = correccion;
+        }
+
+        await pool.query(
+          "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+          [sessionId, pregunta, respuesta]
+        );
+
+        return res.json({ respuesta });
+      }
+    }
+
+    // ------------------------------------------------
+    // 🧠 Generar SQL automáticamente con OpenRouter
+    // ------------------------------------------------
+    const prompt = `
+Eres un asistente experto en PostgreSQL y gestión de tareas.
+Tu base de datos se llama "ric01" y tiene columnas: 
+id, area, usuario, tarea, solucion, fin, fecha, fecha_comp, fecha_fin, asignado, reasignado_a, reasignado_por.
+
+Objetivo:
+- Si la pregunta requiere información (por ejemplo "¿cuál es la tarea más común?" o "qué área tiene más tareas?"),
+  genera una consulta SQL válida que lo responda.
+- No inventes datos. Usa solo SQL real sobre la tabla ric01.
+- Devuelve SOLO la consulta SQL, nada más.
+- Toma tu tiempo para penser bien las respuestas.
+
+Ejemplo:
+Pregunta: "¿Cuál es la tarea más común?"
+Respuesta:
+SELECT tarea, COUNT(*) AS cantidad FROM ric01 GROUP BY tarea ORDER BY cantidad DESC LIMIT 1;
+
+Pregunta: "${pregunta}"
+`;
+
+    // 🧩 Llamada a OpenRouter
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+      }),
+    });
+
+    const data = await response.json();
+    let sql = data?.choices?.[0]?.message?.content?.trim();
+
+    if (!sql) {
+      throw new Error("No se recibió SQL válido del modelo.");
+    }
+
+    console.log("🧮 SQL generado por IA:", sql);
+
+    // ------------------------------------------------
+    // Ejecutar el SQL generado
+    // ------------------------------------------------
+    let respuestaFinal = "";
+    try {
+      const { rows } = await pool.query(sql);
+
+      if (rows.length === 0) {
+        respuestaFinal = "No se encontraron resultados.";
+      } else if (rows.length === 1) {
+        const registro = rows[0];
+        const columnas = Object.keys(registro);
+
+        // 💬 Respuestas más naturales
+        if (columnas.includes("personal") && columnas.includes("cantidad")) {
+          respuestaFinal = `👤 ${registro.personal} ha realizado ${registro.cantidad} tareas.`;
+        } else if (columnas.includes("tarea") && columnas.includes("cantidad")) {
+          respuestaFinal = `🧩 La tarea más común es "${registro.tarea}" con ${registro.cantidad} registros.`;
+        } else if (columnas.includes("area") && columnas.includes("cantidad")) {
+          respuestaFinal = `🏢 El área con más tareas es "${registro.area}" con ${registro.cantidad} tareas.`;
+        } else {
+          respuestaFinal = Object.entries(registro)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(", ");
+        }
+      } else {
+        // Varias filas → generar texto legible
+        const claves = Object.keys(rows[0]).map(k => k.toLowerCase());
+        if (claves.includes("area") && claves.includes("cantidad")) {
+          respuestaFinal = "📊 Tareas por área:\n" +
+            rows.map(r => `- ${r.area}: ${r.cantidad} tareas`).join("\n");
+        } else if (claves.includes("personal") && claves.includes("cantidad")) {
+          respuestaFinal = "👥 Tareas por personal:\n" +
+            rows.map(r => `- ${r.personal}: ${r.cantidad} tareas`).join("\n");
+        } else {
+          respuestaFinal = rows.map(r =>
+            Object.entries(r)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join(", ")
+          ).join(" | ");
+        }
+      }
+    } catch (err) {
+      console.error("❌ Error al ejecutar SQL:", err);
+      respuestaFinal = `No pude ejecutar correctamente la consulta. SQL generado:\n${sql}`;
+    }
+
+    // ------------------------------------------------
+    // 🧩 Modo de explicación
+    // ------------------------------------------------
+    let explicacion = "";
+    if (/explicame|cómo lo calculaste|muéstrame la consulta/i.test(pregunta)) {
+      explicacion = `🔍 La consulta SQL utilizada fue:\n\n\`\`\`sql\n${sql}\n\`\`\``;
+    }
+
+    const respuestaCompleta = explicacion
+      ? `${respuestaFinal}\n\n${explicacion}`
+      : respuestaFinal;
+
+    await pool.query(
+      "INSERT INTO ia_logs (session_id, pregunta, respuesta) VALUES ($1, $2, $3)",
+      [sessionId, pregunta, respuestaCompleta]
+    );
+
+    res.json({ respuesta: respuestaCompleta });
+  } catch (error) {
+    console.error("❌ Error en /api/ia:", error);
+    res.status(500).json({ error: "Error interno del servidor." });
+  }
+});
+
+
+// PUT /api/ia/corregir/:id (actualizar corrección existente)
+app.put("/api/ia/corregir/:id", async (req, res) => {
+  const { id } = req.params;
+  const { nuevaRespuesta } = req.body;
+
+  try {
+    // Usamos bigint en lugar de int
+    const result = await pool.query(
+      "UPDATE ia_logs SET correccion = $1::text WHERE id = $2::bigint RETURNING id",
+      [nuevaRespuesta, id]
+    );
+
+    if (result.rowCount === 0)
+      return res.status(404).json({ error: "Registro no encontrado" });
+
+    res.json({ mensaje: "✅ Corrección guardada con éxito.", id: result.rows[0].id });
+  } catch (error) {
+    console.error("❌ Error al guardar corrección (PUT):", {
+      message: error?.message,
+      stack: error?.stack,
+      params: { id, nuevaRespuesta },
+    });
+    res.status(500).json({ error: "No se pudo guardar la corrección.", details: error?.message });
+  }
+});
+
+// ----------------- SERVIDOR -----------------
+app.listen(PORT, () => {
+  console.log(`Servidor ejecutándose en el puerto ${PORT}`);
+});
+
+// ----------------- PING INTERNO RENDER -----------------
+const SELF_URL = "https://sky26.onrender.com";
+setInterval(() => {
+  fetch(SELF_URL)
+    .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
+    .catch(err => console.log("Error en ping interno:", err.message));
+}, 13 * 60 * 1000);
+
+
+
+            THEN TO_DATE(TRIM(ultimo_mant::text), 'DD/MM/YYYY')
+            WHEN fecha_alta IS NOT NULL
+            THEN fecha_alta::date
+            ELSE NULL
+          END AS fecha_base_preventivo
+        FROM equipos
+        WHERE UPPER(TRIM(COALESCE(estado, ''))) NOT IN ('OBSOLETO', 'OBSOLETOS', 'DE BAJA')
+      )
+      SELECT
+        COUNT(*)::integer AS total_vigentes,
+        COUNT(*) FILTER (
+          WHERE UPPER(TRIM(COALESCE(estado, ''))) IN ('ACTIVO', 'ACTIVO RESTRINGIDO')
+        )::integer AS operativos,
+        COUNT(*) FILTER (
+          WHERE periodo_dias IS NOT NULL
+        )::integer AS cubiertos,
+        COUNT(*) FILTER (
+          WHERE periodo_dias IS NOT NULL
+            AND fecha_base_preventivo IS NOT NULL
+        )::integer AS cubiertos_calculables,
+        COUNT(*) FILTER (
+          WHERE periodo_dias IS NOT NULL
+            AND fecha_base_preventivo IS NOT NULL
+            AND (fecha_base_preventivo + (periodo_dias * INTERVAL '1 day'))::date >= CURRENT_DATE
+        )::integer AS preventivos_en_cumplimiento
+      FROM equipos_vigentes
+    `);
+
+    const indicadoresPreventivosDB = indicadoresPreventivosResult.rows[0] || {};
+    const totalVigentes = Number(indicadoresPreventivosDB.total_vigentes || 0);
+    const operativos = Number(indicadoresPreventivosDB.operativos || 0);
+    const cubiertos = Number(indicadoresPreventivosDB.cubiertos || 0);
+    const cubiertosCalculables = Number(indicadoresPreventivosDB.cubiertos_calculables || 0);
+    const preventivosEnCumplimiento = Number(indicadoresPreventivosDB.preventivos_en_cumplimiento || 0);
+
+    const indicadoresPreventivos = {
+      cobertura_preventiva: totalVigentes > 0
+        ? Number(((cubiertos / totalVigentes) * 100).toFixed(1))
+        : 0,
+      cumplimiento_preventivo: cubiertosCalculables > 0
+        ? Number(((preventivosEnCumplimiento / cubiertosCalculables) * 100).toFixed(1))
+        : 0,
+      equipos_operativos: totalVigentes > 0
+        ? Number(((operativos / totalVigentes) * 100).toFixed(1))
+        : 0,
+      detalle: {
+        total_vigentes: totalVigentes,
+        cubiertos,
+        cubiertos_calculables: cubiertosCalculables,
+        preventivos_en_cumplimiento: preventivosEnCumplimiento,
+        operativos
+      }
+    };
+
     // 🔹 DETALLE DE ESTADOS
 const estadosResult = await pool.query(`
   SELECT 
