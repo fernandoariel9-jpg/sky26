@@ -1,206 +1,149 @@
 import pool from "../db.js";
 
-const ESTADOS_EXCLUIDOS = ["OBSOLETO", "OBSOLETOS", "DE BAJA"];
+const ESTADOS_EXCLUIDOS = new Set(["OBSOLETO", "OBSOLETOS", "DE BAJA"]);
+
+function normalizarEstado(valor) {
+  return String(valor || "").trim().toUpperCase();
+}
+
+function obtenerPeriodoDias(valor) {
+  if (valor === null || valor === undefined) return null;
+
+  const texto = String(valor).trim();
+  if (!texto) return null;
+
+  const numero = Number(texto);
+  if (!Number.isInteger(numero) || numero <= 0) return null;
+
+  return numero;
+}
+
+function parsearFecha(valor) {
+  if (valor === null || valor === undefined) return null;
+
+  const texto = String(valor).trim();
+  if (!texto) return null;
+
+  // YYYY-MM-DD o timestamp que empieza con esa fecha
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const fecha = new Date(
+      Number(iso[1]),
+      Number(iso[2]) - 1,
+      Number(iso[3])
+    );
+    return Number.isNaN(fecha.getTime()) ? null : fecha;
+  }
+
+  // DD/MM/YYYY
+  const ar = texto.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ar) {
+    const fecha = new Date(
+      Number(ar[3]),
+      Number(ar[2]) - 1,
+      Number(ar[1])
+    );
+    return Number.isNaN(fecha.getTime()) ? null : fecha;
+  }
+
+  return null;
+}
+
+function sumarDias(fecha, dias) {
+  const copia = new Date(fecha);
+  copia.setDate(copia.getDate() + dias);
+  return copia;
+}
+
+function inicioDelDia(fecha = new Date()) {
+  return new Date(
+    fecha.getFullYear(),
+    fecha.getMonth(),
+    fecha.getDate()
+  );
+}
 
 export async function obtenerIndicadoresPreventivos(req, res) {
   try {
     const { rows } = await pool.query(
-      `
-      WITH equipos_vigentes AS (
-        SELECT
-          id,
-          UPPER(TRIM(COALESCE(estado, ''))) AS estado_normalizado,
-          CASE
-            WHEN TRIM(COALESCE(periodo::text, '')) ~ '^[0-9]+$'
-             AND TRIM(periodo::text)::integer > 0
-            THEN TRIM(periodo::text)::integer
-            ELSE NULL
-          END AS periodo_dias,
-          CASE
-            WHEN TRIM(COALESCE(ultimo_mant::text, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-              THEN TRIM(ultimo_mant::text)::timestamp::date
-            WHEN TRIM(COALESCE(ultimo_mant::text, '')) ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}
-        FROM equipos
-        WHERE UPPER(TRIM(COALESCE(estado, ''))) <> ALL($1::text[])
-      )
-      SELECT
-        COUNT(*)::integer AS total_vigentes,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-        )::integer AS cubiertos,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-            AND fecha_base IS NOT NULL
-        )::integer AS cubiertos_calculables,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-            AND fecha_base IS NOT NULL
-            AND (fecha_base + (periodo_dias * INTERVAL '1 day'))::date >= CURRENT_DATE
-        )::integer AS en_cumplimiento,
-        COUNT(*) FILTER (
-          WHERE estado_normalizado IN ('ACTIVO', 'ACTIVO RESTRINGIDO')
-        )::integer AS operativos
-      FROM equipos_vigentes
-      `,
-      [ESTADOS_EXCLUIDOS]
+      "SELECT id, estado, periodo, ultimo_mant, fecha_alta FROM equipos"
     );
 
-    const r = rows[0] || {};
+    const vigentes = rows.filter(
+      (equipo) => !ESTADOS_EXCLUIDOS.has(normalizarEstado(equipo.estado))
+    );
 
-    const total = Number(r.total_vigentes || 0);
-    const cubiertos = Number(r.cubiertos || 0);
-    const calculables = Number(r.cubiertos_calculables || 0);
-    const cumplimiento = Number(r.en_cumplimiento || 0);
-    const operativos = Number(r.operativos || 0);
+    const totalVigentes = vigentes.length;
 
-    res.json({
-      cobertura_preventiva: total > 0
-        ? Number(((cubiertos / total) * 100).toFixed(1))
-        : 0,
-      cumplimiento_preventivo: calculables > 0
-        ? Number(((cumplimiento / calculables) * 100).toFixed(1))
-        : 0,
-      equipos_operativos: total > 0
-        ? Number(((operativos / total) * 100).toFixed(1))
-        : 0,
+    const operativos = vigentes.filter((equipo) =>
+      ["ACTIVO", "ACTIVO RESTRINGIDO"].includes(
+        normalizarEstado(equipo.estado)
+      )
+    ).length;
+
+    const cubiertos = vigentes.filter(
+      (equipo) => obtenerPeriodoDias(equipo.periodo) !== null
+    ).length;
+
+    let cubiertosCalculables = 0;
+    let preventivosEnCumplimiento = 0;
+
+    const hoy = inicioDelDia();
+
+    for (const equipo of vigentes) {
+      const periodoDias = obtenerPeriodoDias(equipo.periodo);
+      if (periodoDias === null) continue;
+
+      const fechaBase =
+        parsearFecha(equipo.ultimo_mant) ||
+        parsearFecha(equipo.fecha_alta);
+
+      if (!fechaBase) continue;
+
+      cubiertosCalculables += 1;
+
+      const proximoMantenimiento = inicioDelDia(
+        sumarDias(fechaBase, periodoDias)
+      );
+
+      if (proximoMantenimiento >= hoy) {
+        preventivosEnCumplimiento += 1;
+      }
+    }
+
+    return res.json({
+      cobertura_preventiva:
+        totalVigentes > 0
+          ? Number(((cubiertos / totalVigentes) * 100).toFixed(1))
+          : 0,
+
+      cumplimiento_preventivo:
+        cubiertosCalculables > 0
+          ? Number(
+              (
+                (preventivosEnCumplimiento / cubiertosCalculables) *
+                100
+              ).toFixed(1)
+            )
+          : 0,
+
+      equipos_operativos:
+        totalVigentes > 0
+          ? Number(((operativos / totalVigentes) * 100).toFixed(1))
+          : 0,
+
       detalle: {
-        total_vigentes: total,
+        total_vigentes: totalVigentes,
         cubiertos,
-        cubiertos_calculables: calculables,
-        preventivos_en_cumplimiento: cumplimiento,
+        cubiertos_calculables: cubiertosCalculables,
+        preventivos_en_cumplimiento: preventivosEnCumplimiento,
         operativos
       }
     });
   } catch (error) {
     console.error("Error obteniendo indicadores preventivos:", error);
-    res.status(500).json({
-      error: "Error obteniendo indicadores preventivos",
-      detalle: error.message
-    });
-  }
-}
 
-              THEN TO_DATE(TRIM(ultimo_mant::text), 'DD/MM/YYYY')
-            WHEN TRIM(COALESCE(fecha_alta::text, '')) ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
-              THEN TRIM(fecha_alta::text)::timestamp::date
-            WHEN TRIM(COALESCE(fecha_alta::text, '')) ~ '^[0-9]{1,2}/[0-9]{1,2}/[0-9]{4}
-        FROM equipos
-        WHERE UPPER(TRIM(COALESCE(estado, ''))) <> ALL($1::text[])
-      )
-      SELECT
-        COUNT(*)::integer AS total_vigentes,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-        )::integer AS cubiertos,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-            AND fecha_base IS NOT NULL
-        )::integer AS cubiertos_calculables,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-            AND fecha_base IS NOT NULL
-            AND (fecha_base + (periodo_dias * INTERVAL '1 day'))::date >= CURRENT_DATE
-        )::integer AS en_cumplimiento,
-        COUNT(*) FILTER (
-          WHERE estado_normalizado IN ('ACTIVO', 'ACTIVO RESTRINGIDO')
-        )::integer AS operativos
-      FROM equipos_vigentes
-      `,
-      [ESTADOS_EXCLUIDOS]
-    );
-
-    const r = rows[0] || {};
-
-    const total = Number(r.total_vigentes || 0);
-    const cubiertos = Number(r.cubiertos || 0);
-    const calculables = Number(r.cubiertos_calculables || 0);
-    const cumplimiento = Number(r.en_cumplimiento || 0);
-    const operativos = Number(r.operativos || 0);
-
-    res.json({
-      cobertura_preventiva: total > 0
-        ? Number(((cubiertos / total) * 100).toFixed(1))
-        : 0,
-      cumplimiento_preventivo: calculables > 0
-        ? Number(((cumplimiento / calculables) * 100).toFixed(1))
-        : 0,
-      equipos_operativos: total > 0
-        ? Number(((operativos / total) * 100).toFixed(1))
-        : 0,
-      detalle: {
-        total_vigentes: total,
-        cubiertos,
-        cubiertos_calculables: calculables,
-        preventivos_en_cumplimiento: cumplimiento,
-        operativos
-      }
-    });
-  } catch (error) {
-    console.error("Error obteniendo indicadores preventivos:", error);
-    res.status(500).json({
-      error: "Error obteniendo indicadores preventivos",
-      detalle: error.message
-    });
-  }
-}
-
-              THEN TO_DATE(TRIM(fecha_alta::text), 'DD/MM/YYYY')
-            ELSE NULL
-          END AS fecha_base
-        FROM equipos
-        WHERE UPPER(TRIM(COALESCE(estado, ''))) <> ALL($1::text[])
-      )
-      SELECT
-        COUNT(*)::integer AS total_vigentes,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-        )::integer AS cubiertos,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-            AND fecha_base IS NOT NULL
-        )::integer AS cubiertos_calculables,
-        COUNT(*) FILTER (
-          WHERE periodo_dias IS NOT NULL
-            AND fecha_base IS NOT NULL
-            AND (fecha_base + (periodo_dias * INTERVAL '1 day'))::date >= CURRENT_DATE
-        )::integer AS en_cumplimiento,
-        COUNT(*) FILTER (
-          WHERE estado_normalizado IN ('ACTIVO', 'ACTIVO RESTRINGIDO')
-        )::integer AS operativos
-      FROM equipos_vigentes
-      `,
-      [ESTADOS_EXCLUIDOS]
-    );
-
-    const r = rows[0] || {};
-
-    const total = Number(r.total_vigentes || 0);
-    const cubiertos = Number(r.cubiertos || 0);
-    const calculables = Number(r.cubiertos_calculables || 0);
-    const cumplimiento = Number(r.en_cumplimiento || 0);
-    const operativos = Number(r.operativos || 0);
-
-    res.json({
-      cobertura_preventiva: total > 0
-        ? Number(((cubiertos / total) * 100).toFixed(1))
-        : 0,
-      cumplimiento_preventivo: calculables > 0
-        ? Number(((cumplimiento / calculables) * 100).toFixed(1))
-        : 0,
-      equipos_operativos: total > 0
-        ? Number(((operativos / total) * 100).toFixed(1))
-        : 0,
-      detalle: {
-        total_vigentes: total,
-        cubiertos,
-        cubiertos_calculables: calculables,
-        preventivos_en_cumplimiento: cumplimiento,
-        operativos
-      }
-    });
-  } catch (error) {
-    console.error("Error obteniendo indicadores preventivos:", error);
-    res.status(500).json({
+    return res.status(500).json({
       error: "Error obteniendo indicadores preventivos",
       detalle: error.message
     });
