@@ -3,7 +3,7 @@ import pool from "../db.js";
 /**
  * Historial de mantenimientos de un equipo.
  *
- * Las relaciones con RIC29, RIC37 y consumos de stock se realizan mediante ric01_id.
+ * Las relaciones con protocolos preventivos, RIC37 y consumos de stock se realizan mediante ric01_id.
  */
 export async function obtenerHistorialEquipo(req, res) {
   const { numero_serie } = req.params;
@@ -70,6 +70,20 @@ export async function obtenerHistorialEquipo(req, res) {
         ) AS ric29,
         (
           SELECT json_build_object(
+            'id', a.id,
+            'ric01_id', a.ric01_id,
+            'resultado_general', a.resultado_general,
+            'observaciones', a.observaciones,
+            'fecha', a.fecha,
+            'tecnico', a.tecnico
+          )
+          FROM ric10 a
+          WHERE a.ric01_id = r.id
+          ORDER BY a.id DESC
+          LIMIT 1
+        ) AS ric10,
+        (
+          SELECT json_build_object(
             'id', m.id,
             'ric01_id', m.ric01_id,
             'resultado_general', m.resultado_general,
@@ -82,6 +96,76 @@ export async function obtenerHistorialEquipo(req, res) {
           ORDER BY m.id DESC
           LIMIT 1
         ) AS ric39,
+        (
+          SELECT json_build_object(
+            'id', b.id,
+            'ric01_id', b.ric01_id,
+            'resultado_general', b.resultado_general,
+            'observaciones', b.observaciones,
+            'fecha', b.fecha,
+            'tecnico', b.tecnico
+          )
+          FROM ric48 b
+          WHERE b.ric01_id = r.id
+          ORDER BY b.id DESC
+          LIMIT 1
+        ) AS ric48,
+        (
+          SELECT json_build_object(
+            'id', c56.id,
+            'ric01_id', c56.ric01_id,
+            'resultado_general', c56.resultado_general,
+            'observaciones', c56.observaciones,
+            'fecha', c56.fecha,
+            'tecnico', c56.tecnico
+          )
+          FROM ric56 c56
+          WHERE c56.ric01_id = r.id
+          ORDER BY c56.id DESC
+          LIMIT 1
+        ) AS ric56,
+        (
+          SELECT json_build_object(
+            'id', c59.id,
+            'ric01_id', c59.ric01_id,
+            'resultado_general', c59.resultado_general,
+            'observaciones', c59.observaciones,
+            'fecha', c59.fecha,
+            'tecnico', c59.tecnico
+          )
+          FROM ric59 c59
+          WHERE c59.ric01_id = r.id
+          ORDER BY c59.id DESC
+          LIMIT 1
+        ) AS ric59,
+        (
+          SELECT json_build_object(
+            'id', c64.id,
+            'ric01_id', c64.ric01_id,
+            'resultado_general', c64.resultado_general,
+            'observaciones', c64.observaciones,
+            'fecha', c64.fecha,
+            'tecnico', c64.tecnico
+          )
+          FROM ric64 c64
+          WHERE c64.ric01_id = r.id
+          ORDER BY c64.id DESC
+          LIMIT 1
+        ) AS ric64,
+        (
+          SELECT json_build_object(
+            'id', c71.id,
+            'ric01_id', c71.ric01_id,
+            'resultado_general', c71.resultado_general,
+            'observaciones', c71.observaciones,
+            'fecha', c71.fecha,
+            'tecnico', c71.tecnico
+          )
+          FROM ric71 c71
+          WHERE c71.ric01_id = r.id
+          ORDER BY c71.id DESC
+          LIMIT 1
+        ) AS ric71,
         (
           SELECT json_build_object(
             'id', x.id,
