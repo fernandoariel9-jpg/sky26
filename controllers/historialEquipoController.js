@@ -70,6 +70,20 @@ export async function obtenerHistorialEquipo(req, res) {
         ) AS ric29,
         (
           SELECT json_build_object(
+            'id', m.id,
+            'ric01_id', m.ric01_id,
+            'resultado_general', m.resultado_general,
+            'observaciones', m.observaciones,
+            'fecha', m.fecha,
+            'tecnico', m.tecnico
+          )
+          FROM ric39 m
+          WHERE m.ric01_id = r.id
+          ORDER BY m.id DESC
+          LIMIT 1
+        ) AS ric39,
+        (
+          SELECT json_build_object(
             'id', x.id,
             'ric01_id', x.ric01_id,
             'equipo_id', x.equipo_id,
