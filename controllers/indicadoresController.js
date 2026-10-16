@@ -149,3 +149,73 @@ export async function obtenerIndicadoresPreventivos(req, res) {
     });
   }
 }
+
+
+export async function obtenerEdadEquipos(req, res) {
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, estado, fecha_alta FROM equipos"
+    );
+
+    const hoy = inicioDelDia();
+    const vigentes = rows.filter(
+      (equipo) => !ESTADOS_EXCLUIDOS.has(normalizarEstado(equipo.estado))
+    );
+
+    const grupos = new Map();
+    let sinFechaAlta = 0;
+
+    for (const equipo of vigentes) {
+      const fechaAlta = parsearFecha(equipo.fecha_alta);
+
+      if (!fechaAlta) {
+        sinFechaAlta += 1;
+        continue;
+      }
+
+      let edad = hoy.getFullYear() - fechaAlta.getFullYear();
+
+      const aunNoCumplio =
+        hoy.getMonth() < fechaAlta.getMonth() ||
+        (
+          hoy.getMonth() === fechaAlta.getMonth() &&
+          hoy.getDate() < fechaAlta.getDate()
+        );
+
+      if (aunNoCumplio) edad -= 1;
+      if (edad < 0) edad = 0;
+
+      const inicioRango = Math.floor(edad / 5) * 5;
+      const finRango = inicioRango + 4;
+      const clave = inicioRango;
+
+      grupos.set(clave, {
+        rango: `${inicioRango}-${finRango}`,
+        cantidad: (grupos.get(clave)?.cantidad || 0) + 1
+      });
+    }
+
+    const datos = [...grupos.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([, valor]) => valor);
+
+    const conFechaAlta = datos.reduce(
+      (total, grupo) => total + grupo.cantidad,
+      0
+    );
+
+    return res.json({
+      total_vigentes: vigentes.length,
+      con_fecha_alta: conFechaAlta,
+      sin_fecha_alta: sinFechaAlta,
+      grupos: datos
+    });
+  } catch (error) {
+    console.error("Error obteniendo edad de equipos:", error);
+
+    return res.status(500).json({
+      error: "Error obteniendo edad de equipos",
+      detalle: error.message
+    });
+  }
+}
