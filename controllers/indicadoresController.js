@@ -154,7 +154,7 @@ export async function obtenerIndicadoresPreventivos(req, res) {
 export async function obtenerEdadEquipos(req, res) {
   try {
     const { rows } = await pool.query(
-      "SELECT id, descripcion, marca_modelo, numero_serie, servicio, area, estado, fecha_alta FROM equipos"
+      "SELECT id, descripcion, marca_modelo, numero_serie, servicio, sub_servicio, area, estado, fecha_alta FROM equipos"
     );
 
     const hoy = inicioDelDia();
@@ -203,6 +203,7 @@ export async function obtenerEdadEquipos(req, res) {
         marca_modelo: equipo.marca_modelo || "SIN MARCA / MODELO",
         numero_serie: equipo.numero_serie || "",
         servicio: equipo.servicio || "SIN SERVICIO",
+        sub_servicio: equipo.sub_servicio || "SIN SUBSERVICIO",
         area: equipo.area || "SIN ÁREA",
         estado: equipo.estado || "",
         fecha_alta: equipo.fecha_alta,
