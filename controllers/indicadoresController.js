@@ -154,7 +154,7 @@ export async function obtenerIndicadoresPreventivos(req, res) {
 export async function obtenerEdadEquipos(req, res) {
   try {
     const { rows } = await pool.query(
-      "SELECT id, estado, fecha_alta FROM equipos"
+      "SELECT id, descripcion, marca_modelo, numero_serie, servicio, area, estado, fecha_alta FROM equipos"
     );
 
     const hoy = inicioDelDia();
@@ -163,6 +163,7 @@ export async function obtenerEdadEquipos(req, res) {
     );
 
     const grupos = new Map();
+    const equiposConEdad = [];
     let sinFechaAlta = 0;
 
     for (const equipo of vigentes) {
@@ -189,9 +190,24 @@ export async function obtenerEdadEquipos(req, res) {
       const finRango = inicioRango + 4;
       const clave = inicioRango;
 
+      const rango = `${inicioRango}-${finRango}`;
+
       grupos.set(clave, {
-        rango: `${inicioRango}-${finRango}`,
+        rango,
         cantidad: (grupos.get(clave)?.cantidad || 0) + 1
+      });
+
+      equiposConEdad.push({
+        id: equipo.id,
+        descripcion: equipo.descripcion || "SIN FAMILIA",
+        marca_modelo: equipo.marca_modelo || "SIN MARCA / MODELO",
+        numero_serie: equipo.numero_serie || "",
+        servicio: equipo.servicio || "SIN SERVICIO",
+        area: equipo.area || "SIN ÁREA",
+        estado: equipo.estado || "",
+        fecha_alta: equipo.fecha_alta,
+        edad,
+        rango
       });
     }
 
@@ -208,7 +224,8 @@ export async function obtenerEdadEquipos(req, res) {
       total_vigentes: vigentes.length,
       con_fecha_alta: conFechaAlta,
       sin_fecha_alta: sinFechaAlta,
-      grupos: datos
+      grupos: datos,
+      equipos: equiposConEdad
     });
   } catch (error) {
     console.error("Error obteniendo edad de equipos:", error);
