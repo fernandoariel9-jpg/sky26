@@ -46,6 +46,8 @@ export async function listarStockItems(req, res) {
 }
 
 export async function crearStockItem(req, res) {
+  const client = await pool.connect();
+
   try {
     const {
       codigo,
@@ -59,7 +61,11 @@ export async function crearStockItem(req, res) {
       return res.status(400).json({ error: "La descripción es obligatoria" });
     }
 
-    const { rows } = await pool.query(
+    const codigoIngresado = String(codigo || "").trim();
+
+    await client.query("BEGIN");
+
+    const insertado = await client.query(
       `
       INSERT INTO stock_items (
         codigo,
@@ -72,7 +78,7 @@ export async function crearStockItem(req, res) {
       RETURNING *
       `,
       [
-        codigo?.trim() || null,
+        codigoIngresado || null,
         descripcion.trim(),
         categoria?.trim() || null,
         unidad?.trim() || "unidad",
@@ -80,14 +86,36 @@ export async function crearStockItem(req, res) {
       ]
     );
 
-    res.status(201).json(rows[0]);
+    let item = insertado.rows[0];
+
+    if (!codigoIngresado) {
+      const actualizado = await client.query(
+        `
+        UPDATE stock_items
+        SET codigo = id::text
+        WHERE id = $1
+        RETURNING *
+        `,
+        [item.id]
+      );
+
+      item = actualizado.rows[0];
+    }
+
+    await client.query("COMMIT");
+
+    res.status(201).json(item);
   } catch (error) {
+    await client.query("ROLLBACK");
+
     if (error.code === "23505") {
       return res.status(409).json({ error: "Ya existe un artículo con ese código" });
     }
 
     console.error("Error al crear stock_item:", error);
     res.status(500).json({ error: "Error al crear el artículo de stock" });
+  } finally {
+    client.release();
   }
 }
 
