@@ -237,3 +237,90 @@ export async function obtenerEdadEquipos(req, res) {
     });
   }
 }
+
+
+export async function obtenerMantenimientosProgramados(req, res) {
+  try {
+    const areaSolicitada = String(req.query.area || "").trim();
+
+    if (!areaSolicitada) {
+      return res.status(400).json({
+        ok: false,
+        error: "No se recibió el área del usuario"
+      });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT
+         id,
+         descripcion,
+         marca_modelo,
+         numero_serie,
+         servicio,
+         sub_servicio,
+         area,
+         estado,
+         ultimo_mant,
+         periodo
+       FROM equipos`
+    );
+
+    const hoy = inicioDelDia();
+    const dentroDe30Dias = sumarDias(hoy, 30);
+    const vencidos = [];
+    const proximos = [];
+
+    for (const equipo of rows) {
+      const areaEquipo = String(equipo.area || "").trim().toUpperCase();
+      if (areaEquipo !== areaSolicitada.toUpperCase()) continue;
+
+      const estado = normalizarEstado(equipo.estado);
+      if (ESTADOS_EXCLUIDOS.has(estado)) continue;
+
+      const periodoDias = obtenerPeriodoDias(equipo.periodo);
+      if (periodoDias === null) continue;
+
+      const fechaUltimoMant = parsearFecha(equipo.ultimo_mant);
+      if (!fechaUltimoMant) continue;
+
+      const proximoMantenimiento = inicioDelDia(
+        sumarDias(fechaUltimoMant, periodoDias)
+      );
+
+      const item = {
+        ...equipo,
+        fecha_ultimo_mant: fechaUltimoMant.toISOString().slice(0, 10),
+        proximo_mant: proximoMantenimiento.toISOString().slice(0, 10)
+      };
+
+      if (proximoMantenimiento < hoy) {
+        vencidos.push(item);
+      } else if (proximoMantenimiento <= dentroDe30Dias) {
+        proximos.push(item);
+      }
+    }
+
+    vencidos.sort(
+      (a, b) => new Date(a.proximo_mant) - new Date(b.proximo_mant)
+    );
+    proximos.sort(
+      (a, b) => new Date(a.proximo_mant) - new Date(b.proximo_mant)
+    );
+
+    return res.json({
+      ok: true,
+      vencidos,
+      proximos,
+      total_vencidos: vencidos.length,
+      total_proximos: proximos.length
+    });
+  } catch (error) {
+    console.error("Error obteniendo mantenimientos programados:", error);
+
+    return res.status(500).json({
+      ok: false,
+      error: "Error obteniendo mantenimientos programados",
+      detalle: error.message
+    });
+  }
+}
