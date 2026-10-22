@@ -41,6 +41,7 @@ import historialEquipoRoutes from "./routes/historialEquipoRoutes.js";
 import stockRoutes from "./routes/stockRoutes.js";
 import ric39Routes from "./routes/ric39Routes.js";
 import indicadoresRoutes from "./routes/indicadoresRoutes.js";
+import ricPreventivosRoutes from "./routes/ricPreventivosRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -222,6 +223,7 @@ app.get("/personal/me", autenticarPersonal, async (req, res) => {
 });
 app.use("/api/stock", stockRoutes);
 app.use("/api/indicadores", indicadoresRoutes);
+app.use("/api/ric-preventivos", ricPreventivosRoutes);
 app.use("/api/ric39", ric39Routes);
 app.use((req, res, next) => {
 
@@ -3741,5 +3743,6 @@ setInterval(() => {
     .then(() => console.log(`Ping interno exitoso ${new Date().toLocaleTimeString()}`))
     .catch(err => console.log("Error en ping interno:", err.message));
 }, 13 * 60 * 1000);
+
 
 
