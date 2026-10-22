@@ -100,6 +100,22 @@ export async function guardarRIC44(req, res) {
 
     const ric44_id = result.rows[0].id;
 
+    // RIC44: el registro de obsolescencia y el cambio de estado
+    // deben completarse juntos o revertirse juntos.
+    const equipoActualizado = await client.query(
+      `UPDATE equipos
+       SET estado = 'Obsoleto'
+       WHERE numero_serie = $1
+       RETURNING id`,
+      [numero_serie]
+    );
+
+    if (equipoActualizado.rowCount !== 1) {
+      throw new Error(
+        "No se pudo identificar un equipo único para marcar como Obsoleto. El RIC44 no fue guardado."
+      );
+    }
+
     await client.query("COMMIT");
 
     res.status(201).json({
