@@ -23,6 +23,21 @@ router.use(async (req, res, next) => {
   }
 });
 
+router.get("/estado/:ric01Id", async (req, res) => {
+  if (!idValido(req.params.ric01Id)) return res.status(400).json({ error: "ID inválido" });
+  try {
+    const result = await pool.query(
+      "SELECT id, tipo_mantenimiento, fin, numero_serie FROM public.ric01 WHERE id = $1",
+      [req.params.ric01Id]
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "La tarea fue eliminada o ya no existe" });
+    res.json({ ok: true, tarea: result.rows[0] });
+  } catch (error) {
+    console.error("Error comprobando estado del preventivo:", error);
+    res.status(500).json({ error: "No se pudo verificar el estado de la tarea" });
+  }
+});
+
 router.get("/avances/:ric01Id", async (req, res) => {
   if (!idValido(req.params.ric01Id)) return res.status(400).json({ error: "ID inválido" });
   try {
