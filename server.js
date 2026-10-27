@@ -41,6 +41,7 @@ import historialEquipoRoutes from "./routes/historialEquipoRoutes.js";
 import stockRoutes from "./routes/stockRoutes.js";
 import ric39Routes from "./routes/ric39Routes.js";
 import indicadoresRoutes from "./routes/indicadoresRoutes.js";
+import monitorConfiguracionRoutes from "./routes/monitorConfiguracionRoutes.js";
 import ricPreventivosRoutes from "./routes/ricPreventivosRoutes.js";
 
 const app = express();
@@ -223,6 +224,7 @@ app.get("/personal/me", autenticarPersonal, async (req, res) => {
 });
 app.use("/api/stock", stockRoutes);
 app.use("/api/indicadores", indicadoresRoutes);
+app.use("/api/monitor-indicadores", monitorConfiguracionRoutes);
 app.use("/api/ric-preventivos", ricPreventivosRoutes);
 app.use("/api/ric39", ric39Routes);
 app.use((req, res, next) => {
