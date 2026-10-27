@@ -40,7 +40,7 @@ router.post("/login", (req, res) => {
 });
 router.get("/sesion", (req, res) => {
   try {
-    const token = (req.get("authorization") || "").replace(/^Bearer\\s+/i, "");
+    const token = (req.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const claims = jwt.verify(token, process.env.PERSONAL_JWT_SECRET);
     if (claims.scope !== "sky26-supervision") throw new Error("scope");
     res.json({ ok: true });
@@ -60,7 +60,7 @@ router.get("/config", async (_req, res) => {
   }
 });
 router.put("/config", async (req, res) => {
-  const token = (req.get("authorization") || "").replace(/^Bearer\\s+/i, "");
+  const token = (req.get("authorization") || "").replace(/^Bearer\s+/i, "");
   try {
     const claims = jwt.verify(token, process.env.PERSONAL_JWT_SECRET);
     if (claims.scope !== "sky26-supervision") throw new Error("Permiso insuficiente");
