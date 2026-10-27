@@ -1,5 +1,6 @@
 import express from "express";
 import crypto from "node:crypto";
+import jwt from "jsonwebtoken";
 import pool from "../db.js";
 
 const router = express.Router();
@@ -25,6 +26,26 @@ async function asegurarTabla() {
   `);
   inicializado = true;
 }
+router.post("/login", (req, res) => {
+  const expected = process.env.SUPERVISOR_PASSWORD;
+  const provided = req.body?.password;
+  if (!expected || !process.env.PERSONAL_JWT_SECRET) return res.status(503).json({ error: "Configurá SUPERVISOR_PASSWORD y PERSONAL_JWT_SECRET en Render." });
+  if (typeof provided !== "string" || !provided ||
+      Buffer.byteLength(provided) !== Buffer.byteLength(expected) ||
+      !crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected))) {
+    return res.status(401).json({ error: "Contraseña incorrecta" });
+  }
+  res.set("Cache-Control", "no-store");
+  res.json({ token: jwt.sign({ scope: "sky26-supervision" }, process.env.PERSONAL_JWT_SECRET, { expiresIn: "8h" }) });
+});
+router.get("/sesion", (req, res) => {
+  try {
+    const token = (req.get("authorization") || "").replace(/^Bearer\\s+/i, "");
+    const claims = jwt.verify(token, process.env.PERSONAL_JWT_SECRET);
+    if (claims.scope !== "sky26-supervision") throw new Error("scope");
+    res.json({ ok: true });
+  } catch { res.status(401).json({ error: "Sesión vencida" }); }
+});
 router.get("/config", async (_req, res) => {
   try {
     await asegurarTabla();
@@ -39,11 +60,12 @@ router.get("/config", async (_req, res) => {
   }
 });
 router.put("/config", async (req, res) => {
-  const secreta = process.env.MONITOR_CONFIG_ADMIN_KEY;
-  const recibida = req.get("x-monitor-admin-key") || "";
-  if (!secreta || !recibida || Buffer.byteLength(recibida) !== Buffer.byteLength(secreta) ||
-      !crypto.timingSafeEqual(Buffer.from(recibida), Buffer.from(secreta))) {
-    return res.status(403).json({ error: "Clave de administración del monitor incorrecta o no configurada" });
+  const token = (req.get("authorization") || "").replace(/^Bearer\\s+/i, "");
+  try {
+    const claims = jwt.verify(token, process.env.PERSONAL_JWT_SECRET);
+    if (claims.scope !== "sky26-supervision") throw new Error("Permiso insuficiente");
+  } catch {
+    return res.status(401).json({ error: "Sesión de supervisión inválida o vencida. Ingresá nuevamente." });
   }
   const config = req.body?.configuracion;
   if (!config || typeof config !== "object" ||
