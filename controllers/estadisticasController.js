@@ -1,4 +1,4 @@
-import { calcularIPA, normalizarIPA, obtenerRiesgoClinico, obtenerCriticidadServicio } from "./ipaCatalogo.js";
+import { calcularIPA } from "./ipaCatalogo.js";
 import pool from "../db.js";
 
 /**
@@ -277,32 +277,32 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     const equiposSimilares =
       Number(similaresResult.rows[0].total) || 0;
 
-    // IPA: respaldos provisionales = mismo tipo exacto y servicio, estado ACTIVO.
-    // Se usa estado del inventario, no tareas ni gravedad de falla.
-    let ipa = null;
-    const riesgoIPA = obtenerRiesgoClinico(equipo.descripcion);
-    const servicioIPA = obtenerCriticidadServicio(equipo.servicio, equipo.sub_servicio);
-    if (riesgoIPA?.valor != null && servicioIPA != null) {
-      const respaldoResult = await pool.query(
-        `SELECT COUNT(*)::integer AS total
-         FROM equipos e
-         WHERE e.id <> $1
-           AND UPPER(TRIM(COALESCE(e.estado, ''))) = 'ACTIVO'
-           AND UPPER(TRIM(COALESCE(e.servicio, ''))) = UPPER(TRIM($2))
-           AND UPPER(TRIM(COALESCE(e.descripcion, ''))) = UPPER(TRIM($3))`,
-        [equipo.id, equipo.servicio, equipo.descripcion]
-      );
-      ipa = calcularIPA({
-        descripcion: equipo.descripcion, servicio: equipo.servicio,
-        subservicio: equipo.sub_servicio,
-        respaldos: Number(respaldoResult.rows[0].total)
-      });
-    }
+    // IPA de versión 2. Todos los tipos del inventario tienen riesgo,
+    // y los servicios desconocidos cuentan con puntuación provisional.
+    // No debe depender del estado operativo del propio equipo ni de la falla.
+    const respaldoResult = await pool.query(
+      `SELECT COUNT(*)::integer AS total
+       FROM equipos e
+       WHERE e.id <> $1
+         AND UPPER(TRIM(COALESCE(e.estado, ''))) = 'ACTIVO'
+         AND UPPER(TRIM(COALESCE(e.servicio, ''))) = UPPER(TRIM($2))
+         AND UPPER(TRIM(COALESCE(e.descripcion, ''))) = UPPER(TRIM($3))`,
+      [equipo.id, equipo.servicio, equipo.descripcion]
+    );
+
+    const ipa = calcularIPA({
+      descripcion: equipo.descripcion,
+      servicio: equipo.servicio,
+      subservicio: equipo.sub_servicio,
+      respaldos: Number(respaldoResult.rows[0].total)
+    });
 
     // ---------------------------------------------------------
     // 9. RESPUESTA
     // ---------------------------------------------------------
 
+    // La prioridad de atención es dinámica: nunca servir una copia cacheada.
+    res.set("Cache-Control", "no-store, max-age=0");
     return res.json({
       equipo: {
         id: equipo.id,
