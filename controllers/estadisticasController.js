@@ -1,3 +1,4 @@
+import { calcularIPA, normalizarIPA, obtenerRiesgoClinico, obtenerCriticidadServicio } from "./ipaCatalogo.js";
 import pool from "../db.js";
 
 /**
@@ -276,6 +277,28 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
     const equiposSimilares =
       Number(similaresResult.rows[0].total) || 0;
 
+    // IPA: respaldos provisionales = mismo tipo exacto y servicio, estado ACTIVO.
+    // Se usa estado del inventario, no tareas ni gravedad de falla.
+    let ipa = null;
+    const riesgoIPA = obtenerRiesgoClinico(equipo.descripcion);
+    const servicioIPA = obtenerCriticidadServicio(equipo.servicio, equipo.sub_servicio);
+    if (riesgoIPA?.valor != null && servicioIPA != null) {
+      const respaldoResult = await pool.query(
+        `SELECT COUNT(*)::integer AS total
+         FROM equipos e
+         WHERE e.id <> $1
+           AND UPPER(TRIM(COALESCE(e.estado, ''))) = 'ACTIVO'
+           AND UPPER(TRIM(COALESCE(e.servicio, ''))) = UPPER(TRIM($2))
+           AND UPPER(TRIM(COALESCE(e.descripcion, ''))) = UPPER(TRIM($3))`,
+        [equipo.id, equipo.servicio, equipo.descripcion]
+      );
+      ipa = calcularIPA({
+        descripcion: equipo.descripcion, servicio: equipo.servicio,
+        subservicio: equipo.sub_servicio,
+        respaldos: Number(respaldoResult.rows[0].total)
+      });
+    }
+
     // ---------------------------------------------------------
     // 9. RESPUESTA
     // ---------------------------------------------------------
@@ -304,6 +327,9 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
       dias_fuera_servicio: diasFueraServicio,
       dias_activo: diasActivo,
       dias_activo_restringido: diasActivoRestringido,
+
+      // IPA informativo. No asigna ni modifica SLA.
+      ipa,
 
       // Tiempo Medio entre Fallas.
       // null cuando no existe fecha de alta válida o no hay ingresos.
