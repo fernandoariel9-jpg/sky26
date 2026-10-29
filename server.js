@@ -24,6 +24,7 @@ import {
 } from "./googleDrive.js";
 import ric29Routes from "./routes/ric29Routes.js";
 import { guardarRIC37, obtenerRIC37PorRic01 } from "./controllers/ric37Controller.js";
+import { calcularIPA } from "./controllers/ipaCatalogo.js";
 import {
   guardarRIC44,
   obtenerRIC44,
@@ -903,6 +904,57 @@ if (req.personal?.rol === "superusuario") {
   );
 
 }
+
+
+    // IPA informativo para las tareas vinculadas a un equipo.
+    // Se consulta el inventario una sola vez y se conserva intacto el resto del listado.
+    const series = [...new Set(
+      result.rows.map((t) => String(t.numero_serie || "").trim().toUpperCase()).filter(Boolean)
+    )];
+
+    if (series.length > 0) {
+      try {
+        const equiposIPA = await pool.query(`
+          WITH activos AS (
+            SELECT
+              UPPER(TRIM(COALESCE(descripcion, ''))) AS tipo,
+              UPPER(TRIM(COALESCE(servicio, ''))) AS servicio,
+              COUNT(*)::integer AS total
+            FROM equipos
+            WHERE UPPER(TRIM(COALESCE(estado, ''))) = 'ACTIVO'
+            GROUP BY 1, 2
+          )
+          SELECT e.numero_serie, e.descripcion, e.servicio, e.sub_servicio,
+            GREATEST(0, COALESCE(a.total, 0) -
+              CASE WHEN UPPER(TRIM(COALESCE(e.estado, ''))) = 'ACTIVO'
+                   THEN 1 ELSE 0 END)::integer AS respaldos
+          FROM equipos e
+          LEFT JOIN activos a
+            ON a.tipo = UPPER(TRIM(COALESCE(e.descripcion, '')))
+           AND a.servicio = UPPER(TRIM(COALESCE(e.servicio, '')))
+          WHERE UPPER(TRIM(COALESCE(e.numero_serie, ''))) = ANY($1::text[])
+        `, [series]);
+
+        const ipaPorSerie = new Map(
+          equiposIPA.rows.map((e) => [
+            String(e.numero_serie).trim().toUpperCase(),
+            calcularIPA({
+              descripcion: e.descripcion,
+              servicio: e.servicio,
+              subservicio: e.sub_servicio,
+              respaldos: Number(e.respaldos)
+            }).valor
+          ])
+        );
+
+        for (const tarea of result.rows) {
+          const serie = String(tarea.numero_serie || "").trim().toUpperCase();
+          if (ipaPorSerie.has(serie)) tarea.ipa = ipaPorSerie.get(serie);
+        }
+      } catch (errorIPA) {
+        console.error("No se pudo cargar el IPA en el listado de tareas:", errorIPA);
+      }
+    }
 
     res.json(result.rows);
   } catch (err) {
