@@ -2198,7 +2198,16 @@ app.get("/buscar-equipo/:serie", async (req, res) => {
         'solucion', m.solucion,
         'observacion', m.observacion,
         'asignado', m.asignado,
-        'fin', m.fin
+        'fin', m.fin,
+        'consumos', COALESCE((
+          SELECT json_agg(json_build_object(
+            'id', sc.id, 'codigo', si.codigo, 'descripcion', si.descripcion,
+            'cantidad', sc.cantidad, 'unidad', si.unidad, 'personal_nombre', sc.personal_nombre
+          ) ORDER BY sc.id)
+          FROM stock_consumos sc
+          JOIN stock_items si ON si.id = sc.item_id
+          WHERE sc.ric01_id = m.id
+        ), '[]'::json)
       )
       ORDER BY m.fecha DESC
     ),
