@@ -1037,6 +1037,56 @@ params.push(nombre, usuario);
   JSON.stringify(result.rows[0], null, 2)
 );
 
+    // IPA informativo en las listas de solicitudes del panel de supervisión.
+    // No modifica tareas, estados, filtros ni la estructura de la respuesta.
+    const seriesIPA = [...new Set(
+      result.rows.map((t) => String(t.numero_serie || "").trim().toUpperCase()).filter(Boolean)
+    )];
+
+    if (seriesIPA.length > 0) {
+      try {
+        const equiposIPA = await pool.query(`
+          WITH activos AS (
+            SELECT
+              UPPER(TRIM(COALESCE(descripcion, ''))) AS tipo,
+              UPPER(TRIM(COALESCE(servicio, ''))) AS servicio,
+              COUNT(*)::integer AS total
+            FROM equipos
+            WHERE UPPER(TRIM(COALESCE(estado, ''))) = 'ACTIVO'
+            GROUP BY 1, 2
+          )
+          SELECT e.numero_serie, e.descripcion, e.servicio, e.sub_servicio,
+            GREATEST(0, COALESCE(a.total, 0) -
+              CASE WHEN UPPER(TRIM(COALESCE(e.estado, ''))) = 'ACTIVO'
+                THEN 1 ELSE 0 END)::integer AS respaldos
+          FROM equipos e
+          LEFT JOIN activos a
+            ON a.tipo = UPPER(TRIM(COALESCE(e.descripcion, '')))
+           AND a.servicio = UPPER(TRIM(COALESCE(e.servicio, '')))
+          WHERE UPPER(TRIM(COALESCE(e.numero_serie, ''))) = ANY($1::text[])
+        `, [seriesIPA]);
+
+        const ipaPorSerie = new Map(
+          equiposIPA.rows.map((e) => [
+            String(e.numero_serie).trim().toUpperCase(),
+            calcularIPA({
+              descripcion: e.descripcion,
+              servicio: e.servicio,
+              subservicio: e.sub_servicio,
+              respaldos: Number(e.respaldos)
+            }).valor
+          ])
+        );
+
+        for (const tarea of result.rows) {
+          const serie = String(tarea.numero_serie || "").trim().toUpperCase();
+          if (ipaPorSerie.has(serie)) tarea.ipa = ipaPorSerie.get(serie);
+        }
+      } catch (errorIPA) {
+        console.error("No se pudo calcular IPA para el panel de supervisión:", errorIPA);
+      }
+    }
+
     res.json(
       result.rows.map((t) => ({
         ...t,
