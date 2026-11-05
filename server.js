@@ -836,8 +836,8 @@ if (req.personal?.rol === "superusuario") {
 
     FROM ric01 r
     LEFT JOIN usuarios u
-      ON r.usuario = u.mail
-      OR r.usuario = u.nombre
+      ON LOWER(TRIM(r.usuario)) = LOWER(TRIM(u.mail))
+      OR LOWER(TRIM(r.usuario)) = LOWER(TRIM(u.nombre))
 
     ORDER BY r.fecha DESC
   `);
@@ -889,8 +889,8 @@ if (req.personal?.rol === "superusuario") {
 
     FROM ric01 r
     LEFT JOIN usuarios u
-      ON r.usuario = u.mail
-      OR r.usuario = u.nombre
+      ON LOWER(TRIM(r.usuario)) = LOWER(TRIM(u.mail))
+      OR LOWER(TRIM(r.usuario)) = LOWER(TRIM(u.nombre))
 
     WHERE (
       (r.area = $1 AND r.reasignado_a IS NULL)
@@ -986,7 +986,7 @@ WHERE UPPER(TRIM(diagnostico)) = UPPER(TRIM(r.diagnostico))
   END AS soluciones_posibles
 
 FROM ric01 r
-LEFT JOIN usuarios u ON r.usuario = u.mail
+LEFT JOIN usuarios u ON LOWER(TRIM(r.usuario)) = LOWER(TRIM(u.mail)) OR LOWER(TRIM(r.usuario)) = LOWER(TRIM(u.nombre))
     `;
     let params = [];
 
