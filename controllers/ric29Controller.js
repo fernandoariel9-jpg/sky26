@@ -127,6 +127,14 @@ export async function guardarRIC29(req, res) {
 
       for (const item of energia) {
 
+        // Las mediciones declaradas como "No aplica" no generan filas.
+        if (item.no_aplica === true) continue;
+
+        const nominal = item.energia_nominal;
+        if (nominal === null || nominal === undefined || nominal === "") {
+          throw new Error("Una medición de energía no tiene valor nominal ni está marcada como No aplica.");
+        }
+
         await client.query(
           `
           INSERT INTO ric29_energia (
