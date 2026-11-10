@@ -14,6 +14,8 @@ import {
 // GUARDAR RIC29
 // ============================================================
 
+const numeroONull = (valor) => valor === "" || valor === null || valor === undefined ? null : Number(valor);
+
 export async function guardarRIC29(req, res) {
 
   const client = await pool.connect();
@@ -151,10 +153,10 @@ export async function guardarRIC29(req, res) {
           [
             ric29_id,
             item.energia_nominal || null,
-            item.resultado_medicion || null,
-            item.incertidumbre || null,
+            numeroONull(item.resultado_medicion),
+            numeroONull(item.incertidumbre),
             item.rango_min || null,
-            item.rango_max || null,
+            numeroONull(item.rango_max),
             item.conforme ?? null
           ]
         );
@@ -168,7 +170,7 @@ export async function guardarRIC29(req, res) {
     // 4. TIEMPO DE CARGA
     // --------------------------------------------------
 
-    if (carga) {
+    if (carga && carga.no_aplica !== true) {
 
       await client.query(
         `
@@ -185,9 +187,9 @@ export async function guardarRIC29(req, res) {
         [
           ric29_id,
           1,
-          carga.resultado_medicion ?? null,
-          carga.incertidumbre ?? 0.05,
-          carga.rango_max ?? 15,
+          numeroONull(carga.resultado_medicion),
+          numeroONull(carga.incertidumbre) ?? 0.05,
+          numeroONull(carga.rango_max) ?? 15,
           carga.conforme ?? null
         ]
       );
@@ -202,6 +204,8 @@ export async function guardarRIC29(req, res) {
     if (Array.isArray(bateria)) {
 
       for (const item of bateria) {
+
+        if (item.no_aplica === true) continue;
 
         await client.query(
           `
@@ -236,7 +240,7 @@ export async function guardarRIC29(req, res) {
     // 6. SINCRONISMO
     // --------------------------------------------------
 
-    if (sincronismo) {
+    if (sincronismo && sincronismo.no_aplica !== true) {
 
       await client.query(
         `
@@ -251,9 +255,9 @@ export async function guardarRIC29(req, res) {
         `,
         [
           ric29_id,
-          sincronismo.resultado_medicion || null,
-          sincronismo.incertidumbre || null,
-          sincronismo.rango_max || null,
+          numeroONull(sincronismo.resultado_medicion),
+          numeroONull(sincronismo.incertidumbre),
+          numeroONull(sincronismo.rango_max),
           sincronismo.conforme ?? null
         ]
       );
@@ -280,6 +284,8 @@ export async function guardarRIC29(req, res) {
 
       for (const item of mediciones) {
 
+        if (item.no_aplica === true) continue;
+
         await client.query(
           `
           INSERT INTO ric29_monitorizacion (
@@ -294,8 +300,8 @@ export async function guardarRIC29(req, res) {
           [
             ric29_id,
             item.frecuencia_nominal,
-            item.resultado_medicion ?? null,
-            item.incertidumbre ?? 3,
+            numeroONull(item.resultado_medicion),
+            numeroONull(item.incertidumbre) ?? 3,
             item.conforme ?? null
           ]
         );
