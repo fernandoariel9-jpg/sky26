@@ -44,7 +44,8 @@ export async function guardarRIC37(req, res) {
       medicion_corriente,
       resultado_general,
       observaciones,
-      determinaciones
+      determinaciones,
+      mediciones_partes_aplicables
     } = req.body;
 
     // RIC37 siempre debe quedar asociado a un mantenimiento RIC01.
@@ -176,6 +177,39 @@ export async function guardarRIC37(req, res) {
         ]
       );
 
+    }
+
+    // Las partes aplicables se almacenan en la misma tabla que las
+    // determinaciones, diferenciadas mediante tipo_registro.
+    for (const [index, item] of (mediciones_partes_aplicables || []).entries()) {
+      const noAplica = Boolean(item.no_aplica ?? item.noAplica);
+      await client.query(
+        `
+        INSERT INTO ric37_determinaciones (
+          ric37_id,
+          tipo_registro,
+          numero_medicion,
+          determinacion,
+          nombre,
+          medicion,
+          rango_aceptacion,
+          conforme,
+          no_aplica,
+          observaciones
+        )
+        VALUES ($1,'PARTE_APLICABLE',$2,NULL,$3,$4,$5,$6,$7,$8)
+        `,
+        [
+          ric37_id,
+          index + 1,
+          `Parte aplicable ${index + 1}`,
+          noAplica ? null : numeroDecimalONull(item.medicion, `parte aplicable ${index + 1} - medicion`),
+          numeroDecimalONull(item.rango_aceptacion ?? item.rango ?? 50, `parte aplicable ${index + 1} - rango_aceptacion`),
+          noAplica ? null : item.conforme ?? null,
+          noAplica,
+          item.observaciones || null
+        ]
+      );
     }
 
     await client.query("COMMIT");
