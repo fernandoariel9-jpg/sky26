@@ -45,8 +45,9 @@ router.get("/avances/:ric01Id", async (req, res) => {
       "SELECT ric01_id, codigo_ric, datos, estado, actualizado_en FROM public.ric_preventivo_avances WHERE ric01_id = $1",
       [req.params.ric01Id]
     );
-    if (!resultado.rowCount) return res.status(404).json({ error: "No existe avance guardado" });
-    res.json({ ok: true, avance: resultado.rows[0] });
+    // La ausencia de un borrador es un estado normal al iniciar un RIC.
+    // Devolver 200 evita falsos errores 404 en la consola del navegador.
+    res.json({ ok: true, avance: resultado.rows[0] || null });
   } catch (error) {
     console.error("Error obteniendo avance RIC:", error);
     res.status(500).json({ error: "No se pudo obtener el avance" });
