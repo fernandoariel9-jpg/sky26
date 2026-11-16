@@ -243,6 +243,8 @@ export async function obtenerDetalleRIC37(req, res) {
       `
       SELECT
         id,
+        tipo_registro,
+        numero_medicion,
         determinacion,
         nombre,
         medicion,
