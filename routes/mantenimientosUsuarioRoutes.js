@@ -6,7 +6,7 @@ const router = express.Router();
 // ============================================================
 // MANTENIMIENTO DE USUARIO (CHECKLIST QR)
 // ============================================================
-router.post("/mantenimientos-usuario", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const {
       equipo_id,
