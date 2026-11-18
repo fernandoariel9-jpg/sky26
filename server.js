@@ -23,6 +23,7 @@ import {
   procesarCallbackGoogle
 } from "./googleDrive.js";
 import ric29Routes from "./routes/ric29Routes.js";
+import mantenimientosUsuarioRoutes from "./routes/mantenimientosUsuarioRoutes.js";
 import { guardarRIC37, obtenerRIC37PorRic01 } from "./controllers/ric37Controller.js";
 import { calcularIPA } from "./controllers/ipaCatalogo.js";
 import {
@@ -1378,6 +1379,7 @@ app.put("/api/equipos/:id", async (req, res) => {
     // --------------------------------------------------------
 
 app.use("/api/ric29", ric29Routes);
+app.use("/api/mantenimientos-usuario", mantenimientosUsuarioRoutes);
 
 app.post("/api/ric44", guardarRIC44);
 
