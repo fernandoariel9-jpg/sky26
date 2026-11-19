@@ -15,7 +15,17 @@ CREATE TABLE IF NOT EXISTS public.au_cardio (
   fecha TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires'),
   personal_id INTEGER REFERENCES public.personal(id) ON DELETE SET NULL,
   tecnico TEXT NOT NULL,
-  resultado_general TEXT NOT NULL CHECK (resultado_general IN ('CONFORME', 'NO CONFORME')),
+  resultado_general TEXT NOT NULL CHECK (resultado_general IN ('CONFORME', 'NO CONFORME', 'PENDIENTE')),
+  mantenimiento_usuario_id INTEGER,
+  mantenimiento_usuario_fecha TIMESTAMP WITHOUT TIME ZONE,
+  mantenimiento_usuario_limpieza_ok BOOLEAN,
+  mantenimiento_usuario_integridad_ok BOOLEAN,
+  mantenimiento_usuario_verificacion_funcional_ok BOOLEAN,
+  mantenimiento_usuario_capacitacion_personal_ok BOOLEAN,
+  mantenimiento_usuario_observaciones TEXT,
+  mantenimiento_usuario_nombre TEXT,
+  mantenimiento_usuario_mail TEXT,
+  mantenimiento_usuario_tarea_id INTEGER,
   created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires')
 );
 
