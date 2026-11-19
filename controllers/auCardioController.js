@@ -132,7 +132,7 @@ export async function guardarAptitudCardio(req, res) {
       }
     }
 
-    const resultado = "PENDIENTE"; // La aptitud general requiere las cuatro etapas conformes.
+    const resultado = evaluaciones.some((item) => item.conforme === false) ? "NO CONFORME" : "PENDIENTE"; // Solo las cuatro etapas conformes permiten emitir APTO.
     const cabecera = await client.query(
       `INSERT INTO public.au_cardio
        (ric01_id, equipo_id, numero_serie, descripcion, marca_modelo, area, servicio, fecha, personal_id, tecnico, resultado_general, mantenimiento_usuario_id, mantenimiento_usuario_fecha, mantenimiento_usuario_limpieza_ok, mantenimiento_usuario_integridad_ok, mantenimiento_usuario_verificacion_funcional_ok, mantenimiento_usuario_capacitacion_personal_ok, mantenimiento_usuario_observaciones, mantenimiento_usuario_nombre, mantenimiento_usuario_mail, mantenimiento_usuario_tarea_id)
