@@ -3163,6 +3163,20 @@ app.post("/usuarios/login", async (req, res) => {
   }
 });
 // ---------- PERSONAL ----------
+app.get("/personal", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, nombre, mail AS usuario, area
+       FROM personal
+       ORDER BY nombre ASC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error obteniendo personal:", err);
+    res.status(500).json({ error: "Error al cargar personal" });
+  }
+});
+
 app.post("/personal", async (req, res) => {
   const { nombre, movil, mail, area, password } = req.body;
   try {
@@ -3185,95 +3199,146 @@ app.post("/personal/login", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, nombre, movil, mail, area, rol
+      `SELECT id, nombre, movil, mail, area, rol, password
        FROM personal
-       WHERE mail=$1 AND password=$2`,
-      [mail, password]
+       WHERE mail=$1`,
+      [mail]
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({
-        error: "Credenciales inválidas"
-      });
+      return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
     const personal = result.rows[0];
 
+    if (!personal.password) {
+      const resetToken = jwt.sign(
+        { personal_id: personal.id, purpose: "personal_password_reset" },
+        process.env.PERSONAL_JWT_SECRET,
+        { expiresIn: "15m" }
+      );
+      return res.json({ requiereNuevaPassword: true, resetToken });
+    }
+
+    const passwordValida = personal.password.startsWith("$2")
+      ? await bcrypt.compare(password || "", personal.password)
+      : personal.password === password;
+
+    if (!passwordValida) {
+      return res.status(401).json({ error: "Credenciales inválidas" });
+    }
+
     const token = jwt.sign(
-      {
-        personal_id: personal.id
-      },
+      { personal_id: personal.id },
       process.env.PERSONAL_JWT_SECRET,
-      {
-        expiresIn: "12h"
-      }
+      { expiresIn: "12h" }
     );
 
-    res.json({
-      ...personal,
-      token
-    });
-
+    const { password: _password, ...datosPersonal } = personal;
+    res.json({ ...datosPersonal, token });
   } catch (err) {
     console.error(err);
+    res.status(500).json({ error: "Error en login personal" });
+  }
+});
 
-    res.status(500).json({
-      error: "Error en login personal"
+app.post("/personal/establecer-password", async (req, res) => {
+  const { resetToken, password } = req.body;
+
+  if (!resetToken || typeof password !== "string" || password.length < 8) {
+    return res.status(400).json({
+      error: "Se requiere el código de recuperación y una contraseña de al menos 8 caracteres"
     });
+  }
+
+  try {
+    const payload = jwt.verify(resetToken, process.env.PERSONAL_JWT_SECRET);
+    if (payload.purpose !== "personal_password_reset" || !payload.personal_id) {
+      return res.status(401).json({ error: "Código de recuperación inválido" });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+    const result = await pool.query(
+      `UPDATE personal
+       SET password = $1
+       WHERE id = $2 AND (password IS NULL OR password = '')
+       RETURNING id, nombre, movil, mail, area, rol`,
+      [hash, payload.personal_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(409).json({
+        error: "La contraseña ya fue configurada o la cuenta no está disponible"
+      });
+    }
+
+    const personal = result.rows[0];
+    const token = jwt.sign(
+      { personal_id: personal.id },
+      process.env.PERSONAL_JWT_SECRET,
+      { expiresIn: "12h" }
+    );
+    res.json({ ...personal, token });
+  } catch (err) {
+    if (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError") {
+      return res.status(401).json({ error: "El código de recuperación venció. Volvé a ingresar." });
+    }
+    console.error("Error estableciendo contraseña personal:", err);
+    res.status(500).json({ error: "No se pudo establecer la contraseña" });
   }
 });
 
 app.put("/personal/:id", async (req, res) => {
   const { id } = req.params;
-  const { nombre, movil, area, password } = req.body;
+  const { nombre, usuario, area, password } = req.body;
 
-  // Validación mínima
   if (!nombre || !usuario || !area) {
     return res.status(400).json({
-      error: "Faltan datos obligatorios (nombre, usuario o área)",
+      error: "Faltan datos obligatorios (nombre, usuario o área)"
     });
   }
 
   try {
-    // 1️⃣ Actualizar datos básicos
-    await pool.query(
+    const result = await pool.query(
       `UPDATE personal
-       SET nombre = $1,
-           movil = $2,
-           area = $3
-       WHERE id = $4`,
+       SET nombre = $1, mail = $2, area = $3
+       WHERE id = $4
+       RETURNING id`,
       [nombre, usuario, area, id]
     );
 
-    // 2️⃣ Actualizar contraseña SOLO si viene
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+
     if (password && password.trim() !== "") {
       const hash = await bcrypt.hash(password, 10);
-
-      await pool.query(
-        `UPDATE personal
-         SET password = $1
-         WHERE id = $2`,
-        [hash, id]
-      );
+      await pool.query("UPDATE personal SET password = $1 WHERE id = $2", [hash, id]);
     }
 
-    res.json({
-      ok: true,
-      message: "Personal actualizado correctamente",
-    });
+    res.json({ ok: true, message: "Personal actualizado correctamente" });
   } catch (err) {
     console.error("Error actualizando personal:", err);
-
-    // Error de usuario duplicado (si usuario es UNIQUE)
     if (err.code === "23505") {
-      return res.status(409).json({
-        error: "El personal ya existe",
-      });
+      return res.status(409).json({ error: "El correo ya está registrado" });
     }
+    res.status(500).json({ error: "Error interno del servidor" });
+  }
+});
 
-    res.status(500).json({
-      error: "Error interno del servidor",
-    });
+app.patch("/personal/:id/blanquear-password", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE personal SET password = '' WHERE id = $1 RETURNING id",
+      [req.params.id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Personal no encontrado" });
+    }
+    res.json({ ok: true, message: "Contraseña blanqueada. Deberá crear una nueva al ingresar." });
+  } catch (err) {
+    console.error("Error blanqueando contraseña:", err);
+    res.status(500).json({ error: "No se pudo blanquear la contraseña" });
   }
 });
 
