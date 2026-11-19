@@ -45,6 +45,7 @@ import ric39Routes from "./routes/ric39Routes.js";
 import indicadoresRoutes from "./routes/indicadoresRoutes.js";
 import monitorConfiguracionRoutes from "./routes/monitorConfiguracionRoutes.js";
 import ricPreventivosRoutes from "./routes/ricPreventivosRoutes.js";
+import auCardioRoutes from "./routes/auCardioRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -228,6 +229,7 @@ app.use("/api/stock", stockRoutes);
 app.use("/api/indicadores", indicadoresRoutes);
 app.use("/api/monitor-indicadores", monitorConfiguracionRoutes);
 app.use("/api/ric-preventivos", ricPreventivosRoutes);
+app.use("/api/au-cardio", auCardioRoutes);
 app.use("/api/ric39", ric39Routes);
 app.use((req, res, next) => {
 
