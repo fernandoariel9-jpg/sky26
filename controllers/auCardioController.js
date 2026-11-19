@@ -166,6 +166,49 @@ export async function guardarAptitudCardio(req, res) {
   }
 }
 
+
+export async function obtenerUltimaAptitudCardio(req, res) {
+  const equipoId = Number(req.params.equipoId);
+  if (!Number.isInteger(equipoId) || equipoId <= 0) {
+    return res.status(400).json({ ok: false, error: "Identificador de equipo inválido." });
+  }
+
+  try {
+    const cabecera = await pool.query(
+      `SELECT id, ric01_id, equipo_id, numero_serie, descripcion, marca_modelo,
+              area, servicio, fecha, personal_id, tecnico, resultado_general,
+              mantenimiento_usuario_id, mantenimiento_usuario_fecha,
+              mantenimiento_usuario_limpieza_ok, mantenimiento_usuario_integridad_ok,
+              mantenimiento_usuario_verificacion_funcional_ok,
+              mantenimiento_usuario_capacitacion_personal_ok,
+              mantenimiento_usuario_observaciones, mantenimiento_usuario_nombre,
+              mantenimiento_usuario_mail, mantenimiento_usuario_tarea_id
+       FROM public.au_cardio
+       WHERE equipo_id = $1
+       ORDER BY fecha DESC NULLS LAST, id DESC
+       LIMIT 1`,
+      [equipoId]
+    );
+
+    if (!cabecera.rowCount) return res.json({ ok: true, evaluacion: null });
+
+    const evaluacion = cabecera.rows[0];
+    const mediciones = await pool.query(
+      `SELECT grupo, orden, parametro, valor_nominal, medicion, unidad,
+              rango_aceptacion, conforme, observaciones
+       FROM public.au_cardio_mediciones
+       WHERE au_cardio_id = $1
+       ORDER BY grupo, orden`,
+      [evaluacion.id]
+    );
+
+    return res.json({ ok: true, evaluacion: { ...evaluacion, mediciones: mediciones.rows } });
+  } catch (error) {
+    console.error("Error recuperando última AU Cardio:", error);
+    return res.status(500).json({ ok: false, error: "No se pudo recuperar la última evaluación AU Cardio." });
+  }
+}
+
 export async function eliminarAptitudCardio(req, res) {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ ok: false, error: "Identificador de evaluación inválido." });
