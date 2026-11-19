@@ -7,7 +7,7 @@ const dentroTolerancia = (medicion, nominal) => Number(medicion) >= Number(nomin
 export async function guardarAptitudCardio(req, res) {
   const client = await pool.connect();
   try {
-    const { equipo, ric01_id = null, mediciones } = req.body || {};
+    const { equipo, ric01_id = null, mantenimiento_usuario_id = null, mediciones } = req.body || {};
     if (!equipo?.id || !equipo?.numero_serie || !mediciones) {
       return res.status(400).json({ ok: false, error: "Faltan los datos de identificación del equipo o las mediciones." });
     }
@@ -104,6 +104,25 @@ export async function guardarAptitudCardio(req, res) {
       return res.status(409).json({ ok: false, error: "El equipo seleccionado no coincide con el registro de la base de datos." });
     }
 
+    if (!mantenimiento_usuario_id) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ ok: false, error: "No existe un mantenimiento de usuario conforme asociado a esta evaluación." });
+    }
+
+    const mantenimientoResult = await client.query(
+      "SELECT id, equipo_id, numero_serie, fecha, limpieza_ok, integridad_ok, verificacion_funcional_ok, capacitacion_personal_ok, observaciones, usuario_nombre, usuario_mail, tarea_id FROM public.mantenimientos_usuario WHERE id = $1 AND equipo_id = $2",
+      [mantenimiento_usuario_id, equipo.id]
+    );
+    if (!mantenimientoResult.rowCount) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ ok: false, error: "El mantenimiento de usuario seleccionado no corresponde al equipo." });
+    }
+    const mantenimiento = mantenimientoResult.rows[0];
+    const controlesMantenimiento = [mantenimiento.limpieza_ok, mantenimiento.integridad_ok, mantenimiento.verificacion_funcional_ok, mantenimiento.capacitacion_personal_ok];
+    if (!controlesMantenimiento.every((valor) => valor === true)) {
+      await client.query("ROLLBACK");
+      return res.status(409).json({ ok: false, error: "El último mantenimiento de usuario no está completamente conforme." });
+    }
     if (ric01_id) {
       const tarea = await client.query("SELECT id, numero_serie, equipo_id FROM public.ric01 WHERE id = $1", [ric01_id]);
       if (!tarea.rowCount || (tarea.rows[0].numero_serie && String(tarea.rows[0].numero_serie) !== String(equipo.numero_serie)) ||
@@ -113,14 +132,17 @@ export async function guardarAptitudCardio(req, res) {
       }
     }
 
-    const resultado = evaluaciones.every((item) => item.conforme) ? "CONFORME" : "NO CONFORME";
+    const resultado = "PENDIENTE"; // La aptitud general requiere las cuatro etapas conformes.
     const cabecera = await client.query(
       `INSERT INTO public.au_cardio
-       (ric01_id, equipo_id, numero_serie, descripcion, marca_modelo, area, servicio, fecha, personal_id, tecnico, resultado_general)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires',$8,$9,$10)
+       (ric01_id, equipo_id, numero_serie, descripcion, marca_modelo, area, servicio, fecha, personal_id, tecnico, resultado_general, mantenimiento_usuario_id, mantenimiento_usuario_fecha, mantenimiento_usuario_limpieza_ok, mantenimiento_usuario_integridad_ok, mantenimiento_usuario_verificacion_funcional_ok, mantenimiento_usuario_capacitacion_personal_ok, mantenimiento_usuario_observaciones, mantenimiento_usuario_nombre, mantenimiento_usuario_mail, mantenimiento_usuario_tarea_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
        RETURNING id, fecha, resultado_general`,
       [ric01_id || null, equipo.id, equipo.numero_serie, equipoDB.rows[0].descripcion, equipoDB.rows[0].marca_modelo,
-       equipoDB.rows[0].area, equipoDB.rows[0].servicio, req.personal.id, req.personal.nombre, resultado]
+       equipoDB.rows[0].area, equipoDB.rows[0].servicio, req.personal.id, req.personal.nombre, resultado,
+       mantenimiento.id, mantenimiento.fecha, mantenimiento.limpieza_ok, mantenimiento.integridad_ok,
+       mantenimiento.verificacion_funcional_ok, mantenimiento.capacitacion_personal_ok,
+       mantenimiento.observaciones, mantenimiento.usuario_nombre, mantenimiento.usuario_mail, mantenimiento.tarea_id]
     );
 
     for (const item of evaluaciones) {
