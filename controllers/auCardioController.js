@@ -159,36 +159,3 @@ export async function eliminarAptitudCardio(req, res) {
     res.status(500).json({ ok: false, error: "No se pudo eliminar la evaluación." });
   }
 }
-
-
-export async function obtenerUltimaAptitudCardio(req, res) {
-  const equipoId = Number(req.params.equipoId);
-  if (!Number.isInteger(equipoId) || equipoId <= 0) {
-    return res.status(400).json({ ok: false, error: "Identificador de equipo inválido." });
-  }
-  try {
-    const cabecera = await pool.query(
-      `SELECT id, ric01_id, equipo_id, numero_serie, descripcion, marca_modelo,
-              area, servicio, fecha, personal_id, tecnico, resultado_general
-       FROM public.au_cardio
-       WHERE equipo_id = $1
-       ORDER BY fecha DESC, id DESC
-       LIMIT 1`,
-      [equipoId]
-    );
-    if (!cabecera.rowCount) return res.json({ ok: true, evaluacion: null, mediciones: [] });
-    const mediciones = await pool.query(
-      `SELECT grupo, orden, parametro, valor_nominal, medicion, unidad,
-              rango_aceptacion, conforme, observaciones
-       FROM public.au_cardio_mediciones
-       WHERE au_cardio_id = $1
-       ORDER BY CASE grupo WHEN 'ENERGIA' THEN 1 WHEN 'SINCRONISMO' THEN 2
-         WHEN 'FORMA_ONDA' THEN 3 WHEN 'CARGA' THEN 4 ELSE 5 END, orden`,
-      [cabecera.rows[0].id]
-    );
-    return res.json({ ok: true, evaluacion: cabecera.rows[0], mediciones: mediciones.rows });
-  } catch (error) {
-    console.error("Error consultando última AU Cardio:", error);
-    return res.status(500).json({ ok: false, error: "No se pudo consultar la última evaluación del equipo." });
-  }
-}
