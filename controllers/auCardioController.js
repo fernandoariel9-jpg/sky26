@@ -7,7 +7,7 @@ const dentroTolerancia = (medicion, nominal) => Number(medicion) >= Number(nomin
 export async function guardarAptitudCardio(req, res) {
   const client = await pool.connect();
   try {
-    const { equipo, ric01_id = null, mantenimiento_usuario_id = null, mediciones } = req.body || {};
+    const { evaluacion_id = null, equipo, ric01_id = null, mantenimiento_usuario_id = null, mediciones } = req.body || {};
     if (!equipo?.id || !equipo?.numero_serie || !mediciones) {
       return res.status(400).json({ ok: false, error: "Faltan los datos de identificación del equipo o las mediciones." });
     }
@@ -133,28 +133,53 @@ export async function guardarAptitudCardio(req, res) {
     }
 
     const resultado = evaluaciones.some((item) => item.conforme === false) ? "NO CONFORME" : "PENDIENTE"; // Solo las cuatro etapas conformes permiten emitir APTO.
-    const cabecera = await client.query(
-      `INSERT INTO public.au_cardio
-       (ric01_id, equipo_id, numero_serie, descripcion, marca_modelo, area, servicio, fecha, personal_id, tecnico, resultado_general, mantenimiento_usuario_id, mantenimiento_usuario_fecha, mantenimiento_usuario_limpieza_ok, mantenimiento_usuario_integridad_ok, mantenimiento_usuario_verificacion_funcional_ok, mantenimiento_usuario_capacitacion_personal_ok, mantenimiento_usuario_observaciones, mantenimiento_usuario_nombre, mantenimiento_usuario_mail, mantenimiento_usuario_tarea_id)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
-       RETURNING id, fecha, resultado_general`,
-      [ric01_id || null, equipo.id, equipo.numero_serie, equipoDB.rows[0].descripcion, equipoDB.rows[0].marca_modelo,
-       equipoDB.rows[0].area, equipoDB.rows[0].servicio, req.personal.id, req.personal.nombre, resultado,
-       mantenimiento.id, mantenimiento.fecha, mantenimiento.limpieza_ok, mantenimiento.integridad_ok,
-       mantenimiento.verificacion_funcional_ok, mantenimiento.capacitacion_personal_ok,
-       mantenimiento.observaciones, mantenimiento.usuario_nombre, mantenimiento.usuario_mail, mantenimiento.tarea_id]
-    );
+    let cabecera;
+    if (evaluacion_id) {
+      cabecera = await client.query(
+        `UPDATE public.au_cardio
+         SET ric01_id=$1, numero_serie=$3, descripcion=$4, marca_modelo=$5, area=$6, servicio=$7,
+             personal_id=$8, tecnico=$9, resultado_general=$10, mantenimiento_usuario_id=$11,
+             mantenimiento_usuario_fecha=$12, mantenimiento_usuario_limpieza_ok=$13,
+             mantenimiento_usuario_integridad_ok=$14, mantenimiento_usuario_verificacion_funcional_ok=$15,
+             mantenimiento_usuario_capacitacion_personal_ok=$16, mantenimiento_usuario_observaciones=$17,
+             mantenimiento_usuario_nombre=$18, mantenimiento_usuario_mail=$19, mantenimiento_usuario_tarea_id=$20
+         WHERE id=$21 AND equipo_id=$2
+         RETURNING id, fecha, resultado_general`,
+        [ric01_id || null, equipo.id, equipo.numero_serie, equipoDB.rows[0].descripcion,
+         equipoDB.rows[0].marca_modelo, equipoDB.rows[0].area, equipoDB.rows[0].servicio,
+         req.personal.id, req.personal.nombre, resultado, mantenimiento.id, mantenimiento.fecha,
+         mantenimiento.limpieza_ok, mantenimiento.integridad_ok, mantenimiento.verificacion_funcional_ok,
+         mantenimiento.capacitacion_personal_ok, mantenimiento.observaciones, mantenimiento.usuario_nombre,
+         mantenimiento.usuario_mail, mantenimiento.tarea_id, evaluacion_id]
+      );
+      if (!cabecera.rowCount) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ ok: false, error: "No se encontró la evaluación AU Cardio indicada para este equipo." });
+      }
+      await client.query("DELETE FROM public.au_cardio_mediciones WHERE au_cardio_id=$1", [evaluacion_id]);
+    } else {
+      cabecera = await client.query(
+        `INSERT INTO public.au_cardio
+         (ric01_id,equipo_id,numero_serie,descripcion,marca_modelo,area,servicio,fecha,personal_id,tecnico,resultado_general,mantenimiento_usuario_id,mantenimiento_usuario_fecha,mantenimiento_usuario_limpieza_ok,mantenimiento_usuario_integridad_ok,mantenimiento_usuario_verificacion_funcional_ok,mantenimiento_usuario_capacitacion_personal_ok,mantenimiento_usuario_observaciones,mantenimiento_usuario_nombre,mantenimiento_usuario_mail,mantenimiento_usuario_tarea_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW() AT TIME ZONE 'America/Argentina/Buenos_Aires',$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+         RETURNING id,fecha,resultado_general`,
+        [ric01_id || null,equipo.id,equipo.numero_serie,equipoDB.rows[0].descripcion,equipoDB.rows[0].marca_modelo,
+         equipoDB.rows[0].area,equipoDB.rows[0].servicio,req.personal.id,req.personal.nombre,resultado,
+         mantenimiento.id,mantenimiento.fecha,mantenimiento.limpieza_ok,mantenimiento.integridad_ok,
+         mantenimiento.verificacion_funcional_ok,mantenimiento.capacitacion_personal_ok,mantenimiento.observaciones,
+         mantenimiento.usuario_nombre,mantenimiento.usuario_mail,mantenimiento.tarea_id]
+      );
+    }
 
     for (const item of evaluaciones) {
       await client.query(
         `INSERT INTO public.au_cardio_mediciones
-         (au_cardio_id, grupo, orden, parametro, valor_nominal, medicion, unidad, rango_aceptacion, conforme, observaciones)
+         (au_cardio_id,grupo,orden,parametro,valor_nominal,medicion,unidad,rango_aceptacion,conforme,observaciones)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-        [cabecera.rows[0].id, item.grupo, item.orden, item.parametro, item.valor_nominal,
-         item.medicion, item.unidad, item.rango_aceptacion, item.conforme, item.observaciones]
+        [cabecera.rows[0].id,item.grupo,item.orden,item.parametro,item.valor_nominal,item.medicion,
+         item.unidad,item.rango_aceptacion,item.conforme,item.observaciones]
       );
     }
-
     await client.query("COMMIT");
     return res.status(201).json({ ok: true, id: cabecera.rows[0].id, fecha: cabecera.rows[0].fecha, resultado_general: resultado });
   } catch (error) {
