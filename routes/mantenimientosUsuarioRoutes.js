@@ -53,6 +53,46 @@ async function notificarNuevaTarea(area, tarea) {
   }
 }
 
+
+/**
+ * Devuelve el último mantenimiento de usuario registrado para un equipo.
+ * Este historial es independiente de las evaluaciones AU Cardio.
+ */
+router.get("/equipo/:equipoId/ultimo", async (req, res) => {
+  const equipoId = Number(req.params.equipoId);
+  if (!Number.isInteger(equipoId) || equipoId <= 0) {
+    return res.status(400).json({ ok: false, error: "Identificador de equipo inválido." });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT
+         id,
+         equipo_id,
+         numero_serie,
+         fecha,
+         limpieza_ok,
+         integridad_ok,
+         verificacion_funcional_ok,
+         capacitacion_personal_ok,
+         observaciones,
+         usuario_nombre,
+         usuario_mail,
+         tarea_id
+       FROM public.mantenimientos_usuario
+       WHERE equipo_id = $1
+       ORDER BY fecha DESC NULLS LAST, id DESC
+       LIMIT 1`,
+      [equipoId]
+    );
+
+    return res.json({ ok: true, mantenimiento: result.rows[0] || null });
+  } catch (error) {
+    console.error("Error consultando último mantenimiento de usuario:", error);
+    return res.status(500).json({ ok: false, error: "No se pudo consultar el último mantenimiento de usuario." });
+  }
+});
+
 // ============================================================
 // MANTENIMIENTO DE USUARIO
 // Guarda el checklist y, si hay no conformidades, crea una
