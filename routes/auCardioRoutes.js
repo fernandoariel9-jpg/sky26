@@ -1,7 +1,7 @@
 import express from "express";
 import jwt from "jsonwebtoken";
 import pool from "../db.js";
-import { guardarAptitudCardio, eliminarAptitudCardio, obtenerUltimaAptitudCardio } from "../controllers/auCardioController.js";
+import { guardarAptitudCardio, eliminarAptitudCardio } from "../controllers/auCardioController.js";
 
 const router = express.Router();
 
@@ -21,7 +21,6 @@ router.use(async (req, res, next) => {
   }
 });
 
-router.get("/equipo/:equipoId/ultima", obtenerUltimaAptitudCardio);
 router.post("/", guardarAptitudCardio);
 router.delete("/:id", eliminarAptitudCardio);
 
