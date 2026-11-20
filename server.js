@@ -24,7 +24,7 @@ import {
 } from "./googleDrive.js";
 import ric29Routes from "./routes/ric29Routes.js";
 import mantenimientosUsuarioRoutes from "./routes/mantenimientosUsuarioRoutes.js";
-import { guardarRIC37, obtenerRIC37PorRic01 } from "./controllers/ric37Controller.js";
+import { guardarRIC37, obtenerRIC37PorRic01, obtenerUltimoRIC37PorEquipo } from "./controllers/ric37Controller.js";
 import { calcularIPA } from "./controllers/ipaCatalogo.js";
 import {
   guardarRIC44,
@@ -1394,6 +1394,7 @@ app.get("/api/ric44/:id", obtenerRIC44);
 app.post("/api/ric37", guardarRIC37);
 
 app.get("/api/ric37/por-ric01/:ric01Id", obtenerRIC37PorRic01);
+app.get("/api/ric37/por-equipo/:equipoId", obtenerUltimoRIC37PorEquipo);
 
 app.get("/api/ric37/:id", obtenerDetalleRIC37);
 
