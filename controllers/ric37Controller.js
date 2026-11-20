@@ -222,6 +222,30 @@ export async function guardarRIC37(req, res) {
 }
 
 
+export async function obtenerUltimoRIC37PorEquipo(req, res) {
+  try {
+    const equipoId = Number(req.params.equipoId);
+    if (!Number.isInteger(equipoId) || equipoId <= 0) {
+      return res.status(400).json({ ok: false, error: "equipo_id inválido" });
+    }
+    const result = await pool.query(
+      `SELECT id, equipo_id, resultado_general, fecha, tecnico
+       FROM ric37
+       WHERE equipo_id = $1
+       ORDER BY fecha DESC NULLS LAST, id DESC
+       LIMIT 1`,
+      [equipoId]
+    );
+    if (!result.rows.length) {
+      return res.json({ ok: true, realizado: false, ric37: null });
+    }
+    return res.json({ ok: true, realizado: true, ric37: result.rows[0] });
+  } catch (error) {
+    console.error("Error consultando último RIC37 por equipo:", error);
+    return res.status(500).json({ ok: false, error: "No se pudo consultar el último RIC37 del equipo" });
+  }
+}
+
 export async function obtenerRIC37PorRic01(req, res) {
   try {
     const ric01Id = Number(req.params.ric01Id);
