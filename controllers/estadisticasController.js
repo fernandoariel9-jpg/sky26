@@ -33,7 +33,9 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
         servicio,
         area,
         sub_servicio,
-        fecha_alta
+        fecha_alta,
+        ultimo_mant,
+        periodo
       FROM equipos
       WHERE numero_serie = $1
       LIMIT 1
@@ -313,7 +315,9 @@ export const obtenerEstadisticasEquipo = async (req, res) => {
         servicio: equipo.servicio,
         area: equipo.area,
         sub_servicio: equipo.sub_servicio,
-        fecha_alta: equipo.fecha_alta
+        fecha_alta: equipo.fecha_alta,
+        ultimo_mant: equipo.ultimo_mant,
+        periodo: equipo.periodo
       },
 
       mantenimientos,
